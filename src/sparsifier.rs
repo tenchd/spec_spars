@@ -252,8 +252,6 @@ impl Sparsifier {
 
     // returns probabilities for all off-diagonal nonzero entries in laplacian. placeholder for now
     pub fn get_probs(&self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
-        println!("is the matrix symmetric? {}", sprs::is_symmetric(&self.current_laplacian));
-
         //create a trivial solution via forward multiplication. for testing purposes, will remove later
         //NOTE: currently this call takes a LONG time. like 10-20 minutes. DIAGNOSE
         //let trivial_right_hand_side = create_trivial_rhs(self.num_nodes as usize, &self.current_laplacian);   
@@ -306,6 +304,10 @@ impl Sparsifier {
         coins
     }
 
+    pub fn sample_and_reweight(&mut self, probs: Vec<f64>) {
+        
+    }
+
     pub fn sparsify(&mut self, end_early: bool) {
         // this is dummy sparsifier code until i integrate it with the c++ code
         // apply diagonals to new triplet entries
@@ -313,10 +315,7 @@ impl Sparsifier {
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
         let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
 
-        println!("evim:");
-        for (value, (row, col)) in evim.iter() {
-            println!("{},{} has value {}", row, col, value);
-        }
+
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
         // println!("sketch:");
@@ -334,11 +333,6 @@ impl Sparsifier {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        println!("laplacian before sparsifying:");
-        for (value, (row, col)) in self.current_laplacian.iter(){
-            println!("{},{} has value {}", row, col, value);
-        }
-
         println!("checking diagonal after populating laplacian:");
         self.check_diagonal();
 
@@ -348,8 +342,8 @@ impl Sparsifier {
 
         let num_nnz = self.num_edges();
         // get probabilities for each edge
-        //let probs = (&self).get_probs(num_nnz, sketch_cols);
-        let probs = (&self).get_probs_dummy(num_nnz);
+        let probs = (&self).get_probs(num_nnz, sketch_cols);
+        //let probs = (&self).get_probs_dummy(num_nnz);
 
         let coins = Self::flip_coins(num_nnz);
         for i in probs.iter() {
@@ -373,6 +367,7 @@ impl Sparsifier {
         for (value, (row, col)) in self.current_laplacian.iter() {
             if (row > col) {
                 // actual value is the negative of what's in the off-diagonal. flip the sign so the following code is easier to read.
+                // actually this turned out to be more confusing. it's correct currently, but I should go back and carefully undo this.
                 let true_value = value*-1.0;
                 let is_sampled = outcomes[counter];
                 let prob = probs[counter];
@@ -399,19 +394,19 @@ impl Sparsifier {
         reweightings.process_diagonal();
         let csc_reweightings = reweightings.to_csc();
 
-        println!("reweightings before sparsifying:");
-        for (value, (row, col)) in csc_reweightings.iter(){
-            println!("{},{} has value {}", row, col, value);
-        }
+        // println!("reweightings before sparsifying:");
+        // for (value, (row, col)) in csc_reweightings.iter(){
+        //     println!("{},{} has value {}", row, col, value);
+        // }
 
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
 
         //self.current_laplacian = self.current_laplacian.add(&reweightings.to_csc());
 
-        println!("laplacian after sparsifying:");
-        for (value, (row, col)) in self.current_laplacian.iter(){
-            println!("{},{} has value {}", row, col, value);
-        }
+        // println!("laplacian after sparsifying:");
+        // for (value, (row, col)) in self.current_laplacian.iter(){
+        //     println!("{},{} has value {}", row, col, value);
+        // }
 
         println!("checking diagonal after sampling");
         self.check_diagonal();

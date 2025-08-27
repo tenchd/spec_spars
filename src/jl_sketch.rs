@@ -50,12 +50,13 @@ pub fn hash_with_inputs(seed: u64, input1: u64, input2: u64) -> i64 {
 }
 
 
-pub fn populate_matrix(input: &mut Array2<f64>, seed: u64) {
+pub fn populate_matrix(input: &mut Array2<f64>, seed: u64, jl_dim: usize) {
     let rows = input.dim().0;
     let cols = input.dim().1;
+    let scaling_factor = (jl_dim as f64).sqrt();
     for i in 0..rows {
         for j in 0..cols {
-            input[[i,j]] += hash_with_inputs(seed, i as u64, j as u64) as f64;
+            input[[i,j]] += (hash_with_inputs(seed, i as u64, j as u64) as f64) / scaling_factor;
         }
     }
 
@@ -70,14 +71,15 @@ pub fn populate_row(input: &mut Array1<f64>, row: usize, seed: u64){
 }
 */
 
-pub fn populate_row(input: &mut Array1<f64>, row: usize, col_start: usize, col_end: usize, seed: u64){
+pub fn populate_row(input: &mut Array1<f64>, row: usize, col_start: usize, col_end: usize, seed: u64, jl_dim: usize){
     //let cols = input.dim();
     //let col_end = col_start + cols;
     //println!("{},{}", col_start, col_end);
     let num_cols = col_end - col_start;
+    let scaling_factor = (jl_dim as f64).sqrt();
     for col in 0..num_cols {
         let actual_col = col+col_start; //have to hash actual column value which should be col+col_start
-        input[[col]] = hash_with_inputs(seed, row as u64, actual_col as u64) as f64; 
+        input[[col]] = (hash_with_inputs(seed, row as u64, actual_col as u64) as f64) / scaling_factor; 
     }
 }
 
@@ -89,8 +91,7 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
     let og_cols = og_matrix.dim().1;
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
-    populate_matrix(&mut sketch_matrix, seed);
-    //println!("{:?}", sketch_matrix);
+    populate_matrix(&mut sketch_matrix, seed, jl_dim);
     let result = og_matrix.dot(&sketch_matrix);
     /*
     println!("{:?}", og_matrix);
@@ -108,7 +109,7 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
     let og_cols = og_matrix.cols();
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
-    populate_matrix(&mut sketch_matrix, seed);
+    populate_matrix(&mut sketch_matrix, seed, jl_dim);
     let csr_sketch_matrix : CsMatI<f64, i32> = CsMatI::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
     let result = og_matrix.mul(&csr_sketch_matrix);
     /*
@@ -127,8 +128,9 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
     println!("creating sketch matrix with {} rows and {} cols", og_cols, jl_dim);
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
-    populate_matrix(&mut sketch_matrix, seed);
+    populate_matrix(&mut sketch_matrix, seed, jl_dim);
     println!("populated sketch matrix");
+    //println!("{:?}", sketch_matrix);
     let csr_sketch_matrix : CsMatI<f64, i32> = CsMatI::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
     println!("changed to sparse matrix");
     let result = og_matrix.mul(&csr_sketch_matrix);
@@ -176,7 +178,7 @@ pub fn jl_sketch_sparse_blocked(og_matrix: &CsMat<f64>, result_matrix: &mut CsMa
                 for index in og_matrix.indptr().outer_inds(sketch_row) {
                     let nonzero_row_index = og_matrix.indices()[index];
                     if display {println!("{} row index of nonzero in col {} of original matrix: {:?}", index, sketch_row, nonzero_row_index);}
-                    populate_row(&mut jl_temp_row, sketch_row, inner_cols_min, inner_cols_max, seed);
+                    populate_row(&mut jl_temp_row, sketch_row, inner_cols_min, inner_cols_max, seed, jl_dim);
                     if display {println!("{:?}", jl_temp_row);}
                     for k in 0..num_cols {
                         if display {println!("sketch_row={},index={},k={}",sketch_row,index,k);}

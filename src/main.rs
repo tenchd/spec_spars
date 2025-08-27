@@ -187,8 +187,8 @@ fn lap_test(input_filename: &str) {
 }
 
 fn main() {
-    //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-    let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
+    let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+    //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
     lap_test(input_filename);
     //solve_test();
 
