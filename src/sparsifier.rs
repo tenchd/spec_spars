@@ -263,31 +263,27 @@ impl Sparsifier {
                     diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
                 }
                 diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
+                // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
                 probs[nonzero_counter] *= ((self.beta as f64) * value).min(1.0);
                 nonzero_counter += 1;
             }
         }
 
-
-        // compute probs from diff norm: multiply by multiply by beta, then bound at 1
-        // for i in 0..length {
-        //     probs[i] *= ((self.beta as f64)*).min(1.0);
-        // }
-
         return probs;
-        
-        // // dummy version for testing
-        // vec![0.5; length]
     }
 
-    pub fn get_probs_dummy(length: usize) -> Vec<f64> {
+    pub fn get_probs_dummy(&self, length: usize) -> Vec<f64> {
         // dummy version for testing
         vec![0.5; length]
     }
 
     pub fn flip_coins(length: usize) -> Vec<f64> {
         let mut rng = rand::thread_rng();
-        let coins = vec![rng.gen_range(0.0..1.0); length];
+        //let coins = vec![rng.gen_range(0.0..1.0); length];
+        let mut coins = vec![0.0; length];
+        for i in 0..length {
+            coins[i] += rng.gen_range(0.0..1.0);
+        }
         coins
     }
 
@@ -298,17 +294,18 @@ impl Sparsifier {
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
         let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
 
-        // println!("evim:");
-        // for (value, (row, col)) in evim.iter() {
-        //     println!("{},{} has value {}", row, col, value);
-        // }
-        // let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
+        println!("evim:");
+        for (value, (row, col)) in evim.iter() {
+            println!("{},{} has value {}", row, col, value);
+        }
+        //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
         // println!("sketch:");
         // // why am i getting 0 values in the output for the following?
         // for (value, (row, col)) in sketch_cols.iter(){
         //     println!("{},{} has value {}", row, col, value);
         // }
+
         self.new_entries.process_diagonal();
         // get the new entries in csc format
         // improve this later; currently it clones the triplet object which uses extra memory
@@ -317,6 +314,12 @@ impl Sparsifier {
         self.new_entries.delete_state();
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
+
+        println!("laplacian before sparsifying:");
+        for (value, (row, col)) in self.current_laplacian.iter(){
+            println!("{},{} has value {}", row, col, value);
+        }
+
         println!("checking diagonal after populating laplacian:");
         self.check_diagonal();
 
@@ -330,20 +333,68 @@ impl Sparsifier {
         // janky check for integer rounding. i hang my head in shame
         assert_eq!(num_nnz*2, (self.current_laplacian.nnz()-diag_nnz));
         // get probabilities for each edge
-        let probs = (&self).get_probs(num_nnz, sketch_cols);
+        //let probs = (&self).get_probs(num_nnz, sketch_cols);
+        let probs = (&self).get_probs_dummy(num_nnz);
 
         let coins = Self::flip_coins(num_nnz);
+        for i in probs.iter() {
+            println!("{}", i);
+        }
+        for i in coins.iter() {
+            println!("{}", i);
+        }
         //encodes whether each edge survives sampling or not. True means it is sampled, False means it's not sampled
         let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();
+        
 
-        //TODO: add in edge reweighting step
+        for i in outcomes.iter() {
+            println!("{}", i);
+        }
+
+
+        let mut reweightings: Triplet = Triplet::new(self.num_nodes);
 
         let mut counter = 0;
         for (value, (row, col)) in self.current_laplacian.iter() {
-            let outcome = outcomes[counter];
-            let prob = probs[counter];
-            // still need to update entries in off-diagonal and diagonal. including reweighting. probably put this in a function
-            // just realized that updating both symmetric versions of elements forces row-order accesses in the upper diagonal. should optimize this eventually
+            if (row > col) {
+                // actual value is the negative of what's in the off-diagonal. flip the sign so the following code is easier to read.
+                let true_value = value*-1.0;
+                let is_sampled = outcomes[counter];
+                let prob = probs[counter];
+                if is_sampled {
+                    // should be bigger than true value because 0 < prob < 1
+                    let target_value = true_value/prob.sqrt();
+                    let additive_change = target_value - true_value;
+                    assert!(additive_change > 0.0);
+                    println!("{},{} stays, target value is {} so applying addition {} to existing value {}", row, col, target_value, additive_change, true_value);
+                    reweightings.insert(row, col, additive_change*-1.0);
+                }
+                else {
+                    // else the edge wasn't sampled so delete it with an "insertion" with opposite value, cancelling it out.
+                    reweightings.insert(row, col, true_value*-1.0);
+                }
+
+                counter +=1;
+            }
+        }
+
+
+
+        reweightings.process_diagonal();
+        let csc_reweightings = reweightings.to_csc();
+
+        println!("reweightings before sparsifying:");
+        for (value, (row, col)) in csc_reweightings.iter(){
+            println!("{},{} has value {}", row, col, value);
+        }
+
+        self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
+
+        //self.current_laplacian = self.current_laplacian.add(&reweightings.to_csc());
+
+        println!("laplacian after sparsifying:");
+        for (value, (row, col)) in self.current_laplacian.iter(){
+            println!("{},{} has value {}", row, col, value);
         }
 
         println!("checking diagonal after sampling");
@@ -370,6 +421,7 @@ impl Sparsifier {
             // check each column is sum 0. floating point error means you'll be a little off
             assert!(sum.abs_diff_eq(&0.0, 1e-10), "column where we messed up: {}. column sum: {}.", col_index, sum);
         }
-        println!("each column sums to 0. diagonal check passed.");
+        assert!(sprs::is_symmetric(&self.current_laplacian));
+        println!("each column sums to 0. matrix is symmetric. diagonal check passed.");
     }
 }
