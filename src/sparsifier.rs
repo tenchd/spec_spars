@@ -438,6 +438,6 @@ impl Sparsifier {
             assert!(sum.abs_diff_eq(&0.0, 1e-10), "column where we messed up: {}. column sum: {}.", col_index, sum);
         }
         assert!(sprs::is_symmetric(&self.current_laplacian));
-        println!("each column sums to 0. matrix is symmetric. diagonal check passed.");
+        println!("laplacian matrix: each column sums to 0. matrix is symmetric. format check PASSED.");
     }
 }

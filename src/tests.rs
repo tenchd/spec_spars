@@ -82,6 +82,7 @@ mod tests {
 
         // create EVIM representation
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
+        let evim_nnz = evim.nnz();
 
         // create diagonal values for new entries
         sparsifier.new_entries.process_diagonal();
@@ -91,6 +92,10 @@ mod tests {
         sparsifier.new_entries.delete_state();
         // add the new entries to the laplacian
         sparsifier.current_laplacian = sparsifier.current_laplacian.add(&new_stuff);
+
+        let lap_nnz = sparsifier.num_edges()*2;
+
+        assert_eq!(evim_nnz, lap_nnz);
 
         for (edge_number, edge_vec) in evim.outer_iterator().enumerate() {
             //println!("{}", edge_number);
@@ -109,6 +114,7 @@ mod tests {
             let lap_value = *sparsifier.current_laplacian.get(row, col).unwrap();
             assert!(lap_value == value);
         }
+        println!("evim and lap equivalent");
         sparsifier.check_diagonal();
     }
 
