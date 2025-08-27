@@ -1,4 +1,4 @@
-use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
+use sprs::{CsMatI, CsMatBase, CsVecI, TriMatBase, TriMatI};
 use std::ops::Add;
 use rand::Rng;
 use approx::AbsDiffEq;
@@ -96,7 +96,7 @@ impl Triplet {
             evim_triplets.row_indices.push(self.row_indices[index]);
             evim_triplets.values.push(self.values[index]);
         }
-        let evim_trip_form: TriMatBase<Vec<i32>, Vec<f64>>  = TriMatI::<f64, i32>::from_triplets((evim_triplets.num_nodes as usize, evim_triplets.col_indices.len() as usize), evim_triplets.row_indices, evim_triplets.col_indices, evim_triplets.values);
+        let evim_trip_form: TriMatBase<Vec<i32>, Vec<f64>>  = TriMatI::<f64, i32>::from_triplets((evim_triplets.num_nodes as usize, end), evim_triplets.row_indices, evim_triplets.col_indices, evim_triplets.values);
         let evim_csc_form: CsMatBase<f64, i32, Vec<i32>, Vec<i32>, Vec<f64>, _> = evim_trip_form.to_csc();
         evim_csc_form
     }
@@ -184,6 +184,25 @@ impl Sparsifier {
         <usize as TryInto<i32>>::try_into(self.current_laplacian.nnz()).unwrap()  // total nonzeros in laplacian
         
     }
+
+    // returns number of edges represented in current laplacian, not counting diagonal entries.
+    pub fn num_edges(&self) -> usize {
+        let diag = self.current_laplacian.diag();
+        let diag_nnz = diag.nnz();
+        let num_nnz = (self.current_laplacian.nnz() - diag_nnz) / 2;
+        // janky check for integer rounding. i hang my head in shame
+        assert_eq!(num_nnz*2, (self.current_laplacian.nnz()-diag_nnz));
+        num_nnz
+    }
+
+    // returns total sum of diagonal values, used for correctness testing
+    // pub fn diagonal_weight(&self) -> f64 {
+    //     let diag = self.current_laplacian.diag();
+    //     let ones_indices = (0..self.num_nodes as usize).collect();
+    //     let ones_values = vec![1; self.num_nodes.try_into().unwrap()];
+    //     let ones = CsVecI::new(self.num_nodes.try_into().unwrap(), ones_indices, ones_values);
+    //     return diag.dot(&ones);
+    // }
 
     // inserts an edge into the sparsifier. if this makes the size of the sparsifier cross the threshold, trigger sparsification.
     pub fn insert(&mut self, v1: i32, v2: i32, value: f64) {
@@ -327,11 +346,7 @@ impl Sparsifier {
             return;
         }
 
-        let diag = self.current_laplacian.diag();
-        let diag_nnz = diag.nnz();
-        let num_nnz = (self.current_laplacian.nnz() - diag_nnz) / 2;
-        // janky check for integer rounding. i hang my head in shame
-        assert_eq!(num_nnz*2, (self.current_laplacian.nnz()-diag_nnz));
+        let num_nnz = self.num_edges();
         // get probabilities for each edge
         //let probs = (&self).get_probs(num_nnz, sketch_cols);
         let probs = (&self).get_probs_dummy(num_nnz);
@@ -364,13 +379,14 @@ impl Sparsifier {
                 if is_sampled {
                     // should be bigger than true value because 0 < prob < 1
                     let target_value = true_value/prob.sqrt();
-                    let additive_change = target_value - true_value;
-                    assert!(additive_change > 0.0);
+                    let additive_change = true_value - target_value;
+                    assert!(additive_change < 0.0);
                     println!("{},{} stays, target value is {} so applying addition {} to existing value {}", row, col, target_value, additive_change, true_value);
                     reweightings.insert(row, col, additive_change*-1.0);
                 }
                 else {
                     // else the edge wasn't sampled so delete it with an "insertion" with opposite value, cancelling it out.
+                    println!("{},{} is deleted, so apply addition {} to existing value {}", row, col, -1.0*true_value, true_value);
                     reweightings.insert(row, col, true_value*-1.0);
                 }
 
