@@ -62,19 +62,7 @@ pub fn populate_matrix(input: &mut Array2<f64>, seed: u64, jl_dim: usize) {
 
 }
 
-/* old and busted 
-pub fn populate_row(input: &mut Array1<f64>, row: usize, seed: u64){
-    let cols = input.dim();
-    for col in 0..cols {
-        input[[col]] = hash_with_inputs(seed, row as u64, col as u64) as f64;
-    }
-}
-*/
-
 pub fn populate_row(input: &mut Array1<f64>, row: usize, col_start: usize, col_end: usize, seed: u64, jl_dim: usize){
-    //let cols = input.dim();
-    //let col_end = col_start + cols;
-    //println!("{},{}", col_start, col_end);
     let num_cols = col_end - col_start;
     let scaling_factor = (jl_dim as f64).sqrt();
     for col in 0..num_cols {
@@ -104,13 +92,29 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
 // this function JL sketches a sparse encoding of the input matrix and outputs in a sparse format as well. 
 // it doesn't do blocked operations though, so it's still not scalable because it represents the entire
 // dense sketch matrix at all times.
- pub fn jl_sketch_sparse(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed: u64) -> CsMatI<f64, i32> {
+ pub fn jl_sketch_sparse_i32(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed: u64) -> CsMatI<f64, i32> {
     let og_rows = og_matrix.rows();
     let og_cols = og_matrix.cols();
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
     populate_matrix(&mut sketch_matrix, seed, jl_dim);
     let csr_sketch_matrix : CsMatI<f64, i32> = CsMatI::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
+    let result = og_matrix.mul(&csr_sketch_matrix);
+    /*
+    println!("{:?}", og_matrix);
+    println!("{:?}", sketch_matrix);
+    println!("{:?}", result);
+    */
+    result
+ }
+
+  pub fn jl_sketch_sparse(og_matrix: &CsMat<f64>, jl_factor: f64, seed: u64) -> CsMat<f64> {
+    let og_rows = og_matrix.rows();
+    let og_cols = og_matrix.cols();
+    let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
+    let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
+    populate_matrix(&mut sketch_matrix, seed, jl_dim);
+    let csr_sketch_matrix : CsMat<f64> = CsMat::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
     let result = og_matrix.mul(&csr_sketch_matrix);
     /*
     println!("{:?}", og_matrix);
@@ -154,7 +158,7 @@ pub fn jl_sketch_sparse_blocked(og_matrix: &CsMat<f64>, result_matrix: &mut CsMa
     // make sure you don't set a bigger window size than the JL sketch matrix in either dimension
     let block_row_size = min(og_rows, block_rows);
     let block_col_size = min(jl_dim, block_cols);
-    println!("hi");
+    
     for i in (0..og_cols).step_by(block_row_size){
         print!(".");
         for j in (0..jl_dim).step_by(block_col_size){

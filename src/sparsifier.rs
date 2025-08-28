@@ -308,7 +308,7 @@ impl Sparsifier {
         
     }
 
-    pub fn sparsify(&mut self, end_early: bool) {
+    pub fn sparsify(&mut self, end_early: bool, test: bool) {
         // this is dummy sparsifier code until i integrate it with the c++ code
         // apply diagonals to new triplet entries
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
@@ -342,23 +342,28 @@ impl Sparsifier {
 
         let num_nnz = self.num_edges();
         // get probabilities for each edge
-        let probs = (&self).get_probs(num_nnz, sketch_cols);
-        //let probs = (&self).get_probs_dummy(num_nnz);
+        let mut probs = vec![];
+        if test {
+            probs = (&self).get_probs_dummy(num_nnz);
+        }
+        else {
+            probs = (&self).get_probs(num_nnz, sketch_cols);
+        }
 
         let coins = Self::flip_coins(num_nnz);
-        for i in probs.iter() {
-            println!("{}", i);
-        }
-        for i in coins.iter() {
-            println!("{}", i);
-        }
+        // for i in probs.iter() {
+        //     println!("{}", i);
+        // }
+        // for i in coins.iter() {
+        //     println!("{}", i);
+        // }
         //encodes whether each edge survives sampling or not. True means it is sampled, False means it's not sampled
         let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();
         
 
-        for i in outcomes.iter() {
-            println!("{}", i);
-        }
+        // for i in outcomes.iter() {
+        //     println!("{}", i);
+        // }
 
 
         let mut reweightings: Triplet = Triplet::new(self.num_nodes);
@@ -376,12 +381,12 @@ impl Sparsifier {
                     let target_value = true_value/prob.sqrt();
                     let additive_change = true_value - target_value;
                     assert!(additive_change < 0.0);
-                    println!("{},{} stays, target value is {} so applying addition {} to existing value {}", row, col, target_value, additive_change, true_value);
+                    //println!("{},{} stays, target value is {} so applying addition {} to existing value {}", row, col, target_value, additive_change, true_value);
                     reweightings.insert(row, col, additive_change*-1.0);
                 }
                 else {
                     // else the edge wasn't sampled so delete it with an "insertion" with opposite value, cancelling it out.
-                    println!("{},{} is deleted, so apply addition {} to existing value {}", row, col, -1.0*true_value, true_value);
+                    //println!("{},{} is deleted, so apply addition {} to existing value {}", row, col, -1.0*true_value, true_value);
                     reweightings.insert(row, col, true_value*-1.0);
                 }
 
@@ -433,6 +438,6 @@ impl Sparsifier {
             assert!(sum.abs_diff_eq(&0.0, 1e-10), "column where we messed up: {}. column sum: {}.", col_index, sum);
         }
         assert!(sprs::is_symmetric(&self.current_laplacian));
-        println!("laplacian matrix: each column sums to 0. matrix is symmetric. format check PASSED.");
+        //println!("laplacian matrix: each column sums to 0. matrix is symmetric. format check PASSED.");
     }
 }

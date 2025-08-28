@@ -46,7 +46,7 @@ impl InputStream {
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
-        sparsifier.sparsify(false);
+        sparsifier.sparsify(false, false);
 
         // for (value, (row, col)) in self.input_matrix.iter() {
         //     let check_value = sparsifier.current_laplacian.get(row as usize, col as usize).unwrap();

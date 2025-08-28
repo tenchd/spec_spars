@@ -73,15 +73,15 @@ impl FlattenedVec {
     }
 }
 
-fn jl_sketch_dataset(input_filename: &str, output_filename: &str, jl_factor: f64, seed: u64){
-    //be careful about jl sketch dimensions now that i'm adding a row and col to the laplacian. check this later
-    let input_csc = read_mtx(input_filename, false);
+// fn jl_sketch_dataset(input_filename: &str, output_filename: &str, jl_factor: f64, seed: u64){
+//     //be careful about jl sketch dimensions now that i'm adding a row and col to the laplacian. check this later
+//     let input_csc = read_mtx(input_filename, false);
 
-    let output_csc = jl_sketch_sparse(&input_csc, jl_factor, seed);
-    let dense_output = output_csc.to_dense().reversed_axes();
-    write_csv(output_filename, &dense_output);
+//     let output_csc = jl_sketch_sparse(&input_csc, jl_factor, seed);
+//     let dense_output = output_csc.to_dense().reversed_axes();
+//     write_csv(output_filename, &dense_output);
 
-}
+// }
 
 // currently assumes that you don't need to manage diagonals of input matrix. fix this later
 fn precondition_and_solve(input_filename: &str, sketch_filename: &str, seed: u64, jl_factor: f64, block_rows: usize, block_cols: usize, display: bool, add_node: bool) -> FlattenedVec {
