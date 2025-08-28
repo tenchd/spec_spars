@@ -18,11 +18,13 @@ mod stream;
 mod tests;
 
 use utils::{read_mtx, write_mtx, write_csv, read_vecs_from_file_flat, make_fake_jl_col,create_trivial_rhs};
-use jl_sketch::{jl_sketch_sparse,jl_sketch_sparse_blocked};
+use jl_sketch::{jl_sketch_sparse,jl_sketch_sparse_blocked,populate_matrix};
 use sparsifier::{Sparsifier,Triplet};
 use stream::InputStream;
 use crate::ffi::FlattenedVec;
+use crate::tests::{make_random_matrix, make_random_evim_matrix};
 use ndarray::Array2;
+
 
 #[cxx::bridge]
 mod ffi {
@@ -186,11 +188,43 @@ fn lap_test(input_filename: &str) {
     stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
 }
 
+fn jl_visualize() {
+    let seed: u64 = 1;
+    let jl_factor: f64 = 1.5;
+    let num_rows = 10;
+    let num_cols = 10;
+    let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
+    let nnz = 25;
+    let csc = true;
+    let small_example = make_random_evim_matrix(num_rows, num_cols, csc);
+    println!("Example EVIM matrix:");
+    for (col_num, col_vec) in small_example.outer_iterator().enumerate(){
+        print!("Col {}:  ", col_num);
+        for (row_num, value) in col_vec.iter() {
+            print!("row {}, val {:.2}.  ", row_num, value);
+        }
+        println!("");
+    }
+    let mut sketch_matrix: Array2<f64> = Array2::zeros((num_cols,jl_dim)); 
+    populate_matrix(&mut sketch_matrix, seed, jl_dim);
+    
+    let rows = sketch_matrix.dim().0;
+    let cols = sketch_matrix.dim().1;
+    println!("Example sketch matrix:");
+    println!("should be -1 or 1 uniformly at random divided by sqrt(jl_dim).");
+    println!("jl_dim is {}, sqrt(jl_dim) is {}, 1/sqrt(jl_dim) is {}", jl_dim, (jl_dim as f64).sqrt(), 1.0/(jl_dim as f64).sqrt());
+    for i in 0..rows {
+        for j in 0..cols {
+            print!("{} ", sketch_matrix[[i,j]]);
+        }
+        println!("");
+    }
+}
+
 fn main() {
     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
     lap_test(input_filename);
-    //solve_test();
+    //jl_visualize();
 
-    //println!("{:?}", create_trivial_rhs(10));
 }

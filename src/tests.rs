@@ -22,6 +22,23 @@ pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: boo
     trip.to_csr()
 }
 
+pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> CsMat<f64> {
+    let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
+    let mut rng = rand::thread_rng();
+    let uniform = Uniform::new(0.0, 1.0);
+    for i in 0..num_cols {
+        let endpoint1 = rng.gen_range(0..num_rows-1);
+        let endpoint2 = rng.gen_range(endpoint1+1..num_rows);
+        let value = uniform.sample(&mut rng);
+        trip.add_triplet(endpoint1, i, value);
+        trip.add_triplet(endpoint2, i, -1.0*value);
+    }
+    if csc {
+        return trip.to_csc();
+    }
+    trip.to_csr()
+}
+
 // pub fn make_random_matrix_i32(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMatI<f64, i32> {
 //     let mut trip: TriMatI<f64, i32> = TriMat::new((num_rows, num_cols));
 //     let mut rng = rand::thread_rng();
@@ -249,15 +266,11 @@ mod tests {
         let mut sparse_blocked:CsMat<f64> = CsMat::zero((num_cols, jl_dim)).into_csc();
         jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
 
-        // for (value, (row, col)) in sparse_nonblocked.iter() {
-        //     let blocked_value: f64 = sparse_blocked.get(row,col).unwrap();
-        //     assert!(value == blocked_value);
-        // }
-
         assert!(sparse_blocked == sparse_nonblocked);
 
     }
 
+    // TODO: test where 
 
 
 

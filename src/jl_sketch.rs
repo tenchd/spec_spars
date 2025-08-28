@@ -136,7 +136,7 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
     println!("populated sketch matrix");
     //println!("{:?}", sketch_matrix);
     let csr_sketch_matrix : CsMatI<f64, i32> = CsMatI::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
-    println!("changed to sparse matrix");
+    //println!("changed to sparse matrix");
     let result = og_matrix.mul(&csr_sketch_matrix);
     println!("performed multiplication");
     /*
