@@ -585,6 +585,7 @@ std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
         jl_cols.at(current_column).at(current_row) = s;
         counter += 1;
     }
+
     return jl_cols;
 }
 
@@ -666,6 +667,13 @@ void sprs_correctness_test(rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom
     //std::cout << "Size of int: " << sizeof(int) * 8 << " bits" << std::endl;
 }
 
+
+// test function for ensuring that flattenedvec data is passed appropriately
+FlattenedVec test_roll(FlattenedVec jl_cols) {
+    std::vector<std::vector<double>> unrolled = unroll_vector(jl_cols);
+    FlattenedVec rerolled = flatten_vector(unrolled);
+    return rerolled;
+}
 
 // function that runs the solver code on rust-provided laplacian and jl sketch.
 FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \

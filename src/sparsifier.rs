@@ -1,3 +1,4 @@
+use ndarray::concatenate;
 use sprs::{CsMatI, CsMatBase, CsVecI, TriMatBase, TriMatI};
 use std::ops::Add;
 use rand::Rng;
@@ -314,7 +315,7 @@ impl Sparsifier {
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
         let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
-
+        println!("value 1: {} value 2: {}", sketch_cols.vec.get(501).unwrap(), sketch_cols.vec.get(501+sketch_cols.num_rows).unwrap());
 
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 

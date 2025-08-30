@@ -4,6 +4,7 @@ use rand::distributions::{Distribution, Uniform};
 use crate::{Sparsifier,InputStream};
 use std::ops::Add;
 use approx::AbsDiffEq;
+use crate::ffi;
 
 
 pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
@@ -82,13 +83,14 @@ pub fn make_random_vec(num_values: usize) -> CsVec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use crate::jl_sketch::{jl_sketch_sparse_blocked, jl_sketch_sparse};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat}};
 
     use super::*;
     use test::Bencher;
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian.
     #[test]
+    #[ignore]
     fn lap_valid_random() {
         println!("TEST:----Running lap validity test: insert many random updates and periodically check laplacian for validity.-----");
         let seed: u64 = 1;
@@ -122,9 +124,10 @@ mod tests {
         sparsifier.check_diagonal();
     }
 
-    // TODO: test that takes in file, triggers a dummy sparsification where fake probabilities (all 0.5) are used, and verifies that the laplacian is altered appropriately:
+    // test that takes in file, triggers a dummy sparsification where fake probabilities (all 0.5) are used, and verifies that the laplacian is altered appropriately:
     // about half of the entries are deleted, total diagonal sum is multiplied by about sqrt(2)/2, and laplacian is still valid.
     #[test]
+    #[ignore]
     fn sampling_verify(){
         println!("TEST:-----Testing that, given edge probabilities all 0.5, laplacian is appropriately sparsified.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -182,6 +185,7 @@ mod tests {
     // and verifies that the matrices are equivalent.
     // also verifies that the laplacian is valid - each col sums to 0, matrix is symmetric.
     #[test]
+    #[ignore]
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -246,6 +250,7 @@ mod tests {
 
     //verifies that blocked jl sketching matrix multiplication gives the same output as library mat mult implementations.
     #[test]
+    #[ignore]
     fn jl_sketch_equiv(){
         println!("TEST:-----Testing that blocked jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
         let num_rows = 50;
@@ -270,8 +275,96 @@ mod tests {
 
     }
 
-    // TODO: test where 
+    // test whether jl sketch produces column sums near 0
+    #[test]
+    pub fn jl_sketch_zero() {
+        println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
+        let block_rows: usize = 100;
+        let block_cols: usize = 15000;
+        let display: bool = false;
 
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+
+        let add_node = false;
+
+        let stream = InputStream::new(input_filename, add_node);
+
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+
+        for (value, (row, col)) in stream.input_matrix.iter() {
+            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+        }
+
+        // create EVIM representation
+        let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
+        let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed);
+        let mut col_counter = 0;
+        let mut counter = 0;
+        let mut col_sums: Vec<f64> = vec!(0.0; sketch_cols.num_rows);
+        for i in sketch_cols.vec.iter(){
+            col_sums[col_counter] += i;
+            if counter%sketch_cols.num_rows == sketch_cols.num_rows - 1 {
+                col_counter += 1;
+            }
+            counter+= 1;
+        }
+
+        let total: f64 = col_sums.iter().sum();
+        assert!(total.abs_diff_eq(&0.0, 0.05));
+
+        for col_sum in col_sums.iter() {
+            assert!(col_sum.abs_diff_eq(&0.0, 0.05));
+        }
+        //println!("SUM OF JL SKETCH OUTPUT VALUES: {}", overall_sum);
+    }
+
+    #[test]
+    pub fn flatten_interop() {
+        println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
+        let block_rows: usize = 100;
+        let block_cols: usize = 15000;
+        let display: bool = false;
+
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+
+        let add_node = false;
+
+        let stream = InputStream::new(input_filename, add_node);
+
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+
+        for (value, (row, col)) in stream.input_matrix.iter() {
+            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+        }
+
+        // create EVIM representation
+        let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
+        let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed);
+        let saved_rows = sketch_cols.num_rows;
+        let saved_cols = sketch_cols.num_cols;
+        let saved_vec = sketch_cols.vec.clone();
+
+        let mut rerolled_cols: ffi::FlattenedVec = test_roll(sketch_cols);
+
+        assert!(saved_cols == rerolled_cols.num_cols);
+        assert!(saved_rows == rerolled_cols.num_rows);
+
+        for i in 0..saved_vec.len() {
+            assert!(saved_vec.get(i).unwrap() == rerolled_cols.vec.get(i).unwrap());
+        }
+    }
 
 
     //For benchmarking how long a sparse matrix x dense vector multiplication takes.

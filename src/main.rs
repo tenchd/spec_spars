@@ -42,6 +42,8 @@ mod ffi {
 
         fn go(shared_jl_cols: FlattenedVec) -> FlattenedVec;
 
+        fn test_roll(jl_cols: FlattenedVec) -> FlattenedVec;
+
         fn sprs_test(col_ptrs: Vec<usize>, row_indices: Vec<usize>, values: Vec<f64>);
 
         fn sprs_correctness_test(col_ptrs: Vec<i32>, row_indices: Vec<i32>, values: Vec<f64>);
@@ -189,22 +191,22 @@ fn lap_test(input_filename: &str) {
 }
 
 fn jl_visualize() {
-    let seed: u64 = 1;
+    let seed: u64 = 2;
     let jl_factor: f64 = 1.5;
-    let num_rows = 10;
-    let num_cols = 10;
+    let num_rows = 10000;
+    let num_cols = 10000;
     let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
-    let nnz = 25;
-    let csc = true;
-    let small_example = make_random_evim_matrix(num_rows, num_cols, csc);
-    println!("Example EVIM matrix:");
-    for (col_num, col_vec) in small_example.outer_iterator().enumerate(){
-        print!("Col {}:  ", col_num);
-        for (row_num, value) in col_vec.iter() {
-            print!("row {}, val {:.2}.  ", row_num, value);
-        }
-        println!("");
-    }
+    //let nnz = 25;
+    //let csc = true;
+    // let small_example = make_random_evim_matrix(num_rows, num_cols, csc);
+    // println!("Example EVIM matrix:");
+    // for (col_num, col_vec) in small_example.outer_iterator().enumerate(){
+    //     print!("Col {}:  ", col_num);
+    //     for (row_num, value) in col_vec.iter() {
+    //         print!("row {}, val {:.2}.  ", row_num, value);
+    //     }
+    //     println!("");
+    // }
     let mut sketch_matrix: Array2<f64> = Array2::zeros((num_cols,jl_dim)); 
     populate_matrix(&mut sketch_matrix, seed, jl_dim);
     
@@ -213,12 +215,15 @@ fn jl_visualize() {
     println!("Example sketch matrix:");
     println!("should be -1 or 1 uniformly at random divided by sqrt(jl_dim).");
     println!("jl_dim is {}, sqrt(jl_dim) is {}, 1/sqrt(jl_dim) is {}", jl_dim, (jl_dim as f64).sqrt(), 1.0/(jl_dim as f64).sqrt());
+    let mut sum = 0.0;
     for i in 0..rows {
         for j in 0..cols {
-            print!("{} ", sketch_matrix[[i,j]]);
+            //print!("{} ", sketch_matrix[[i,j]]);
+            sum += sketch_matrix[[i,j]];
         }
-        println!("");
+        //println!("");
     }
+    println!("sum of sketch matrix entries = {}", sum);
 }
 
 fn main() {
@@ -226,5 +231,4 @@ fn main() {
     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
     lap_test(input_filename);
     //jl_visualize();
-
 }
