@@ -1,5 +1,6 @@
 use sprs::{CsMat,CsMatI,TriMatI};
 use crate::{read_mtx,Sparsifier};
+use crate::utils::{load_pattern_as_csr};
 
 
 pub struct InputStream {
@@ -15,6 +16,8 @@ impl InputStream {
     // how does the mtx reader handle symmetry?
     pub fn new(filename: &str, add_node: bool) -> InputStream {
         let mut input = read_mtx(filename, add_node);
+        //let mut input = load_pattern_as_csr(filename).expect("file read error");
+        
         // zeroed diagonal entries remain explicitly represented using this format.
         // fix this later.
         let num_nodes = input.outer_dims();

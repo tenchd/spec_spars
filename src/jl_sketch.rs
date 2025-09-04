@@ -1,9 +1,12 @@
 use ndarray::{Array1,Array2};
 
 use fasthash::xx::Hasher64 as XXHasher;
+use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
 use crate::fasthash::FastHasher;
 use std::hash::{Hash,Hasher};
 use std::cmp::min;
+use approx::AbsDiffEq;
+use ndarray::{Axis};
 
 //use math::round::ceil;
 
@@ -62,6 +65,28 @@ pub fn populate_matrix(input: &mut Array2<f64>, seed: u64, jl_dim: usize) {
 
 }
 
+pub fn hash_with_inputs_murmur(seed: u64, input1: u64, input2: u64) -> i64 {
+   let mut checkhash = Murmur2Hasher::with_seed(seed);
+    input1.hash(&mut checkhash);
+    input2.hash(&mut checkhash);
+    let result = checkhash.finish() as u32;
+    //println!("{}",result);
+    transform(result as i64)
+}
+
+
+pub fn populate_matrix_murmur(input: &mut Array2<f64>, seed: u64, jl_dim: usize) {
+    let rows = input.dim().0;
+    let cols = input.dim().1;
+    let scaling_factor = (jl_dim as f64).sqrt();
+    for i in 0..rows {
+        for j in 0..cols {
+            input[[i,j]] += (hash_with_inputs_murmur(seed, i as u64, j as u64) as f64) / scaling_factor;
+        }
+    }
+
+}
+
 pub fn populate_row(input: &mut Array1<f64>, row: usize, col_start: usize, col_end: usize, seed: u64, jl_dim: usize){
     let num_cols = col_end - col_start;
     let scaling_factor = (jl_dim as f64).sqrt();
@@ -92,28 +117,18 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
 // this function JL sketches a sparse encoding of the input matrix and outputs in a sparse format as well. 
 // it doesn't do blocked operations though, so it's still not scalable because it represents the entire
 // dense sketch matrix at all times.
- pub fn jl_sketch_sparse_i32(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed: u64) -> CsMatI<f64, i32> {
+pub fn jl_sketch_sparse(og_matrix: &CsMat<f64>, jl_factor: f64, seed: u64) -> CsMat<f64> {
     let og_rows = og_matrix.rows();
     let og_cols = og_matrix.cols();
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
     populate_matrix(&mut sketch_matrix, seed, jl_dim);
-    let csr_sketch_matrix : CsMatI<f64, i32> = CsMatI::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
-    let result = og_matrix.mul(&csr_sketch_matrix);
-    /*
-    println!("{:?}", og_matrix);
-    println!("{:?}", sketch_matrix);
-    println!("{:?}", result);
-    */
-    result
- }
 
-  pub fn jl_sketch_sparse(og_matrix: &CsMat<f64>, jl_factor: f64, seed: u64) -> CsMat<f64> {
-    let og_rows = og_matrix.rows();
-    let og_cols = og_matrix.cols();
-    let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
-    let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
-    populate_matrix(&mut sketch_matrix, seed, jl_dim);
+    let sums = sketch_matrix.sum_axis(Axis(0));
+    for sum in sums {
+        assert!(sum.abs_diff_eq(&0.0, 0.05));
+    }
+
     let csr_sketch_matrix : CsMat<f64> = CsMat::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
     let result = og_matrix.mul(&csr_sketch_matrix);
     /*
@@ -124,8 +139,7 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
     result
  }
 
-
-  pub fn jl_sketch_sparse_flat(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed: u64) -> ffi::FlattenedVec {
+pub fn jl_sketch_sparse_flat(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed: u64) -> ffi::FlattenedVec {
     println!("entered sketch function");
     let og_rows = og_matrix.rows();
     let og_cols = og_matrix.cols();
@@ -147,7 +161,27 @@ pub fn jl_sketch_naive(og_matrix: &Array2<f64>, jl_factor: f64, seed: u64) -> Ar
     ffi::FlattenedVec::new(&result.to_dense())
  }
 
- 
+ pub fn jl_sketch_sparse_flat_murmur(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed: u64) -> ffi::FlattenedVec {
+    println!("entered sketch function");
+    let og_rows = og_matrix.rows();
+    let og_cols = og_matrix.cols();
+    let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
+    println!("creating sketch matrix with {} rows and {} cols", og_cols, jl_dim);
+    let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
+    populate_matrix_murmur(&mut sketch_matrix, seed, jl_dim);
+    println!("populated sketch matrix");
+    //println!("{:?}", sketch_matrix);
+    let csr_sketch_matrix : CsMatI<f64, i32> = CsMatI::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
+    //println!("changed to sparse matrix");
+    let result = og_matrix.mul(&csr_sketch_matrix);
+    println!("performed multiplication");
+    /*
+    println!("{:?}", og_matrix);
+    println!("{:?}", sketch_matrix);
+    println!("{:?}", result);
+    */
+    ffi::FlattenedVec::new(&result.to_dense())
+ }
  
 
 // NOTE: this and the above versions don't rescale by 1/sqrt(k) after. need to do that

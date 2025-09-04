@@ -586,6 +586,15 @@ std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
         counter += 1;
     }
 
+    // printf("value 1: %f value 2: %f\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
+    // printf("value 1: %d value 2: %d\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
+    // for (int i = 0; i < 10; i++) {
+    //     printf("%f\n", jl_cols.at(0).at(i));
+    // }    
+    // for (int i = 0; i < 10; i++) {
+    //     printf("%f\n", jl_cols.at(1).at(i));
+    // }
+
     return jl_cols;
 }
 

@@ -2,7 +2,7 @@
 // boring means not related to ffi, not really part of the core sparsifier logic, etc.
 
 use sprs::{CsMat,CsMatI,TriMatI,CsVec,CsVecI};
-use sprs::io::{read_matrix_market, write_matrix_market};
+use sprs::io::{read_matrix_market, write_matrix_market,IoError};
 
 use ndarray::{array, Array2};
 use ndarray_csv::{Array2Reader, Array2Writer};
@@ -13,7 +13,7 @@ use std::io::{self, prelude::*, BufReader};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
 use approx::AbsDiffEq;
-
+use std::path::Path;
 use crate::sparsifier::{Sparsifier,Triplet};
 use crate::ffi;
 
@@ -21,6 +21,11 @@ pub fn read_mtx(filename: &str, add_node: bool) -> CsMatI<f64, i32>{
     let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();
     // for i in trip.triplet_iter() {
     //     println!("{:?}", i);
+    // }
+
+    // let mut trip = TriMatI::<f64, i32>::new((trip_pattern.rows(), trip_pattern.cols()));
+    // for (value, (row, col)) in trip_pattern.triplet_iter(){
+    //     trip.add_triplet(row.try_into().unwrap(), col.try_into().unwrap(), *value as f64);
     // }
 
     assert_eq!(trip.cols(), trip.rows());
@@ -49,6 +54,23 @@ pub fn read_mtx(filename: &str, add_node: bool) -> CsMatI<f64, i32>{
     // }
     //println!("density of input {}: {}", filename, guy.density());
 }
+
+//BROKEN: function to read pattern .mtx files. needs to be fixed
+pub fn load_pattern_as_csr<P>(path: P) -> Result<CsMatI<f64, i32>, std::io::Error>
+where
+    P: AsRef<Path>,
+{
+    // Read the file.  `read_matrix_market` returns a `TriMatI` **or**
+    //     a crate‑specific `IoError`.  We map that error into a plain
+    //     `std::io::Error` so the function can keep the `std::io::Result`
+    //     signature that most callers expect.
+    let triplet: TriMatI<f64, i32> =
+        read_matrix_market(path).map_err(|e: IoError| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    //  Convert the triplet (coordinate) representation to CSR.
+    Ok(triplet.to_csr())
+}
+
 
 //make this generic later maybe
 pub fn write_mtx(filename: &str, matrix: &CsMat<f64>) {
