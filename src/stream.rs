@@ -1,4 +1,4 @@
-use sprs::{CsMat,CsMatI,TriMatI};
+use sprs::{CsMatI};
 use crate::{read_mtx,Sparsifier};
 use crate::utils::{load_pattern_as_csr};
 
@@ -14,8 +14,8 @@ impl InputStream {
     // deal with diagonals?
     // if the graph is symmetric, de-symmetrize it ideally
     // how does the mtx reader handle symmetry?
-    pub fn new(filename: &str, add_node: bool) -> InputStream {
-        let mut input = read_mtx(filename, add_node);
+    pub fn new(filename: &str) -> InputStream {
+        let mut input = read_mtx(filename);
         //let mut input = load_pattern_as_csr(filename).expect("file read error");
         
         // zeroed diagonal entries remain explicitly represented using this format.

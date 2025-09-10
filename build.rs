@@ -1,5 +1,7 @@
 use std::path::Path;
 
+// This code tells rust how to compile the c++ code via the cxx interop crate. For our purposes this should need to be changed for linear solving on the CPU.
+// Something may need to be changed to get it to run on GPU. TBD.
 fn main() {
     let fast_mtx_path = Path::new("/global/u1/d/dtench/cholesky/fast_matrix_market/include");
 

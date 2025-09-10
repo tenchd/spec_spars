@@ -1,11 +1,9 @@
-use ndarray::concatenate;
-use sprs::{CsMatI, CsMatBase, CsVecI, TriMatBase, TriMatI};
+use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
 use std::ops::Add;
 use rand::Rng;
 use approx::AbsDiffEq;
 
 use crate::jl_sketch::jl_sketch_sparse_flat;
-use crate::utils::{create_trivial_rhs, make_fake_jl_col};
 use crate::ffi::{self, FlattenedVec};
 
 // template types later
@@ -41,7 +39,7 @@ impl Triplet {
 
         //input files may have diagonals; we should skip them
         // this is a kludge for reading in mtx files. later this logic should be moved elsewhere.
-        if (v1 != v2) {
+        if v1 != v2 {
             // insert -value into v1,v2
             self.row_indices.push(v1);
             self.col_indices.push(v2);
@@ -216,7 +214,7 @@ impl Sparsifier {
         assert!(v2 < self.num_nodes);
 
         // ignore diagonal entries, upper triangular entries, and entries with 0 value
-        if (v1 > v2 && value != 0.0){
+        if v1 > v2 && value != 0.0 {
             self.new_entries.insert(v1, v2, value);
             //println!("inserting ({}, {}) with value {}", v1, v2, value);
         }
@@ -275,7 +273,7 @@ impl Sparsifier {
         //loop through lower diagonal entries
         let mut nonzero_counter = 0;
         for (value, (row, col)) in self.current_laplacian.iter() {
-            if (row < col) {
+            if row < col {
                 //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
                 for i in 0..solution_cols {
                     diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
@@ -304,28 +302,22 @@ impl Sparsifier {
         }
         coins
     }
-
-    pub fn sample_and_reweight(&mut self, probs: Vec<f64>) {
+    //TODO: move sampling and reweighting logic into this function
+    // pub fn sample_and_reweight(&mut self, probs: Vec<f64>) {
         
-    }
+    // }
 
     pub fn sparsify(&mut self, end_early: bool, test: bool) {
-        // this is dummy sparsifier code until i integrate it with the c++ code
-        // apply diagonals to new triplet entries
+        // compute evim format of new triplet entries (no diagonal)
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
-        println!("{:?}", evim.slice_outer(0..1));
-        let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
-        //println!("value 1: {} value 2: {}", sketch_cols.vec.get(501).unwrap(), sketch_cols.vec.get(501+sketch_cols.num_rows).unwrap());
-        let mut dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
+        // then compute JL sketch of it
+        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
+        let dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
-        // println!("sketch:");
-        // // why am i getting 0 values in the output for the following?
-        // for (value, (row, col)) in sketch_cols.iter(){
-        //     println!("{},{} has value {}", row, col, value);
-        // }
 
+        // apply diagonals to new triplet entries
         self.new_entries.process_diagonal();
         // get the new entries in csc format
         // improve this later; currently it clones the triplet object which uses extra memory
@@ -353,26 +345,16 @@ impl Sparsifier {
         }
 
         let coins = Self::flip_coins(num_nnz);
-        // for i in probs.iter() {
-        //     println!("{}", i);
-        // }
-        // for i in coins.iter() {
-        //     println!("{}", i);
-        // }
+
         //encodes whether each edge survives sampling or not. True means it is sampled, False means it's not sampled
         let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();
-        
 
-        // for i in outcomes.iter() {
-        //     println!("{}", i);
-        // }
-
-
+        // probably move below code into sample and reweight funtion for testing purposes
         let mut reweightings: Triplet = Triplet::new(self.num_nodes);
 
         let mut counter = 0;
         for (value, (row, col)) in self.current_laplacian.iter() {
-            if (row > col) {
+            if row > col {
                 // actual value is the negative of what's in the off-diagonal. flip the sign so the following code is easier to read.
                 // actually this turned out to be more confusing. it's correct currently, but I should go back and carefully undo this.
                 let true_value = value*-1.0;
@@ -397,23 +379,11 @@ impl Sparsifier {
         }
 
 
-
+        // make sure diagonal is correct after reweightings
         reweightings.process_diagonal();
         let csc_reweightings = reweightings.to_csc();
 
-        // println!("reweightings before sparsifying:");
-        // for (value, (row, col)) in csc_reweightings.iter(){
-        //     println!("{},{} has value {}", row, col, value);
-        // }
-
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
-
-        //self.current_laplacian = self.current_laplacian.add(&reweightings.to_csc());
-
-        // println!("laplacian after sparsifying:");
-        // for (value, (row, col)) in self.current_laplacian.iter(){
-        //     println!("{},{} has value {}", row, col, value);
-        // }
 
         println!("checking diagonal after sampling");
         self.check_diagonal();

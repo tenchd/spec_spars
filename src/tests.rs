@@ -1,12 +1,6 @@
-use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
-use ndarray::{Axis};
+use sprs::{CsMat,TriMat,CsVec};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
-use crate::{Sparsifier,InputStream};
-use std::ops::Add;
-use approx::AbsDiffEq;
-use crate::ffi;
-
 
 pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
     let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
@@ -84,11 +78,18 @@ pub fn make_random_vec(num_values: usize) -> CsVec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur}, utils};
-
     use super::*;
     use fasthash::murmur;
     use test::Bencher;
+    use ndarray::{Axis};
+    use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
+    use rand::Rng;
+    use rand::distributions::{Distribution, Uniform};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur}, utils, Sparsifier,InputStream};
+    use std::ops::Add;
+    use approx::AbsDiffEq;
+    use crate::ffi;
+
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian.
     #[test]
@@ -144,9 +145,8 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let add_node = false;
 
-        let stream = InputStream::new(input_filename, add_node);
+        let stream = InputStream::new(input_filename);
 
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
 
@@ -202,9 +202,8 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let add_node = false;
 
-        let stream = InputStream::new(input_filename, add_node);
+        let stream = InputStream::new(input_filename);
 
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
 
@@ -295,12 +294,11 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let add_node = false;
 
         // let test = utils::load_pattern_as_csr(input_filename);
         // println!("made it");
 
-        let stream = InputStream::new(input_filename, add_node);
+        let stream = InputStream::new(input_filename);
 
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
 
@@ -350,9 +348,7 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let add_node = false;
-
-        let stream = InputStream::new(input_filename, add_node);
+        let stream = InputStream::new(input_filename);
 
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
 

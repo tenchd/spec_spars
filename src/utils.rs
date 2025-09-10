@@ -1,23 +1,21 @@
 // this file stores boring functions for the Rust side of the sparsifier implementation. 
 // boring means not related to ffi, not really part of the core sparsifier logic, etc.
 
-use sprs::{CsMat,CsMatI,TriMatI,CsVec,CsVecI};
-use sprs::io::{read_matrix_market, write_matrix_market,IoError};
+use sprs::{CsMat,CsMatI,TriMatI,CsVecI};
+use sprs::io::{read_matrix_market, IoError};
 
-use ndarray::{array, Array2};
+use ndarray::{Array2};
 use ndarray_csv::{Array2Reader, Array2Writer};
 use std::error::Error;
 use csv::{ReaderBuilder, WriterBuilder};
 use std::fs::File;
-use std::io::{self, prelude::*, BufReader};
-use rand::Rng;
+use std::io::{prelude::*, BufReader};
 use rand::distributions::{Distribution, Uniform};
 use approx::AbsDiffEq;
 use std::path::Path;
-use crate::sparsifier::{Sparsifier,Triplet};
 use crate::ffi;
 
-pub fn read_mtx(filename: &str, add_node: bool) -> CsMatI<f64, i32>{
+pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
     let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();
     // for i in trip.triplet_iter() {
     //     println!("{:?}", i);
@@ -29,25 +27,11 @@ pub fn read_mtx(filename: &str, add_node: bool) -> CsMatI<f64, i32>{
     // }
 
     assert_eq!(trip.cols(), trip.rows());
-    if add_node {
-        let num_nodes = trip.cols();
-        let mut trip_fixed = TriMatI::<f64, i32>::new((num_nodes+1, num_nodes+1));
-        for triplet in trip.triplet_iter() {
-            let (val, (row, col)) = triplet;
-            //assert!(row > col, "upper triangular entry row {} col {}", row, col);
-            trip_fixed.add_triplet(row as usize, col as usize, *val);
-        }
+    
+    let col_format = trip.to_csc::<i32>();
 
-        let col_format = trip_fixed.to_csc::<i32>();
-        println!("is the virus dataset symmetric? {}", sprs::is_symmetric(&col_format));
-        println!("virus dataset has {} nonzeros", col_format.nnz());
-        return col_format;
-    }
-    else {
-        let col_format = trip.to_csc::<i32>();
-
-        return col_format;
-    }
+    return col_format;
+    
     
     // for i in guy.iter() {
     //     println!("{:?}", i);
@@ -95,6 +79,7 @@ pub fn read_vecs_from_file_flat(filename: &str) -> ffi::FlattenedVec {
                                         .collect();
         if first {
             line_length = col.len().try_into().unwrap();
+            first = false;
         }
         let current_line_length= col.len().try_into().unwrap();
         assert_eq!(line_length, current_line_length);
@@ -102,7 +87,7 @@ pub fn read_vecs_from_file_flat(filename: &str) -> ffi::FlattenedVec {
     }
     //println!("line length = {}, num_lines = {}", line_length, line_counter);
 
-    let mut jl_cols_flat = ffi::FlattenedVec{vec: jl_vec, num_cols: line_counter, num_rows: line_length};
+    let jl_cols_flat = ffi::FlattenedVec{vec: jl_vec, num_cols: line_counter, num_rows: line_length};
     jl_cols_flat
 }
 

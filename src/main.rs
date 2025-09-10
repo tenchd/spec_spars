@@ -1,9 +1,5 @@
 #![allow(unused)]
 #![feature(test)]
-use std::fs::File;
-use std::io::{self, prelude::*, BufReader};
-use cxx::Vector;
-use sprs::{CsMat,CsVecI};
 extern crate fasthash;
 extern crate csv;
 extern crate ndarray;
@@ -17,12 +13,11 @@ mod sparsifier;
 mod stream;
 mod tests;
 
-use utils::{read_mtx, write_mtx, write_csv, read_vecs_from_file_flat, make_fake_jl_col,create_trivial_rhs};
-use jl_sketch::{jl_sketch_sparse,jl_sketch_sparse_blocked,populate_matrix};
-use sparsifier::{Sparsifier,Triplet};
+use utils::{read_mtx, read_vecs_from_file_flat};
+use jl_sketch::{populate_matrix};
+use sparsifier::{Sparsifier};
 use stream::InputStream;
 use crate::ffi::FlattenedVec;
-use crate::tests::{make_random_matrix, make_random_evim_matrix};
 use ndarray::Array2;
 
 
@@ -88,10 +83,10 @@ impl FlattenedVec {
 // }
 
 // currently assumes that you don't need to manage diagonals of input matrix. fix this later
-fn precondition_and_solve(input_filename: &str, sketch_filename: &str, seed: u64, jl_factor: f64, block_rows: usize, block_cols: usize, display: bool, add_node: bool) -> FlattenedVec {
+fn precondition_and_solve(input_filename: &str, sketch_filename: &str, jl_factor: f64) -> FlattenedVec {
     //let filename = "data/fake_jl_multi.csv".to_string();
 
-    let input_csc = read_mtx(input_filename, add_node);
+    let input_csc = read_mtx(input_filename);
     println!("{}", input_csc.outer_dims());
 
     //make sure diagonals are nonzero; generalize this later
@@ -142,16 +137,8 @@ fn precondition_and_solve(input_filename: &str, sketch_filename: &str, seed: u64
 
 fn solve_test() {
 
-    let seed: u64 = 1;
-    let jl_factor: f64 = 1.5;
-    let block_rows: usize = 100;
-    let block_cols: usize = 15000;
-    let display: bool = false;
 
-    let epsilon = 0.5;
-    let beta_constant = 4;
-    let row_constant = 2;
-    let verbose = true;
+    let jl_factor: f64 = 1.5;
 
     //let stream = InputStream::new("data/cage3.mtx");
     //stream.run_stream(epsilon, beta_constant, row_constant, verbose);
@@ -159,14 +146,12 @@ fn solve_test() {
 
     let sketch_filename = "data/fake_jl_multi.csv";
     let input_filename = "/global/u1/d/dtench/cholesky/Parallel-Randomized-Cholesky/physics/parabolic_fem/parabolic_fem-nnz-sorted.mtx";
-    let add_node = false;
 
     //let sketch_filename = "data/virus_jl_sketch.csv";
     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-    //let add_node = true;
 
 
-    let solution = precondition_and_solve(input_filename, sketch_filename, seed, jl_factor, block_rows, block_cols, display, add_node);
+    let solution = precondition_and_solve(input_filename, sketch_filename, jl_factor);
 
     println!("solution has {} cols, {} rows, and initial value {}", solution.num_cols, solution.num_rows, solution.vec[0]);
 
@@ -175,18 +160,14 @@ fn solve_test() {
 fn lap_test(input_filename: &str) {
     let seed: u64 = 1;
     let jl_factor: f64 = 1.5;
-    let block_rows: usize = 100;
-    let block_cols: usize = 15000;
-    let display: bool = false;
 
     let epsilon = 0.5;
     let beta_constant = 4;
     let row_constant = 2;
     let verbose = false;
 
-    let add_node = false;
 
-    let stream = InputStream::new(input_filename, add_node);
+    let stream = InputStream::new(input_filename);
     stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
 }
 
