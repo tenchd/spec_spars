@@ -13,7 +13,7 @@ use ndarray::{Axis};
 use sprs::{CsMat,CsMatI};
 use std::ops::Mul;
 
-use crate::ffi;
+use crate::{ffi, utils};
 
 
 //maps hash function output to {-1,1} evenly
@@ -41,6 +41,20 @@ pub fn add_to_position(matrix: &mut CsMat<f64>, row: usize, col: usize, val:f64)
     }
 }
 
+pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
+    let total = input.sum_axis(Axis(0));
+    let length = input.len() as f64;
+    let mean: f64 = total[()] / length;
+    let mut variance: f64 = 0.0;
+    for sum in input {
+        let sq_diff = (mean - sum).powi(2);
+        variance += sq_diff;
+    }
+    variance = variance / length;
+    let st_dev = variance.sqrt(); 
+    return (mean, st_dev);
+}
+
 //this function is used to find the value of a hash function seeded with seed, when given two positional arguments. Used to repeatably compute values in the JL sketch matrix
 // by passing the coordinates of the position as the two arguments.
 pub fn hash_with_inputs(seed: u64, input1: u64, input2: u64) -> i64 {
@@ -62,7 +76,11 @@ pub fn populate_matrix(input: &mut Array2<f64>, seed: u64, jl_dim: usize) {
             input[[i,j]] += (hash_with_inputs(seed, i as u64, j as u64) as f64) / scaling_factor;
         }
     }
-
+    println!("jl sketch matrix column sums:");
+    let sums = input.sum_axis(Axis(0));
+    //println!("{:?}", sums);
+    let result = mean_and_std_dev(&sums);
+    println!("mean {} std dev {}", result.0, result.1);
 }
 
 pub fn hash_with_inputs_murmur(seed: u64, input1: u64, input2: u64) -> i64 {
@@ -153,6 +171,9 @@ pub fn jl_sketch_sparse_flat(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed:
     //println!("changed to sparse matrix");
     let result = og_matrix.mul(&csr_sketch_matrix);
     println!("performed multiplication");
+    let output_filename = "sketch/virus_sketch.mtx";
+    utils::write_mtx(output_filename, &result);
+    println!("wrote jl sketch to file");
     /*
     println!("{:?}", og_matrix);
     println!("{:?}", sketch_matrix);

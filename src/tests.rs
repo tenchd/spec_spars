@@ -85,7 +85,7 @@ mod tests {
     use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur}, utils, Sparsifier,InputStream};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur,mean_and_std_dev}, utils, Sparsifier,InputStream};
     use std::ops::Add;
     use approx::AbsDiffEq;
     use crate::ffi;
@@ -283,7 +283,7 @@ mod tests {
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/bcsstk30/bcsstk30.mtx";
-        let seed: u64 = 1;
+        let seed: u64 = 2;
         let jl_factor: f64 = 1.5;
         let block_rows: usize = 100;
         let block_cols: usize = 15000;
@@ -314,10 +314,12 @@ mod tests {
         let sketch_array = sketch_cols.to_array2();
         
         let sums = sketch_array.sum_axis(Axis(0));
-        println!("{:?}", sums);
+        //println!("{:?}", sums);
+        let result = mean_and_std_dev(&sums);
+        println!("mean {}, std dev {}", result.0, result.1);
 
         let total = sums.sum_axis(Axis(0));
-        println!("TOTAL: {:?}", total);
+        //println!("TOTAL: {:?}", total);
         //assert!(total[0].abs_diff_eq(&0.0, 0.05));
 
         println!("now outputing results for murmurhash");
@@ -325,10 +327,12 @@ mod tests {
         let murmur_sketch_array = murmur_sketch_cols.to_array2();
         
         let sums = murmur_sketch_array.sum_axis(Axis(0));
-        println!("{:?}", sums);
+        //println!("{:?}", sums);
+        let result = mean_and_std_dev(&sums);
+        println!("mean {}, std dev {}", result.0, result.1);
 
         let total = sums.sum_axis(Axis(0));
-        println!("TOTAL: {:?}", total);
+        //println!("TOTAL: {:?}", total);
         //assert!(total[0].abs_diff_eq(&0.0, 0.05));
     }
 

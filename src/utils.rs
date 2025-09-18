@@ -57,7 +57,7 @@ where
 
 
 //make this generic later maybe
-pub fn write_mtx(filename: &str, matrix: &CsMat<f64>) {
+pub fn write_mtx(filename: &str, matrix: &CsMatI<f64, i32>) {
     sprs::io::write_matrix_market(filename, matrix).ok();
 }
 
