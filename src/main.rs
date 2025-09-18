@@ -13,11 +13,11 @@ mod sparsifier;
 mod stream;
 mod tests;
 
-use utils::{read_mtx, read_vecs_from_file_flat};
+use utils::{read_mtx, read_vecs_from_file_flat, l2_norm};
 use jl_sketch::{populate_matrix};
 use sparsifier::{Sparsifier};
 use stream::InputStream;
-use crate::ffi::FlattenedVec;
+use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
 
 
@@ -213,4 +213,5 @@ fn main() {
     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
     lap_test(input_filename);
     //jl_visualize();
+    //l2_norm("/global/u1/d/dtench/rust_spars/cxx-test/sketch/virus_sketch.mtx");
 }

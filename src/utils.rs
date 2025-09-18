@@ -1,6 +1,8 @@
 // this file stores boring functions for the Rust side of the sparsifier implementation. 
 // boring means not related to ffi, not really part of the core sparsifier logic, etc.
 
+use ndarray_rand::rand_distr::num_traits::Float;
+use rand_xoshiro::rand_core::RngCore;
 use sprs::{CsMat,CsMatI,TriMatI,CsVecI};
 use sprs::io::{read_matrix_market, IoError};
 
@@ -14,6 +16,9 @@ use rand::distributions::{Distribution, Uniform};
 use approx::AbsDiffEq;
 use std::path::Path;
 use crate::ffi;
+
+use rand::SeedableRng;
+use rand_xoshiro::Xoshiro256PlusPlus;
 
 pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
     let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();
@@ -170,4 +175,13 @@ pub fn create_trivial_rhs(num_values: usize, matrix: &CsMatI<f64,i32>) -> ffi::F
 
 //pub fn 
 
+pub fn l2_norm(filename: &str) {
+    let matrix = read_mtx(filename);
+    let mut sum = 0.0;
+    for (value, (_row, _col)) in matrix.iter() {
+        sum += value.powi(2);
+    }
+    let norm = sum.sqrt();
+    println!("l2 norm of matrix: {}", norm);
+}
 
