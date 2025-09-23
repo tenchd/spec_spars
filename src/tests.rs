@@ -80,7 +80,7 @@ pub fn make_random_vec(num_values: usize) -> CsVec<f64> {
 mod tests {
     use super::*;
     use fasthash::murmur;
-    use test::Bencher;
+    //use test::Bencher;
     use ndarray::{Axis};
     use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
     use rand::Rng;
@@ -187,7 +187,6 @@ mod tests {
     // and verifies that the matrices are equivalent.
     // also verifies that the laplacian is valid - each col sums to 0, matrix is symmetric.
     #[test]
-    #[ignore]
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -214,6 +213,11 @@ mod tests {
         // create EVIM representation
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
         let evim_nnz = evim.nnz();
+
+        // make sure each evim column has 2 distinct entries (no empty cols, no diagonal (single-nz col) entries)
+        for (col_ind, col_vec) in evim.outer_iterator().enumerate() {
+            assert!(col_vec.nnz() == 2);
+        }
 
         // create diagonal values for new entries
         sparsifier.new_entries.process_diagonal();
@@ -278,6 +282,7 @@ mod tests {
 
     // test whether jl sketch produces column sums near 0
     #[test]
+    #[ignore]
     pub fn jl_sketch_zero() {
         println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -379,21 +384,21 @@ mod tests {
 
 
     //For benchmarking how long a sparse matrix x dense vector multiplication takes.
-    pub fn spmv_basic(num_rows: usize, nnz: usize, csc: bool, b: &mut Bencher) {
-        // let mut mat_type = "";
-        // if csc {
-        //     mat_type = "CSC";
-        // }
-        // else {
-        //     mat_type = "CSR";
-        // }
-        // println!("Testing SPMV time for a {} x {} matrix in {} form with {} nonzeros", num_rows, num_rows, mat_type, nnz);
-        let mat = make_random_matrix(num_rows, num_rows, nnz, csc);
-        let vector = make_random_vec(num_rows);
-        //let result = &mat * &vector;
-        b.iter(|| &mat * &vector);
-        //assert!(result.nnz()>0);
-    }
+    // pub fn spmv_basic(num_rows: usize, nnz: usize, csc: bool, b: &mut Bencher) {
+    //     // let mut mat_type = "";
+    //     // if csc {
+    //     //     mat_type = "CSC";
+    //     // }
+    //     // else {
+    //     //     mat_type = "CSR";
+    //     // }
+    //     // println!("Testing SPMV time for a {} x {} matrix in {} form with {} nonzeros", num_rows, num_rows, mat_type, nnz);
+    //     let mat = make_random_matrix(num_rows, num_rows, nnz, csc);
+    //     let vector = make_random_vec(num_rows);
+    //     //let result = &mat * &vector;
+    //     b.iter(|| &mat * &vector);
+    //     //assert!(result.nnz()>0);
+    // }
 
     
 

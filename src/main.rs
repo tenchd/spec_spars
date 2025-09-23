@@ -1,11 +1,11 @@
 #![allow(unused)]
-#![feature(test)]
+//#![feature(test)]
 extern crate fasthash;
 extern crate csv;
 extern crate ndarray;
 extern crate ndarray_csv;
 extern crate rand;
-extern crate test;
+//extern crate test;
 
 mod utils;
 mod jl_sketch;
