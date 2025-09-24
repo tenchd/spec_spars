@@ -317,7 +317,7 @@ impl Sparsifier {
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
         // apply diagonals to new triplet entries
-        self.new_entries.process_diagonal();
+        //self.new_entries.process_diagonal();
         // get the new entries in csc format
         // improve this later; currently it clones the triplet object which uses extra memory
         let new_stuff = self.new_entries.clone().to_csc();
@@ -326,8 +326,8 @@ impl Sparsifier {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        println!("checking diagonal after populating laplacian:");
-        self.check_diagonal();
+        //println!("checking diagonal after populating laplacian:");
+        //self.check_diagonal();
 
         if end_early {
             return;

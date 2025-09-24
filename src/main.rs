@@ -13,12 +13,13 @@ mod sparsifier;
 mod stream;
 mod tests;
 
-use utils::{read_mtx, read_vecs_from_file_flat, l2_norm};
+use utils::{read_mtx, read_vecs_from_file_flat, l2_norm, read_sketch_from_mtx, convert_mtx_to_csv};
 use jl_sketch::{populate_matrix};
 use sparsifier::{Sparsifier};
 use stream::InputStream;
 use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
+use sprs::CsMatI;
 
 
 #[cxx::bridge]
@@ -44,6 +45,8 @@ mod ffi {
         fn sprs_correctness_test(col_ptrs: Vec<i32>, row_indices: Vec<i32>, values: Vec<f64>);
 
         fn run_solve_lap(shared_jl_cols: FlattenedVec, rust_col_ptrs: Vec<i32>, rust_row_indices: Vec<i32>, rust_values: Vec<f64>, num_nodes:i32) -> FlattenedVec;
+    
+        fn julia_test_solve(interop_jl_cols: FlattenedVec);
     }
 }
 
@@ -207,11 +210,58 @@ fn jl_visualize() {
     println!("sum of sketch matrix entries = {}", sum);
 }
 
+fn tianyu_test() {
+    let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+    let lap_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+
+    let sketch: ffi::FlattenedVec = read_sketch_from_mtx(sketch_filename);
+    let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
+    let n = lap.cols();
+    let m = lap.rows();
+    assert_eq!(n,m);
+
+    for i in 0..28 {
+        print!("{} ", sketch.vec.get(i).unwrap());
+    }
+    println!();
+
+    println!("output matrix is {}x{}", sketch.num_rows, sketch.num_cols);
+
+    let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
+    let lap_row_indices: Vec<i32> = lap.indices().to_vec();
+    let lap_values: Vec<f64> = lap.data().to_vec();
+
+    println!("input col_ptrs size in rust: {:?}. first value: {}", lap_col_ptrs.len(), lap_col_ptrs[0]);
+    println!("input row_indices size in rust: {:?}. first value: {}", lap_row_indices.len(), lap_row_indices[0]);
+    println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
+    println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
+    //ffi::sprs_correctness_test(input_col_ptrs, input_row_indices, input_values);
+    ffi::run_solve_lap(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap());
+    
+}
+
+fn jl_sketch_compare_test() {
+    let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+
+    let sketch: ffi::FlattenedVec = read_sketch_from_mtx(sketch_filename);
+
+    println!("interop matrix is {}x{}", sketch.num_rows, sketch.num_cols);
+
+    ffi::julia_test_solve(sketch);
+    
+}
+
 fn main() {
-    let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+    //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-    lap_test(input_filename);
+    //lap_test(input_filename);
     //jl_visualize();
     //l2_norm("/global/u1/d/dtench/rust_spars/cxx-test/sketch/virus_sketch.mtx");
+    tianyu_test();
+    //let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+    //let sketch_output = "../tianyu-stream/data/virus_sketch_tianyu.csv";
+    //convert_mtx_to_csv(sketch_filename, sketch_output);
+
+    //jl_sketch_compare_test();
 }

@@ -570,6 +570,154 @@ void run_solve(std::vector<std::vector<double>> jl_cols, std::vector<std::vector
     factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
 }
 
+std::vector<std::vector<double>> read_sketch_from_csv(const std::string& filename) {
+    std::vector<std::vector<double>> data;
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + filename);
+    }
+
+    bool first = true;
+    int row_length = 0;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::vector<double> row;
+        std::string token;
+
+        while (std::getline(iss, token, ',')) {
+            try {
+                row.push_back(std::stod(token));
+            } catch (const std::invalid_argument& e) {
+                throw std::runtime_error("Invalid float value: " + token);
+            } catch (const std::out_of_range& e) {
+                throw std::runtime_error("Float value out of range: " + token);
+            }
+        }
+
+        if (first) {
+            row_length = row.size();
+            first = false;
+        }
+        else {
+            assert(row_length == row.size());
+        }
+
+        data.push_back(row);
+    }
+
+    file.close();
+    printf("jl matrix has %d rows and %d cols\n", data.size(), row_length);
+    return data;
+}
+
+// ------------------------------------------------------------------
+// Helper: split a line on commas (naïve – no quoting support)
+// ------------------------------------------------------------------
+static std::vector<std::string> split_csv_line(const std::string& line)
+{
+    std::vector<std::string> fields;
+    std::stringstream ss(line);
+    std::string cell;
+
+    while (std::getline(ss, cell, ',')) {
+        fields.emplace_back(std::move(cell));
+    }
+    return fields;
+}
+
+// ------------------------------------------------------------------
+// Helper: convert a string to double
+// ------------------------------------------------------------------
+static double parse_double(const std::string& s, bool strict = true)
+{
+    // Trim leading/trailing whitespace (optional but nice)
+    const auto first = s.find_first_not_of(" \t\r\n");
+    const auto last  = s.find_last_not_of(" \t\r\n");
+    const std::string trimmed = (first == std::string::npos) ? "" : s.substr(first, last - first + 1);
+
+    if (trimmed.empty()) {
+        // Empty field – treat as NaN in lenient mode, otherwise error
+        if (strict) {
+            throw std::invalid_argument("Empty field cannot be parsed as double");
+        }
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    try {
+        size_t idx = 0;
+        double val = std::stod(trimmed, &idx);
+        // Ensure the whole token was consumed (e.g. "12abc" is an error)
+        if (idx != trimmed.size()) {
+            throw std::invalid_argument("Trailing characters after number");
+        }
+        return val;
+    }
+    catch (const std::exception&) {
+        if (strict) {
+            throw; // re‑throw the original conversion error
+        }
+        // Lenient: return NaN for any unparsable token
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+}
+
+// ------------------------------------------------------------------
+// Load CSV into column‑wise storage of doubles
+// ------------------------------------------------------------------
+std::vector<std::vector<double>> load_csv_columns(const std::string& filename,
+                                                             bool strict = true)
+{
+    std::ifstream infile(filename);
+    if (!infile) {
+        throw std::runtime_error("Cannot open file: " + filename);
+    }
+
+    std::string line;
+    std::vector<std::vector<double>> columns;   // outer vector = columns
+
+    // --------------------------------------------------------------
+    // 1️⃣ Read the first line → discover column count and fill first row
+    // --------------------------------------------------------------
+    if (!std::getline(infile, line)) {
+        // Empty file → return empty container
+        return columns;
+    }
+
+    std::vector<std::string> firstRowStr = split_csv_line(line);
+    const std::size_t nCols = firstRowStr.size();
+
+    // Allocate one inner vector per column
+    columns.resize(nCols);
+    for (std::size_t i = 0; i < nCols; ++i) {
+        columns[i].push_back(parse_double(firstRowStr[i], strict));
+    }
+
+    // --------------------------------------------------------------
+    // 2️⃣ Process the remaining lines, appending to each column vector
+    // --------------------------------------------------------------
+    std::size_t lineNumber = 1; // we already processed line 1
+    while (std::getline(infile, line)) {
+        ++lineNumber;
+        std::vector<std::string> rowStr = split_csv_line(line);
+
+        if (rowStr.size() != nCols) {
+            throw std::runtime_error(
+                "Inconsistent column count on line " + std::to_string(lineNumber) +
+                ". Expected " + std::to_string(nCols) + " but got " + std::to_string(rowStr.size()));
+        }
+
+        for (std::size_t i = 0; i < nCols; ++i) {
+            columns[i].push_back(parse_double(rowStr[i], strict));
+        }
+    }
+
+    return columns;
+}
+
+
 // unflattens a flattened vector into a vec of vecs that can be passed to the solver. used for jl sketch
 std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
 
@@ -580,9 +728,9 @@ std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
     
     int counter = 0;
     for (double s: shared_jl_cols.vec) {
-        int current_column = (int) counter / m;
-        int current_row = counter % m;
-        jl_cols.at(current_column).at(current_row) = s;
+        int current_column = (int) counter / n;
+        int current_row = counter % n;
+        jl_cols.at(current_row).at(current_column) = s;
         counter += 1;
     }
 
@@ -596,6 +744,60 @@ std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
     // }
 
     return jl_cols;
+}
+
+
+void julia_test_solve(FlattenedVec interop_jl_cols) {
+  constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+  std::string sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.csv";
+
+  int num_threads = 32; 
+  constexpr char *output_filename = "";
+  bool is_graph = 1;
+
+  std::vector<std::vector<double>> file_jl_cols;
+
+  try {
+    file_jl_cols = load_csv_columns(sketch_filename);
+  }
+  catch (const std::exception& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+  }
+
+  int num_rows = file_jl_cols[0].size();
+  int num_cols = file_jl_cols.size();
+  printf("file jl matrix has %d rows and %d cols\n", num_rows, num_cols);
+
+//   printf("%f\n", file_jl_cols[1][0]);
+
+//   for (int i = 0; i < num_cols; i++) {
+//     printf("%f, ", file_jl_cols[i][0]);
+//   }
+//   printf("\n");
+//   for (double i : file_jl_cols[0]) {
+//     printf("%d ", i);
+//   }
+//   printf("\n");
+
+//   int row_stride = 27;
+//   int col_stride = 219715;
+//   printf("%d length\n", interop_jl_cols.vec.size());
+//   printf("%f, %f, %f\n", interop_jl_cols.vec[0], interop_jl_cols.vec[row_stride], interop_jl_cols.vec[col_stride]);
+
+//   for (int i = 0; i< num_cols; i++) {
+//     printf("%f, ", interop_jl_cols.vec[i]);
+//   }
+//   printf("\n");
+
+  std::vector<std::vector<double>> unrolled_interop_jl_cols = unroll_vector(interop_jl_cols);
+  printf("interop jl matrix has %d rows and %d cols\n", unrolled_interop_jl_cols[0].size(), unrolled_interop_jl_cols.size());
+
+  for (int i = 0; i < num_cols; i++) {
+    for (int j = 0; j < num_rows; j++) {
+        assert(file_jl_cols.at(i).at(j) == unrolled_interop_jl_cols.at(i).at(j));
+    }
+  }
+  printf("test passed. jl sketch passed through interop is equiv to the one in the file.\n");
 }
 
 //flattens a vector of vectors into a single vector. used to pass the solution back to the rust code.
@@ -688,6 +890,7 @@ FlattenedVec test_roll(FlattenedVec jl_cols) {
 FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \
     rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
 
+    julia_test_solve(shared_jl_cols);
     //constexpr const char *input_filename = "/global/u1/d/dtench/cholesky/Parallel-Randomized-Cholesky/physics/parabolic_fem/parabolic_fem-nnz-sorted.mtx";
     int num_threads = 32; 
     constexpr char *output_filename = "";

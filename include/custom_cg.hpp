@@ -105,6 +105,7 @@ std::vector<type_data> example_pcg_solver(custom_space::sparse_matrix<type_int, 
         printf("treated as graph problem\n");
     }
 
+    printf("right hand side has length %d\n", right_hand_side.size());
     printf("trimmed laplacian nnz: %d, trimmed factor nnz: %d\n", A.nonZeros(), M.nonZeros());
     type_int n = A.rows();
 

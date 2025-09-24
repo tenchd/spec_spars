@@ -31,7 +31,7 @@ pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
     //     trip.add_triplet(row.try_into().unwrap(), col.try_into().unwrap(), *value as f64);
     // }
 
-    assert_eq!(trip.cols(), trip.rows());
+    //assert_eq!(trip.cols(), trip.rows());
     
     let col_format = trip.to_csc::<i32>();
 
@@ -94,6 +94,19 @@ pub fn read_vecs_from_file_flat(filename: &str) -> ffi::FlattenedVec {
 
     let jl_cols_flat = ffi::FlattenedVec{vec: jl_vec, num_cols: line_counter, num_rows: line_length};
     jl_cols_flat
+}
+
+pub fn read_sketch_from_mtx(filename: &str) -> ffi::FlattenedVec {
+    let csc: CsMatI<f64, i32> = read_mtx(filename);
+    let dense = csc.to_dense();
+    let output = ffi::FlattenedVec::new(&dense);
+    output
+}
+
+pub fn convert_mtx_to_csv(input_filename: &str, output_filename: &str) {
+    let csc: CsMatI<f64, i32> = read_mtx(input_filename);
+    let dense = csc.to_dense();
+    write_csv(output_filename, &dense);
 }
 
 pub fn write_csv(filename: &str, array: &Array2<f64>) -> Result<(), Box<dyn Error>> {
