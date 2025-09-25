@@ -17,4 +17,6 @@ void sprs_correctness_test(rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row
 
 FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes);
 
-void julia_test_solve(FlattenedVec interop_jl_cols);
+void julia_test_solve(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes);
+
+void test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes);

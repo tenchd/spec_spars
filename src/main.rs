@@ -46,7 +46,9 @@ mod ffi {
 
         fn run_solve_lap(shared_jl_cols: FlattenedVec, rust_col_ptrs: Vec<i32>, rust_row_indices: Vec<i32>, rust_values: Vec<f64>, num_nodes:i32) -> FlattenedVec;
     
-        fn julia_test_solve(interop_jl_cols: FlattenedVec);
+        fn julia_test_solve(interop_jl_cols: FlattenedVec, lap_col_ptrs: Vec<i32>, lap_row_indices: Vec<i32>, lap_values: Vec<f64>, num_nodes:i32);
+
+        fn test_stager(interop_jl_cols: FlattenedVec, lap_col_ptrs: Vec<i32>, lap_row_indices: Vec<i32>, lap_values: Vec<f64>, num_nodes:i32);
     }
 }
 
@@ -220,11 +222,6 @@ fn tianyu_test() {
     let m = lap.rows();
     assert_eq!(n,m);
 
-    for i in 0..28 {
-        print!("{} ", sketch.vec.get(i).unwrap());
-    }
-    println!();
-
     println!("output matrix is {}x{}", sketch.num_rows, sketch.num_cols);
 
     let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
@@ -242,13 +239,49 @@ fn tianyu_test() {
 
 fn jl_sketch_compare_test() {
     let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+    let lap_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
 
     let sketch: ffi::FlattenedVec = read_sketch_from_mtx(sketch_filename);
-
-    println!("interop matrix is {}x{}", sketch.num_rows, sketch.num_cols);
-
-    ffi::julia_test_solve(sketch);
+    println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
     
+    let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
+    let n = lap.cols();
+    let m = lap.rows();
+    assert_eq!(n,m);
+    let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
+    let lap_row_indices: Vec<i32> = lap.indices().to_vec();
+    let lap_values: Vec<f64> = lap.data().to_vec();
+    println!("input col_ptrs size in rust: {:?}. first value: {}", lap_col_ptrs.len(), lap_col_ptrs[0]);
+    println!("input row_indices size in rust: {:?}. first value: {}", lap_row_indices.len(), lap_row_indices[0]);
+    println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
+    println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
+
+    ffi::julia_test_solve(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap());
+    
+}
+
+fn run_interop_test() {
+    let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+    let lap_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+
+    let sketch: ffi::FlattenedVec = read_sketch_from_mtx(sketch_filename);
+    println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
+    
+    let lap_stream: InputStream = InputStream::new(lap_filename);
+    //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
+    let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
+    let n = lap.cols();
+    let m = lap.rows();
+    assert_eq!(n,m);
+    let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
+    let lap_row_indices: Vec<i32> = lap.indices().to_vec();
+    let lap_values: Vec<f64> = lap.data().to_vec();
+    println!("input col_ptrs size in rust: {:?}. first value: {}", lap_col_ptrs.len(), lap_col_ptrs[0]);
+    println!("input row_indices size in rust: {:?}. first value: {}", lap_row_indices.len(), lap_row_indices[0]);
+    println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
+    println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
+
+    ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap());
 }
 
 fn main() {
@@ -258,10 +291,12 @@ fn main() {
     //lap_test(input_filename);
     //jl_visualize();
     //l2_norm("/global/u1/d/dtench/rust_spars/cxx-test/sketch/virus_sketch.mtx");
-    tianyu_test();
+    //tianyu_test();
     //let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
     //let sketch_output = "../tianyu-stream/data/virus_sketch_tianyu.csv";
     //convert_mtx_to_csv(sketch_filename, sketch_output);
 
-    //jl_sketch_compare_test();
+    run_interop_test();
+
+    
 }

@@ -570,6 +570,158 @@ void run_solve(std::vector<std::vector<double>> jl_cols, std::vector<std::vector
     factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
 }
 
+// unflattens a flattened vector into a vec of vecs that can be passed to the solver. used for jl sketch
+std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
+
+    int n = shared_jl_cols.num_cols;
+    int m = shared_jl_cols.num_rows;
+    
+    std::vector<std::vector<double>> jl_cols(n, std::vector<double>(m, 0.0));
+    
+    int counter = 0;
+    for (double s: shared_jl_cols.vec) {
+        int current_column = (int) counter / n;
+        int current_row = counter % n;
+        jl_cols.at(current_row).at(current_column) = s;
+        counter += 1;
+    }
+
+    // printf("value 1: %f value 2: %f\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
+    // printf("value 1: %d value 2: %d\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
+    // for (int i = 0; i < 10; i++) {
+    //     printf("%f\n", jl_cols.at(0).at(i));
+    // }    
+    // for (int i = 0; i < 10; i++) {
+    //     printf("%f\n", jl_cols.at(1).at(i));
+    // }
+
+    return jl_cols;
+}
+
+//flattens a vector of vectors into a single vector. used to pass the solution back to the rust code.
+FlattenedVec flatten_vector(std::vector<std::vector<double>> original) {
+    size_t n = original.size();
+    size_t m = original.at(0).size();
+    rust::cxxbridge1::Vec<double> values = {};
+    for (auto col: original) {
+        for (auto i: col) {
+            values.push_back(i);
+        }
+    }
+    FlattenedVec output = {values, n, m};
+    return output;
+}
+
+//test function that passes a jl sketch from rust, solves for it on the physics dataset, and sends the solution back to the rust code.
+FlattenedVec go(FlattenedVec shared_jl_cols) {
+    int n = shared_jl_cols.num_cols;
+    int m = shared_jl_cols.num_rows;
+    std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
+    std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
+    run_solve(jl_cols, solution);
+    FlattenedVec flat_solution = flatten_vector(solution);
+    return flat_solution;
+}
+
+// test function that constructs a sparse matrix object from column pointer, row index, and value vectors sent from the the rust code.
+void sprs_test(rust::Vec<size_t> rust_col_ptrs, rust::Vec<size_t> rust_row_indices, rust::Vec<double> rust_values) {
+//void sprs_test(rust_col_ptrs: rust::Vec<size_t>, rust_row_indices: rust::Vec<size_t>, rust_values: rust::Vec<double>) {
+    std::vector<double> values;
+    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
+    std::vector<size_t> col_ptrs;
+    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
+    std::vector<size_t> row_indices;
+    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
+    std::cout << col_ptrs.size() << std::endl;
+    for (auto i: values) {
+        std::cout << i << " , ";
+    }
+    std::cout << std::endl;
+    for (auto i: col_ptrs) {
+        std::cout << i << ", ";
+    }
+    std::cout << std::endl;
+    for (auto i: row_indices) {
+        std::cout << i << ", ";
+    }
+    std::cout << std::endl;
+    size_t num_rows = 3;
+    size_t num_cols = 3;
+    custom_space::sparse_matrix tester = custom_space::sparse_matrix(num_rows, num_cols, std::move(values), std::move(row_indices), std::move(col_ptrs));
+    tester.printCSC();
+    printf("%d\n", tester.nonZeros());
+}
+
+// test function that constructs a sparse matrix object of the correct data types for running the solver code. BROKEN
+void sprs_correctness_test(rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values) {
+    std::vector<double> values;
+    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
+    std::vector<custom_idx> col_ptrs;
+    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
+    std::vector<custom_idx> row_indices;
+    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
+    // printf("phys col_ptrs size in c++: %d. first value: %d\n", col_ptrs.size(), col_ptrs.at(0));
+    // printf("phys row_indices size in c++: %d. first value: %d\n", row_indices.size(), row_indices.at(0));
+    // printf("phys values size in c++: %d. first value: %f\n", values.size(), values.at(0));
+
+    // printf("type of col_ptrs: ");
+    // std::cout << typeid(col_ptrs.at(0)).name() << std::endl;
+    
+    custom_idx num_rows = 525826;
+    custom_idx num_cols = 525826;
+    std::string name = "placeholder_sparse_matrix_processor_name";
+    //sparse_matrix tester = sparse_matrix(name, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
+    sparse_matrix_processor<custom_idx, double> tester = sparse_matrix_processor(name, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
+    printf("nonzeros in csc: %d\n", tester.mat.nonZeros());
+    //std::cout << "Size of int: " << sizeof(int) * 8 << " bits" << std::endl;
+}
+
+
+// test function for ensuring that flattenedvec data is passed appropriately
+FlattenedVec test_roll(FlattenedVec jl_cols) {
+    std::vector<std::vector<double>> unrolled = unroll_vector(jl_cols);
+    FlattenedVec rerolled = flatten_vector(unrolled);
+    return rerolled;
+}
+
+// function that runs the solver code on rust-provided laplacian and jl sketch.
+FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \
+    rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
+
+    //constexpr const char *input_filename = "/global/u1/d/dtench/cholesky/Parallel-Randomized-Cholesky/physics/parabolic_fem/parabolic_fem-nnz-sorted.mtx";
+    int num_threads = 32; 
+    constexpr char *output_filename = "";
+    bool is_graph = 1;
+
+    std::vector<double> values;
+    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
+    std::vector<custom_idx> col_ptrs;
+    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
+    std::vector<custom_idx> row_indices;
+    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
+
+    custom_idx num_rows = num_nodes;
+    custom_idx num_cols = num_nodes;
+    //printf("num rows: %d\n", col_ptrs.size()-1);
+    std::string input_filename = "placeholder_sparse_matrix_processor_name";
+    sparse_matrix_processor<custom_idx, double> processor = sparse_matrix_processor(input_filename, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
+
+    
+    custom_idx n = shared_jl_cols.num_cols;
+    custom_idx m = shared_jl_cols.num_rows;
+    std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
+    std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
+
+    printf("problem: %s\n", input_filename.c_str());
+    //sparse_matrix_processor<custom_idx, double> processor(input_filename);
+    
+    factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+
+    FlattenedVec flat_solution = flatten_vector(solution);
+    return flat_solution;
+}
+
+
 std::vector<std::vector<double>> read_sketch_from_csv(const std::string& filename) {
     std::vector<std::vector<double>> data;
     std::ifstream file(filename);
@@ -717,37 +869,7 @@ std::vector<std::vector<double>> load_csv_columns(const std::string& filename,
     return columns;
 }
 
-
-// unflattens a flattened vector into a vec of vecs that can be passed to the solver. used for jl sketch
-std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
-
-    int n = shared_jl_cols.num_cols;
-    int m = shared_jl_cols.num_rows;
-    
-    std::vector<std::vector<double>> jl_cols(n, std::vector<double>(m, 0.0));
-    
-    int counter = 0;
-    for (double s: shared_jl_cols.vec) {
-        int current_column = (int) counter / n;
-        int current_row = counter % n;
-        jl_cols.at(current_row).at(current_column) = s;
-        counter += 1;
-    }
-
-    // printf("value 1: %f value 2: %f\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
-    // printf("value 1: %d value 2: %d\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
-    // for (int i = 0; i < 10; i++) {
-    //     printf("%f\n", jl_cols.at(0).at(i));
-    // }    
-    // for (int i = 0; i < 10; i++) {
-    //     printf("%f\n", jl_cols.at(1).at(i));
-    // }
-
-    return jl_cols;
-}
-
-
-void julia_test_solve(FlattenedVec interop_jl_cols) {
+void julia_test_solve(FlattenedVec interop_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   std::string sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.csv";
 
@@ -768,27 +890,6 @@ void julia_test_solve(FlattenedVec interop_jl_cols) {
   int num_cols = file_jl_cols.size();
   printf("file jl matrix has %d rows and %d cols\n", num_rows, num_cols);
 
-//   printf("%f\n", file_jl_cols[1][0]);
-
-//   for (int i = 0; i < num_cols; i++) {
-//     printf("%f, ", file_jl_cols[i][0]);
-//   }
-//   printf("\n");
-//   for (double i : file_jl_cols[0]) {
-//     printf("%d ", i);
-//   }
-//   printf("\n");
-
-//   int row_stride = 27;
-//   int col_stride = 219715;
-//   printf("%d length\n", interop_jl_cols.vec.size());
-//   printf("%f, %f, %f\n", interop_jl_cols.vec[0], interop_jl_cols.vec[row_stride], interop_jl_cols.vec[col_stride]);
-
-//   for (int i = 0; i< num_cols; i++) {
-//     printf("%f, ", interop_jl_cols.vec[i]);
-//   }
-//   printf("\n");
-
   std::vector<std::vector<double>> unrolled_interop_jl_cols = unroll_vector(interop_jl_cols);
   printf("interop jl matrix has %d rows and %d cols\n", unrolled_interop_jl_cols[0].size(), unrolled_interop_jl_cols.size());
 
@@ -797,129 +898,191 @@ void julia_test_solve(FlattenedVec interop_jl_cols) {
         assert(file_jl_cols.at(i).at(j) == unrolled_interop_jl_cols.at(i).at(j));
     }
   }
-  printf("test passed. jl sketch passed through interop is equiv to the one in the file.\n");
+  printf("jl sketch test passed: jl sketch passed through interop is equiv to the one in the file.\n");
+
+// now we test lap for equivalence
+
+  sparse_matrix_processor<custom_idx, double> file_processor(input_filename);
+  std::string name = "interop_processor";
+  std::vector<double> values;
+  std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
+  std::vector<custom_idx> col_ptrs;
+  std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
+  std::vector<custom_idx> row_indices;
+  std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
+  sparse_matrix_processor<custom_idx, double> interop_processor(name, num_rows, num_rows, std::move(col_ptrs), std::move(row_indices), std::move(values));
+
+  for (int i = 0; i < 5; i++) {
+    printf("col %d: file has %d and interop has %d\n", i, file_processor.mat.col_ptrs.at(i), rust_col_ptrs.at(i));
+  }
+  for (int i = 0; i < file_processor.mat.col_ptrs.size(); i++) {
+    assert(file_processor.mat.col_ptrs.at(i) == interop_processor.mat.col_ptrs.at(i));
+  }
+
+  for (int i = 0; i < file_processor.mat.row_indices.size(); i++) {
+    assert(file_processor.mat.row_indices.at(i) == interop_processor.mat.row_indices.at(i));
+    assert(file_processor.mat.values.at(i) == interop_processor.mat.values.at(i));
+  }
+  printf("lap test passed: laplacian passed through interop is equiv to the one in the file.\n");
 }
 
-//flattens a vector of vectors into a single vector. used to pass the solution back to the rust code.
-FlattenedVec flatten_vector(std::vector<std::vector<double>> original) {
-    size_t n = original.size();
-    size_t m = original.at(0).size();
-    rust::cxxbridge1::Vec<double> values = {};
-    for (auto col: original) {
-        for (auto i: col) {
-            values.push_back(i);
-        }
-    }
-    FlattenedVec output = {values, n, m};
-    return output;
-}
+// reads in jl sketch and lap from file (produced by tianyu julia code) and solves. status: WORKS (but figure out how to check solution for good quality later)
+void file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
+  printf("-------------------------------------\n");
+  printf("performing file_only_solver_test\n");
+  printf("-------------------------------------\n");
+  constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+  int num_threads = 32; 
+  constexpr char *output_filename = "output/file_only.txt";
+  bool is_graph = 1;
 
-//test function that passes a jl sketch from rust, solves for it on the physics dataset, and sends the solution back to the rust code.
-FlattenedVec go(FlattenedVec shared_jl_cols) {
-    int n = shared_jl_cols.num_cols;
-    int m = shared_jl_cols.num_rows;
-    std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
-    std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
-    run_solve(jl_cols, solution);
-    FlattenedVec flat_solution = flatten_vector(solution);
-    return flat_solution;
-}
+  custom_idx num_cols = jl_cols.size();
+  custom_idx num_rows = jl_cols.at(0).size();
+  std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
 
-// test function that constructs a sparse matrix object from column pointer, row index, and value vectors sent from the the rust code.
-void sprs_test(rust::Vec<size_t> rust_col_ptrs, rust::Vec<size_t> rust_row_indices, rust::Vec<double> rust_values) {
-//void sprs_test(rust_col_ptrs: rust::Vec<size_t>, rust_row_indices: rust::Vec<size_t>, rust_values: rust::Vec<double>) {
-    std::vector<double> values;
-    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
-    std::vector<size_t> col_ptrs;
-    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
-    std::vector<size_t> row_indices;
-    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
-    std::cout << col_ptrs.size() << std::endl;
-    for (auto i: values) {
-        std::cout << i << " , ";
-    }
-    std::cout << std::endl;
-    for (auto i: col_ptrs) {
-        std::cout << i << ", ";
-    }
-    std::cout << std::endl;
-    for (auto i: row_indices) {
-        std::cout << i << ", ";
-    }
-    std::cout << std::endl;
-    size_t num_rows = 3;
-    size_t num_cols = 3;
-    custom_space::sparse_matrix tester = custom_space::sparse_matrix(num_rows, num_cols, std::move(values), std::move(row_indices), std::move(col_ptrs));
-    tester.printCSC();
-    printf("%d\n", tester.nonZeros());
-}
-
-// test function that constructs a sparse matrix object of the correct data types for running the solver code. BROKEN
-void sprs_correctness_test(rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values) {
-    std::vector<double> values;
-    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
-    std::vector<custom_idx> col_ptrs;
-    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
-    std::vector<custom_idx> row_indices;
-    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
-    // printf("phys col_ptrs size in c++: %d. first value: %d\n", col_ptrs.size(), col_ptrs.at(0));
-    // printf("phys row_indices size in c++: %d. first value: %d\n", row_indices.size(), row_indices.at(0));
-    // printf("phys values size in c++: %d. first value: %f\n", values.size(), values.at(0));
-
-    // printf("type of col_ptrs: ");
-    // std::cout << typeid(col_ptrs.at(0)).name() << std::endl;
+  printf("problem: %s\n", input_filename);
+  sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
-    custom_idx num_rows = 525826;
-    custom_idx num_cols = 525826;
-    std::string name = "placeholder_sparse_matrix_processor_name";
-    //sparse_matrix tester = sparse_matrix(name, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
-    sparse_matrix_processor<custom_idx, double> tester = sparse_matrix_processor(name, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
-    printf("nonzeros in csc: %d\n", tester.mat.nonZeros());
-    //std::cout << "Size of int: " << sizeof(int) * 8 << " bits" << std::endl;
+  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  printf("file_only_solver_test done. if the solves converged, the test passed.\n");
 }
 
+// this test establishes that the jl sketches from file and interop are the same. status: WORKS
+void jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, std::vector<std::vector<double>> interop_jl_cols) {
+  printf("-------------------------------------\n");
+  printf("performing jl_file_interop_equiv_test\n");
+  printf("-------------------------------------\n");
+  int num_cols = file_jl_cols.size();
+  int num_rows = file_jl_cols.at(0).size();
 
-// test function for ensuring that flattenedvec data is passed appropriately
-FlattenedVec test_roll(FlattenedVec jl_cols) {
-    std::vector<std::vector<double>> unrolled = unroll_vector(jl_cols);
-    FlattenedVec rerolled = flatten_vector(unrolled);
-    return rerolled;
+  printf("verifying the sketch matrices have the same dimensions:\n");
+  assert(num_cols = interop_jl_cols.size());
+  assert(num_rows = interop_jl_cols.at(0).size());
+
+  printf("verifying the sketch matrices have the same entries:\n");
+  for (int i = 0; i < num_cols; i++) {
+    for (int j = 0; j < num_rows; j++) {
+        assert(file_jl_cols.at(i).at(j) == interop_jl_cols.at(i).at(j));
+    }
+  }
+  printf("jl_file_interop_equiv_test passed: jl sketch passed through interop is equivalent to the one in the file.\n");
 }
 
-// function that runs the solver code on rust-provided laplacian and jl sketch.
-FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \
-    rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
+// this test tries to solve with jl sketch from interop and lap from direct file read (in tianyu's sparse matrix processor code). status: WORKS
+void jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
+  printf("-------------------------------------\n");
+  printf("performing jl_interop_lap_file_solver_test\n");
+  printf("-------------------------------------\n");
+  constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+  int num_threads = 32; 
+  constexpr char *output_filename = "output/jl_int_lap_file.txt";
+  bool is_graph = 1;
 
-    julia_test_solve(shared_jl_cols);
-    //constexpr const char *input_filename = "/global/u1/d/dtench/cholesky/Parallel-Randomized-Cholesky/physics/parabolic_fem/parabolic_fem-nnz-sorted.mtx";
-    int num_threads = 32; 
-    constexpr char *output_filename = "";
-    bool is_graph = 1;
+  custom_idx num_cols = jl_cols.size();
+  custom_idx num_rows = jl_cols.at(0).size();
+  std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
 
-    std::vector<double> values;
-    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
-    std::vector<custom_idx> col_ptrs;
-    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
-    std::vector<custom_idx> row_indices;
-    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
-
-    custom_idx num_rows = num_nodes;
-    custom_idx num_cols = num_nodes;
-    //printf("num rows: %d\n", col_ptrs.size()-1);
-    std::string input_filename = "placeholder_sparse_matrix_processor_name";
-    sparse_matrix_processor<custom_idx, double> processor = sparse_matrix_processor(input_filename, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
-
+  printf("problem: %s\n", input_filename);
+  sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
-    custom_idx n = shared_jl_cols.num_cols;
-    custom_idx m = shared_jl_cols.num_rows;
-    std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
-    std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
+  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  printf("jl_interop_lap_file_solver_test done. if the solves converged, the test passed.\n");
+}
 
-    printf("problem: %s\n", input_filename.c_str());
-    //sparse_matrix_processor<custom_idx, double> processor(input_filename);
-    
-    factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+// tests whether the file and interop laplacians are equivalent. status: WORKS
+void lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
+  printf("-------------------------------------\n");
+  printf("performing lap_equiv_test:\n");
+  printf("-------------------------------------\n");
+  constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+  sparse_matrix_processor<custom_idx, double> file_processor(input_filename);
+  printf("sparse matrix processor from file DONE building.\n");
 
-    FlattenedVec flat_solution = flatten_vector(solution);
-    return flat_solution;
+//   for (int i = 0; i < 5; i++) {
+//     printf("col ptrs in col %d: file has %d and interop has %d\n", i, file_processor.mat.col_ptrs.at(i), interop_col_ptrs.at(i));
+//     printf("row idxs in col %d: file has %d and interop has %d\n", i, file_processor.mat.row_indices.at(i), interop_row_indices.at(i));
+//     printf("values in col %d: file has %f and interop has %f\n", i, file_processor.mat.values.at(i), interop_values.at(i));
+//   }
+
+  std::string name = "interop_processor";
+  sparse_matrix_processor<custom_idx, double> interop_processor(name, num_nodes, num_nodes, std::move(interop_col_ptrs), std::move(interop_row_indices), std::move(interop_values));
+  printf("sparse matrix processor from interop DONE building.\n");
+
+
+  for (int i = 0; i < file_processor.mat.col_ptrs.size(); i++) {
+    assert(file_processor.mat.col_ptrs.at(i) == interop_processor.mat.col_ptrs.at(i));
+  }
+
+  for (int i = 0; i < file_processor.mat.row_indices.size(); i++) {
+    assert(file_processor.mat.row_indices.at(i) == interop_processor.mat.row_indices.at(i));
+  }
+  printf("the two laplacians have the same sparsity pattern.\n");
+
+  double allowed_error = 0.000001;
+  for (int i = 0; i < file_processor.mat.row_indices.size(); i++) {
+    assert(abs(file_processor.mat.values.at(i) - interop_processor.mat.values.at(i)) < allowed_error);
+  }
+  printf("lap_equi_test passed: laplacian passed through interop is equivalent to the one in the file.\n");
+}
+
+// this test tries to solve with jl sketch and lap both from interop. status: WORKS
+void interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
+  printf("-------------------------------------\n");
+  printf("performing interop_only_solver_test\n");
+  printf("-------------------------------------\n");
+  constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+  int num_threads = 32; 
+  constexpr char *output_filename = "output/int_only.txt";
+  bool is_graph = 1;
+
+  custom_idx num_cols = jl_cols.size();
+  custom_idx num_rows = jl_cols.at(0).size();
+  std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
+
+  printf("problem: %s\n", input_filename);
+  std::string name = "interop_processor";
+  sparse_matrix_processor<custom_idx, double> processor(name, num_nodes, num_nodes, std::move(interop_col_ptrs), std::move(interop_row_indices), std::move(interop_values));
+   
+  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  printf("interop_only_solver_test done. if the solves converged, the test passed.\n");
+}
+
+// this function reads jl sketch and lap info from rust via interop. intended to be used to handle boilerplate unwrapping, 
+// then you call the specific test you want from it.
+void test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
+  constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+  std::string sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.csv";
+
+  // stage jl cols from file
+  std::vector<std::vector<double>> file_jl_cols;
+  try {
+    file_jl_cols = load_csv_columns(sketch_filename);
+  }
+  catch (const std::exception& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+  }
+
+  // stage jl cols from interop
+  std::vector<std::vector<double>> unrolled_interop_jl_cols = unroll_vector(interop_jl_cols);
+
+  // stage lap from interop (note that lap from file is handled in tianyu's sparse matrix processor code directly)
+  std::vector<double> lap_values;
+  std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(lap_values));
+  std::vector<custom_idx> lap_col_ptrs;
+  std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(lap_col_ptrs));
+  std::vector<custom_idx> lap_row_indices;
+  std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(lap_row_indices));
+
+  // at this point you have whatever variables you need to pass into various test functions.
+  // example calls:
+
+  //file_only_solver_test(file_jl_cols);
+
+  //jl_file_interop_equiv_test(file_jl_cols, unrolled_interop_jl_cols);
+
+  //jl_interop_lap_file_solver_test(unrolled_interop_jl_cols);
+
+  //lap_equiv_test(lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
+
+  interop_only_solver_test(unrolled_interop_jl_cols, lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
 }

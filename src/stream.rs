@@ -64,4 +64,26 @@ impl InputStream {
         sparsifier.check_diagonal();
 
     }
+
+    // used for testing purposes
+    pub fn produce_laplacian(&self) -> CsMatI<f64, i32>{
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
+
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+
+        for (value, (row, col)) in self.input_matrix.iter() {
+            //assert!(*value >= 0.0);
+            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+        }
+
+        sparsifier.form_laplacian();
+
+        // now the sparsifier laplacian can be passed to c++ for interop testing.
+        sparsifier.current_laplacian
+    }
 }

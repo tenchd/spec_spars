@@ -389,6 +389,25 @@ impl Sparsifier {
 
     }
 
+    // temporary function used for interop testing.
+    pub fn form_laplacian(&mut self) {
+
+        // apply diagonals to new triplet entries
+        self.new_entries.process_diagonal();
+        // get the new entries in csc format
+        // improve this later; currently it clones the triplet object which uses extra memory
+        let new_stuff = self.new_entries.clone().to_csc();
+        // clear the new entries from the triplet representation
+        self.new_entries.delete_state();
+        // add the new entries to the laplacian
+        self.current_laplacian = self.current_laplacian.add(&new_stuff);
+
+        println!("checking diagonal after populating laplacian:");
+        self.check_diagonal();
+        println!("laplacian populated from stream. diagonal is correct.");
+
+    }
+
     pub fn sparse_display(&self) {
         println!("laplacian: ");
         for (value, (row, col)) in self.current_laplacian.iter() {

@@ -171,9 +171,9 @@ pub fn jl_sketch_sparse_flat(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed:
     //println!("changed to sparse matrix");
     let result = og_matrix.mul(&csr_sketch_matrix);
     println!("performed multiplication");
-    let output_filename = "sketch/virus_sketch.mtx";
-    utils::write_mtx(output_filename, &result);
-    println!("wrote jl sketch to file");
+    //let output_filename = "sketch/virus_sketch.mtx";
+    //utils::write_mtx(output_filename, &result);
+    //println!("wrote jl sketch to file");
     /*
     println!("{:?}", og_matrix);
     println!("{:?}", sketch_matrix);
