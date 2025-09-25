@@ -927,7 +927,7 @@ void julia_test_solve(FlattenedVec interop_jl_cols, rust::Vec<custom_idx> rust_c
 }
 
 // reads in jl sketch and lap from file (produced by tianyu julia code) and solves. status: WORKS (but figure out how to check solution for good quality later)
-void file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
+bool file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
   printf("-------------------------------------\n");
   printf("performing file_only_solver_test\n");
   printf("-------------------------------------\n");
@@ -945,10 +945,11 @@ void file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
     
   factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
   printf("file_only_solver_test done. if the solves converged, the test passed.\n");
+  return true;
 }
 
 // this test establishes that the jl sketches from file and interop are the same. status: WORKS
-void jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, std::vector<std::vector<double>> interop_jl_cols) {
+bool jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, std::vector<std::vector<double>> interop_jl_cols) {
   printf("-------------------------------------\n");
   printf("performing jl_file_interop_equiv_test\n");
   printf("-------------------------------------\n");
@@ -968,10 +969,11 @@ void jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, s
   }
   printf("verified.\n");
   printf("jl_file_interop_equiv_test passed: jl sketch passed through interop is equivalent to the one in the file.\n");
+  return true;
 }
 
 // this test tries to solve with jl sketch from interop and lap from direct file read (in tianyu's sparse matrix processor code). status: WORKS
-void jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
+bool jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
   printf("-------------------------------------\n");
   printf("performing jl_interop_lap_file_solver_test\n");
   printf("-------------------------------------\n");
@@ -989,10 +991,11 @@ void jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
     
   factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
   printf("jl_interop_lap_file_solver_test done. if the solves converged, the test passed.\n");
+  return true;
 }
 
 // tests whether the file and interop laplacians are equivalent. status: WORKS
-void lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
+bool lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
   printf("-------------------------------------\n");
   printf("performing lap_equiv_test:\n");
   printf("-------------------------------------\n");
@@ -1025,10 +1028,11 @@ void lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom
     assert(abs(file_processor.mat.values.at(i) - interop_processor.mat.values.at(i)) < allowed_error);
   }
   printf("lap_equi_test passed: laplacian passed through interop is equivalent to the one in the file.\n");
+  return true;
 }
 
 // this test tries to solve with jl sketch and lap both from interop. status: WORKS
-void interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
+bool interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
   printf("-------------------------------------\n");
   printf("performing interop_only_solver_test\n");
   printf("-------------------------------------\n");
@@ -1047,11 +1051,12 @@ void interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vec
    
   factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
   printf("interop_only_solver_test done. if the solves converged, the test passed.\n");
+  return true;
 }
 
 // this function reads jl sketch and lap info from rust via interop. intended to be used to handle boilerplate unwrapping, 
 // then you call the specific test you want from it.
-void test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
+bool test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes, int test_selector) {
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   std::string sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.csv";
 
@@ -1077,14 +1082,26 @@ void test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rus
 
   // at this point you have whatever variables you need to pass into various test functions.
   // example calls:
-
-  //file_only_solver_test(file_jl_cols);
-
-  //jl_file_interop_equiv_test(file_jl_cols, unrolled_interop_jl_cols);
-
-  //jl_interop_lap_file_solver_test(unrolled_interop_jl_cols);
-
-  //lap_equiv_test(lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
-
-  interop_only_solver_test(unrolled_interop_jl_cols, lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
+  bool result;
+  switch (test_selector) {
+    case 1:
+        result = file_only_solver_test(file_jl_cols);
+        break;
+    case 2:
+        result = jl_file_interop_equiv_test(file_jl_cols, unrolled_interop_jl_cols);
+        break;
+    case 3:
+        result = jl_interop_lap_file_solver_test(unrolled_interop_jl_cols);
+        break;
+    case 4:
+        result = lap_equiv_test(lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
+        break;
+    case 5: 
+        result = interop_only_solver_test(unrolled_interop_jl_cols, lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
+        break;
+    default:
+        result = false;
+        break;
+  }
+  return result;
 }

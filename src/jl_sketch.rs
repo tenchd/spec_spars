@@ -37,7 +37,7 @@ pub fn add_to_position(matrix: &mut CsMat<f64>, row: usize, col: usize, val:f64)
     let location = matrix.get_mut(row,col);
     match location {
         Some(p) => *p += val,
-        None => matrix.insert(row, col, val),
+        none => matrix.insert(row, col, val),
     }
 }
 

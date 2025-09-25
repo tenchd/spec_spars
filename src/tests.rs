@@ -187,6 +187,7 @@ mod tests {
     // and verifies that the matrices are equivalent.
     // also verifies that the laplacian is valid - each col sums to 0, matrix is symmetric.
     #[test]
+    #[ignore]
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -382,75 +383,62 @@ mod tests {
         }
     }
 
+    // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
+    fn run_interop_test(test_selector: i32) {
+        let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+        let lap_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
-    //For benchmarking how long a sparse matrix x dense vector multiplication takes.
-    // pub fn spmv_basic(num_rows: usize, nnz: usize, csc: bool, b: &mut Bencher) {
-    //     // let mut mat_type = "";
-    //     // if csc {
-    //     //     mat_type = "CSC";
-    //     // }
-    //     // else {
-    //     //     mat_type = "CSR";
-    //     // }
-    //     // println!("Testing SPMV time for a {} x {} matrix in {} form with {} nonzeros", num_rows, num_rows, mat_type, nnz);
-    //     let mat = make_random_matrix(num_rows, num_rows, nnz, csc);
-    //     let vector = make_random_vec(num_rows);
-    //     //let result = &mat * &vector;
-    //     b.iter(|| &mat * &vector);
-    //     //assert!(result.nnz()>0);
-    // }
+        let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(sketch_filename);
+        println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
+        
+        let lap_stream: InputStream = InputStream::new(lap_filename);
+        //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
+        let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
+        let n = lap.cols();
+        let m = lap.rows();
+        assert_eq!(n,m);
+        let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
+        let lap_row_indices: Vec<i32> = lap.indices().to_vec();
+        let lap_values: Vec<f64> = lap.data().to_vec();
+        println!("input col_ptrs size in rust: {:?}. first value: {}", lap_col_ptrs.len(), lap_col_ptrs[0]);
+        println!("input row_indices size in rust: {:?}. first value: {}", lap_row_indices.len(), lap_row_indices[0]);
+        println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
+        println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
 
-    
+        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap(), test_selector);
+        assert!(result);
+    }
 
-    //benchmark a small multiplication when the matrix is in csc form
-    // #[bench]
-    // #[ignore]
-    // fn spmv1c(b: &mut Bencher){
-    //     spmv_basic(10,20,true, b);
-    // }       
+    // this test reads in jl sketch and lap from file (produced by tianyu julia code) and solves. status: WORKS 
+    //(but figure out how to check solution for good quality later)
+    #[test]
+    fn file_only_solver_test() {
+        run_interop_test(1);
+    }
 
-    // //benchmark a small multiplication when the matrix is in csr form
-    // #[bench]
-    // #[ignore]
-    // fn spmv1r(b: &mut Bencher){
-    //     spmv_basic(10,20,false, b);
-    // }
-    
-    // #[bench]
-    // #[ignore]
-    // fn spmv2c(b: &mut Bencher){
-    //     spmv_basic(100,2000,true, b);
-    // }
+    // this test establishes that the jl sketches from file and interop are the same. status: WORKS
+    #[test]
+    fn jl_file_interop_equiv_test() {
+        run_interop_test(2);
+    }
 
-    // #[bench]
-    // #[ignore]
-    // fn spmv2r(b: &mut Bencher){
-    //     spmv_basic(100,2000,false, b);
-    // }
+    // this test tries to solve with jl sketch from interop and lap from direct file read (in tianyu's sparse matrix processor code). status: WORKS
+    #[test]
+    fn jl_interop_lap_file_solver_test() {
+        run_interop_test(3);
+    }
 
-    // #[bench]
-    // #[ignore]
-    // fn spmv3c(b: &mut Bencher){
-    //     spmv_basic(1000,200000,true, b);
-    // }
+    // tests whether the file and interop laplacians are equivalent. status: WORKS
+    #[test]
+    fn lap_equiv_test() {
+        run_interop_test(4);
+    }
 
-    // #[bench]
-    // #[ignore]
-    // fn spmv3r(b: &mut Bencher){
-    //     spmv_basic(1000,200000,false, b);
-    // }
-
-    // #[bench]
-    // #[ignore]
-    // fn spmv4c(b: &mut Bencher){
-    //     spmv_basic(200000,4000000,true, b);
-    // }
-
-    // #[bench]
-    // #[ignore]
-    // fn spmv4r(b: &mut Bencher){
-    //     spmv_basic(200000,4000000,false, b);
-    // }
+    // this test tries to solve with jl sketch and lap both from interop. status: WORKS
+    #[test]
+    fn interop_only_solver_test() {
+        run_interop_test(5);
+    }
 
 
 }

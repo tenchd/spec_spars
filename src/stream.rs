@@ -26,7 +26,7 @@ impl InputStream {
         for result in input.diag_iter_mut() {
             match result {
                 Some(x) => *x = 0.0,
-                None => diag_zeros += 1,
+                none => diag_zeros += 1,
             }
         }
 
