@@ -327,7 +327,7 @@ bool compare(const Edge<int, double> &a, const Edge<int, double> &b)
 };
 
 template <typename type_int, typename type_data>
-void factorization_driver(sparse_matrix_processor<type_int, type_data> &processor, type_int num_threads, char* path, bool is_graph, \
+bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processor, type_int num_threads, char* path, bool is_graph, \
     std::vector<std::vector<type_data>>& jl_cols, std::vector<std::vector<type_data>>& solution)
 {
     assert(INT_MAX == 2147483647);
@@ -538,19 +538,24 @@ void factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     
 
     custom_space::sparse_matrix<type_int, type_data> precond_M(processor.mat.rows(), processor.mat.cols(), std::move(csr_val_host), std::move(csr_col_ind_host), std::move(csr_rowptr_host));
-    
+    bool all_succeeded = true;
     auto num_solve = 1;
     for (std::vector<double> right_hand_side: jl_cols){
         printf("---------------Performing solve %i\n", num_solve);
 
-        std::vector<type_data> solution_col = example_pcg_solver(processor.mat, precond_M, diagonal_entries.data(), is_graph, right_hand_side);
+        std::vector<type_data> solution_col;
+        bool converged;
+        tie(solution_col, converged) = example_pcg_solver(processor.mat, precond_M, diagonal_entries.data(), is_graph, right_hand_side);
         //example_pcg_solver(processor.mat, precond_M, diagonal_entries.data(), is_graph);
 
         //printf("trying to write to solution column %d\n", num_solve-1);
         solution.at(num_solve-1) = solution_col;
         num_solve++;
+        if (!converged) {
+            all_succeeded = false;
+        }
     }
-
+    return all_succeeded;
 }
 //END COPIED CODE
 
@@ -943,9 +948,9 @@ bool file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
   printf("problem: %s\n", input_filename);
   sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
-  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
   printf("file_only_solver_test done. if the solves converged, the test passed.\n");
-  return true;
+  return result;
 }
 
 // this test establishes that the jl sketches from file and interop are the same. status: WORKS
@@ -989,9 +994,9 @@ bool jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
   printf("problem: %s\n", input_filename);
   sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
-  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
   printf("jl_interop_lap_file_solver_test done. if the solves converged, the test passed.\n");
-  return true;
+  return result;
 }
 
 // tests whether the file and interop laplacians are equivalent. status: WORKS
@@ -1049,9 +1054,9 @@ bool interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vec
   std::string name = "interop_processor";
   sparse_matrix_processor<custom_idx, double> processor(name, num_nodes, num_nodes, std::move(interop_col_ptrs), std::move(interop_row_indices), std::move(interop_values));
    
-  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
   printf("interop_only_solver_test done. if the solves converged, the test passed.\n");
-  return true;
+  return result;
 }
 
 // this function reads jl sketch and lap info from rust via interop. intended to be used to handle boilerplate unwrapping, 

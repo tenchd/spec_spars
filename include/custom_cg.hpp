@@ -91,7 +91,7 @@ void enforce_zero_sum_vector(type_data *h_vec, size_t n)
 }
 
 template <typename type_int, typename type_data>
-std::vector<type_data> example_pcg_solver(custom_space::sparse_matrix<type_int, type_data> &A, custom_space::sparse_matrix<type_int, type_data> &M, type_data *diagonal, bool is_graph, std::vector<type_data>& right_hand_side) {
+std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse_matrix<type_int, type_data> &A, custom_space::sparse_matrix<type_int, type_data> &M, type_data *diagonal, bool is_graph, std::vector<type_data>& right_hand_side) {
 //void example_pcg_solver(custom_space::sparse_matrix<type_int, type_data> &A, custom_space::sparse_matrix<type_int, type_data> &M, type_data *diagonal, bool is_graph) {
     
     if(!is_graph)
@@ -249,7 +249,12 @@ std::vector<type_data> example_pcg_solver(custom_space::sparse_matrix<type_int, 
     double norm_rhs = cblas_dnrm2(n, b.data(), 1);
     mkl_sparse_d_mv(SPARSE_OPERATION_NON_TRANSPOSE, 1.0, A_handle, descr_A, x.data(), -1, b.data());
     printf("relative residual: %.12f\n", cblas_dnrm2(n, b.data(), 1) / norm_rhs);
-    
+    double rel_residual = cblas_dnrm2(n, b.data(), 1) / norm_rhs;
+    bool converged = false;
+    if (rel_residual < 0.01) {
+        converged = true;
+    }
+
     //for (auto i : x) {
     //    std::cout << i << ' ';
     //}
@@ -263,6 +268,6 @@ std::vector<type_data> example_pcg_solver(custom_space::sparse_matrix<type_int, 
     //     std::cout << val << " ";
     std::cout << "\n";
 
-    return x;
+    return std::make_tuple(x, converged);
 }
 
