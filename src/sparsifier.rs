@@ -260,8 +260,8 @@ impl Sparsifier {
         let col_ptrs: Vec<i32> = self.current_laplacian.indptr().as_slice().unwrap().to_vec();
         let row_indices: Vec<i32> = self.current_laplacian.indices().to_vec();
         let values: Vec<f64> = self.current_laplacian.data().to_vec();
-        println!("jl sketch col has {} entries. lap has {} cols and {} nzs", sketch_cols.vec.len(), col_ptrs.len()-1, row_indices.len());
-        println!("there are {} nonzeros in the last column", col_ptrs[self.num_nodes as usize] - col_ptrs[(self.num_nodes-1) as usize]);
+        //println!("jl sketch col has {} entries. lap has {} cols and {} nzs", sketch_cols.vec.len(), col_ptrs.len()-1, row_indices.len());
+        //println!("there are {} nonzeros in the last column", col_ptrs[self.num_nodes as usize] - col_ptrs[(self.num_nodes-1) as usize]);
 
         //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
         let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes);
@@ -317,7 +317,7 @@ impl Sparsifier {
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
         // apply diagonals to new triplet entries
-        //self.new_entries.process_diagonal();
+        self.new_entries.process_diagonal();
         // get the new entries in csc format
         // improve this later; currently it clones the triplet object which uses extra memory
         let new_stuff = self.new_entries.clone().to_csc();
@@ -326,8 +326,8 @@ impl Sparsifier {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        //println!("checking diagonal after populating laplacian:");
-        //self.check_diagonal();
+        println!("checking diagonal after populating laplacian:");
+        self.check_diagonal();
 
         if end_early {
             return;

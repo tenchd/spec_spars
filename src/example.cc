@@ -955,16 +955,18 @@ void jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, s
   int num_cols = file_jl_cols.size();
   int num_rows = file_jl_cols.at(0).size();
 
-  printf("verifying the sketch matrices have the same dimensions:\n");
+  printf("verifying the sketch matrices have the same dimensions: ");
   assert(num_cols = interop_jl_cols.size());
   assert(num_rows = interop_jl_cols.at(0).size());
+  printf("verified.\n");
 
-  printf("verifying the sketch matrices have the same entries:\n");
+  printf("verifying the sketch matrices have the same entries: ");
   for (int i = 0; i < num_cols; i++) {
     for (int j = 0; j < num_rows; j++) {
         assert(file_jl_cols.at(i).at(j) == interop_jl_cols.at(i).at(j));
     }
   }
+  printf("verified.\n");
   printf("jl_file_interop_equiv_test passed: jl sketch passed through interop is equivalent to the one in the file.\n");
 }
 

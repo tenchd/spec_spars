@@ -260,7 +260,8 @@ fn jl_sketch_compare_test() {
     
 }
 
-fn run_interop_test() {
+// this function is for testing interop, where the laplacian is built from tianyu's julia laplacian output.
+fn run_interop_test_tianyu() {
     let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
     let lap_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
 
@@ -284,11 +285,60 @@ fn run_interop_test() {
     ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap());
 }
 
+// this function is for testing interop, where the laplacian is built from the original virus dataset mtx (but still using tianyu's sketch).
+fn run_interop_test_mine_lap() {
+    let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+    let lap_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+    let sketch: ffi::FlattenedVec = read_sketch_from_mtx(sketch_filename);
+    println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
+    
+    let lap_stream: InputStream = InputStream::new(lap_filename);
+    //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
+    let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
+    let n = lap.cols();
+    let m = lap.rows();
+    assert_eq!(n,m);
+    let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
+    let lap_row_indices: Vec<i32> = lap.indices().to_vec();
+    let lap_values: Vec<f64> = lap.data().to_vec();
+    println!("input col_ptrs size in rust: {:?}. first value: {}", lap_col_ptrs.len(), lap_col_ptrs[0]);
+    println!("input row_indices size in rust: {:?}. first value: {}", lap_row_indices.len(), lap_row_indices[0]);
+    println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
+    println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
+
+    ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap());
+}
+
+// this function is for testing interop, where the laplacian is built from the original virus dataset mtx AND we use my sketch too.
+// fn run_interop_test_mine_all() {
+//     let lap_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+//     let sketch: ffi::FlattenedVec = read_sketch_from_mtx(sketch_filename);
+//     println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
+    
+//     let lap_stream: InputStream = InputStream::new(lap_filename);
+//     //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
+//     let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
+//     let n = lap.cols();
+//     let m = lap.rows();
+//     assert_eq!(n,m);
+//     let lap_col_ptrs: Vec<i32> = lap.indptr().as_slice().unwrap().to_vec();
+//     let lap_row_indices: Vec<i32> = lap.indices().to_vec();
+//     let lap_values: Vec<f64> = lap.data().to_vec();
+//     println!("input col_ptrs size in rust: {:?}. first value: {}", lap_col_ptrs.len(), lap_col_ptrs[0]);
+//     println!("input row_indices size in rust: {:?}. first value: {}", lap_row_indices.len(), lap_row_indices[0]);
+//     println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
+//     println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
+
+//     ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap());
+// }
+
 fn main() {
-    //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+    let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-    //lap_test(input_filename);
+    lap_test(input_filename);
     //jl_visualize();
     //l2_norm("/global/u1/d/dtench/rust_spars/cxx-test/sketch/virus_sketch.mtx");
     //tianyu_test();
@@ -296,7 +346,7 @@ fn main() {
     //let sketch_output = "../tianyu-stream/data/virus_sketch_tianyu.csv";
     //convert_mtx_to_csv(sketch_filename, sketch_output);
 
-    run_interop_test();
+    //run_interop_test_mine();
 
     
 }
