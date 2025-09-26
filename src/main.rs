@@ -58,7 +58,7 @@ impl FlattenedVec {
         let (num_rows, num_cols) = input_array.dim();
         let mut output = ffi::FlattenedVec{vec: vec![], num_rows: num_rows, num_cols: num_cols};
 
-        for i in input_array.iter() {
+        for i in input_array.iter() { //what order is this done in? presumably row major order?
             output.vec.push(*i);
         }   
 

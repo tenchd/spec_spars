@@ -605,15 +605,16 @@ std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
 
 //flattens a vector of vectors into a single vector. used to pass the solution back to the rust code.
 FlattenedVec flatten_vector(std::vector<std::vector<double>> original) {
-    size_t n = original.size();
-    size_t m = original.at(0).size();
+    size_t num_rows = original.size();
+    size_t num_cols = original.at(0).size();
     rust::cxxbridge1::Vec<double> values = {};
-    for (auto col: original) {
-        for (auto i: col) {
-            values.push_back(i);
+    for (int col = 0; col < num_cols; col++) {
+        for (int row = 0; row < num_rows; row++) {
+            double value = original.at(row).at(col);
+            values.push_back(value);
         }
     }
-    FlattenedVec output = {values, n, m};
+    FlattenedVec output = {values, num_rows, num_cols};
     return output;
 }
 
