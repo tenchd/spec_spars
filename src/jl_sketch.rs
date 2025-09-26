@@ -22,16 +22,6 @@ fn transform(input: i64) -> i64 {
     result
 }
 
-
-//get all the positions of nonzeros in particular column of sparse matrix representation
-/*
-pub fn get_nz_indices(input: &Array2<f64>, col: usize) -> {
-    let cols = input.dim().1;
-    assert!(col <= cols);
-    return input.indptr().outer_inds(col)
-}
-*/
-
 // function to add value 'val' to position 'row', 'col' in sparse matrix. 
 pub fn add_to_position(matrix: &mut CsMat<f64>, row: usize, col: usize, val:f64) {
     let location = matrix.get_mut(row,col);

@@ -1,5 +1,7 @@
 /target
-.vscode/
 /data
+/output
+/sketch
+.vscode/
 *.data
 Cargo.lock

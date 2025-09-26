@@ -563,24 +563,20 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
 // this code essentially copies the behavior of the main() function in driver_local.cpp, except I hardcoded in values for the arguments for simplicity.
 // currently hangs at the preconditioner if num_threads > 1; preconditioner works if num_threads=1 but the solves fail.
 void run_solve(std::vector<std::vector<double>> jl_cols, std::vector<std::vector<double>>& solution) {
-
   constexpr const char *input_filename = "/global/u1/d/dtench/cholesky/Parallel-Randomized-Cholesky/physics/parabolic_fem/parabolic_fem-nnz-sorted.mtx";
   int num_threads = 1; 
   constexpr char *output_filename = "output.txt";
   bool is_graph = 1;
 
   printf("problem: %s\n", input_filename);
-    sparse_matrix_processor<custom_idx, double> processor(input_filename);
-    
-    factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  parse_matrix_processor<custom_idx, double> processor(input_filename);
+  factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
 }
 
 // unflattens a flattened vector into a vec of vecs that can be passed to the solver. used for jl sketch
 std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
-
     int n = shared_jl_cols.num_cols;
     int m = shared_jl_cols.num_rows;
-    
     std::vector<std::vector<double>> jl_cols(n, std::vector<double>(m, 0.0));
     
     int counter = 0;
@@ -590,15 +586,6 @@ std::vector<std::vector<double>> unroll_vector(FlattenedVec shared_jl_cols) {
         jl_cols.at(current_row).at(current_column) = s;
         counter += 1;
     }
-
-    // printf("value 1: %f value 2: %f\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
-    // printf("value 1: %d value 2: %d\n", jl_cols.at(0).at(501), jl_cols.at(1).at(501));
-    // for (int i = 0; i < 10; i++) {
-    //     printf("%f\n", jl_cols.at(0).at(i));
-    // }    
-    // for (int i = 0; i < 10; i++) {
-    //     printf("%f\n", jl_cols.at(1).at(i));
-    // }
 
     return jl_cols;
 }
@@ -617,71 +604,6 @@ FlattenedVec flatten_vector(std::vector<std::vector<double>> original) {
     FlattenedVec output = {values, num_rows, num_cols};
     return output;
 }
-
-//test function that passes a jl sketch from rust, solves for it on the physics dataset, and sends the solution back to the rust code.
-FlattenedVec go(FlattenedVec shared_jl_cols) {
-    int n = shared_jl_cols.num_cols;
-    int m = shared_jl_cols.num_rows;
-    std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
-    std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
-    run_solve(jl_cols, solution);
-    FlattenedVec flat_solution = flatten_vector(solution);
-    return flat_solution;
-}
-
-// test function that constructs a sparse matrix object from column pointer, row index, and value vectors sent from the the rust code.
-void sprs_test(rust::Vec<size_t> rust_col_ptrs, rust::Vec<size_t> rust_row_indices, rust::Vec<double> rust_values) {
-//void sprs_test(rust_col_ptrs: rust::Vec<size_t>, rust_row_indices: rust::Vec<size_t>, rust_values: rust::Vec<double>) {
-    std::vector<double> values;
-    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
-    std::vector<size_t> col_ptrs;
-    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
-    std::vector<size_t> row_indices;
-    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
-    std::cout << col_ptrs.size() << std::endl;
-    for (auto i: values) {
-        std::cout << i << " , ";
-    }
-    std::cout << std::endl;
-    for (auto i: col_ptrs) {
-        std::cout << i << ", ";
-    }
-    std::cout << std::endl;
-    for (auto i: row_indices) {
-        std::cout << i << ", ";
-    }
-    std::cout << std::endl;
-    size_t num_rows = 3;
-    size_t num_cols = 3;
-    custom_space::sparse_matrix tester = custom_space::sparse_matrix(num_rows, num_cols, std::move(values), std::move(row_indices), std::move(col_ptrs));
-    tester.printCSC();
-    printf("%d\n", tester.nonZeros());
-}
-
-// test function that constructs a sparse matrix object of the correct data types for running the solver code. BROKEN
-void sprs_correctness_test(rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values) {
-    std::vector<double> values;
-    std::copy(rust_values.begin(), rust_values.end(), std::back_inserter(values));
-    std::vector<custom_idx> col_ptrs;
-    std::copy(rust_col_ptrs.begin(), rust_col_ptrs.end(), std::back_inserter(col_ptrs));
-    std::vector<custom_idx> row_indices;
-    std::copy(rust_row_indices.begin(), rust_row_indices.end(), std::back_inserter(row_indices));
-    // printf("phys col_ptrs size in c++: %d. first value: %d\n", col_ptrs.size(), col_ptrs.at(0));
-    // printf("phys row_indices size in c++: %d. first value: %d\n", row_indices.size(), row_indices.at(0));
-    // printf("phys values size in c++: %d. first value: %f\n", values.size(), values.at(0));
-
-    // printf("type of col_ptrs: ");
-    // std::cout << typeid(col_ptrs.at(0)).name() << std::endl;
-    
-    custom_idx num_rows = 525826;
-    custom_idx num_cols = 525826;
-    std::string name = "placeholder_sparse_matrix_processor_name";
-    //sparse_matrix tester = sparse_matrix(name, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
-    sparse_matrix_processor<custom_idx, double> tester = sparse_matrix_processor(name, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
-    printf("nonzeros in csc: %d\n", tester.mat.nonZeros());
-    //std::cout << "Size of int: " << sizeof(int) * 8 << " bits" << std::endl;
-}
-
 
 // test function for ensuring that flattenedvec data is passed appropriately
 FlattenedVec test_roll(FlattenedVec jl_cols) {
@@ -837,7 +759,7 @@ std::vector<std::vector<double>> load_csv_columns(const std::string& filename,
     std::vector<std::vector<double>> columns;   // outer vector = columns
 
     // --------------------------------------------------------------
-    // 1️⃣ Read the first line → discover column count and fill first row
+    // Read the first line → discover column count and fill first row
     // --------------------------------------------------------------
     if (!std::getline(infile, line)) {
         // Empty file → return empty container
@@ -854,7 +776,7 @@ std::vector<std::vector<double>> load_csv_columns(const std::string& filename,
     }
 
     // --------------------------------------------------------------
-    // 2️⃣ Process the remaining lines, appending to each column vector
+    // Process the remaining lines, appending to each column vector
     // --------------------------------------------------------------
     std::size_t lineNumber = 1; // we already processed line 1
     while (std::getline(infile, line)) {

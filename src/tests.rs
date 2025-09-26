@@ -35,24 +35,6 @@ pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> C
     trip.to_csr()
 }
 
-// pub fn make_random_matrix_i32(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMatI<f64, i32> {
-//     let mut trip: TriMatI<f64, i32> = TriMat::new((num_rows, num_cols));
-//     let mut rng = rand::thread_rng();
-//     let uniform = Uniform::new(-1.0, 1.0);
-//     for _ in 0..nnz {
-//         let row_pos = rng.gen_range(0..num_rows);
-//         let col_pos = rng.gen_range(0..num_rows);
-//         let value = uniform.sample(&mut rng);
-//         let row_pos_32: i32 = row_pos.try_into().unwrap();
-//         let col_pos_32: i32 = col_pos.try_into().unwrap();
-//         trip.add_triplet(row_pos_32, col_pos_32, value);
-//     }
-//     if csc {
-//         return trip.to_csc();
-//     }
-//     trip.to_csr()
-// }
-
 pub fn make_random_vec(num_values: usize) -> CsVec<f64> {
 
     let indices: Vec<usize> = (0..num_values).collect();
@@ -384,6 +366,7 @@ mod tests {
     }
 
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
+    // to really understand these tests you need to look at the functions with the same names in example.cc
     fn run_interop_test(test_selector: i32) {
         let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
         let lap_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
