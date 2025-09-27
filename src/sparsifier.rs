@@ -264,7 +264,7 @@ impl Sparsifier {
         //println!("there are {} nonzeros in the last column", col_ptrs[self.num_nodes as usize] - col_ptrs[(self.num_nodes-1) as usize]);
 
         //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
-        let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes);
+        let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes, self.verbose);
 
         let solution_cols = solution.num_cols;
         let mut diff_norms = vec![0.0; length];

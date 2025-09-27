@@ -400,7 +400,7 @@ mod tests {
 
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
     // to really understand these tests you need to look at the functions with the same names in example.cc
-    fn run_interop_test(test_selector: i32) {
+    fn run_interop_test(test_selector: i32, verbose: bool) {
         let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
         let lap_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
@@ -421,7 +421,7 @@ mod tests {
         println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
         println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
 
-        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap(), test_selector);
+        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap(), test_selector, verbose);
         assert!(result);
     }
 
@@ -430,35 +430,35 @@ mod tests {
     #[test]
     //#[ignore]
     fn file_only_solver_test() {
-        run_interop_test(1);
+        run_interop_test(1, false);
     }
 
     // this test establishes that the jl sketches from file and interop are the same. status: WORKS
     #[test]
     //#[ignore]
     fn jl_file_interop_equiv_test() {
-        run_interop_test(2);
+        run_interop_test(2, false);
     }
 
     // this test tries to solve with jl sketch from interop and lap from direct file read (in tianyu's sparse matrix processor code). status: WORKS
     #[test]
     //#[ignore]
     fn jl_interop_lap_file_solver_test() {
-        run_interop_test(3);
+        run_interop_test(3, false);
     }
 
     // tests whether the file and interop laplacians are equivalent. status: WORKS
     #[test]
     //#[ignore]
     fn lap_equiv_test() {
-        run_interop_test(4);
+        run_interop_test(4, false);
     }
 
     // this test tries to solve with jl sketch and lap both from interop. status: WORKS
     #[test]
     //#[ignore]
     fn interop_only_solver_test() {
-        run_interop_test(5);
+        run_interop_test(5, false);
     }
 
 

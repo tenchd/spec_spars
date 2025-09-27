@@ -328,7 +328,7 @@ bool compare(const Edge<int, double> &a, const Edge<int, double> &b)
 
 template <typename type_int, typename type_data>
 bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processor, type_int num_threads, char* path, bool is_graph, \
-    std::vector<std::vector<type_data>>& jl_cols, std::vector<std::vector<type_data>>& solution)
+    std::vector<std::vector<type_data>>& jl_cols, std::vector<std::vector<type_data>>& solution, bool verbose = false)
 {
     assert(INT_MAX == 2147483647);
     int space_multiply_factor = 5;
@@ -339,7 +339,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
         edge_pool_size = INT_MAX - 100000000;
         //assert(false);
     }
-    printf("Edge size: %ld\n", sizeof(Edge<type_int, type_data>{}));
+    if (verbose) {printf("Edge size: %ld\n", sizeof(Edge<type_int, type_data>{}));}
 
     // Allocate memory on the host (CPU)
     Edge<type_int, type_data> *host_edge_map = (Edge<type_int, type_data> *)malloc(edge_pool_size * sizeof(Edge<type_int, type_data>{}));
@@ -376,7 +376,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     }
 
     assert(queue_cpu[0] == 0);
-    printf("initial queue size: %d\n", queue_cpu[queue_cpu.size() - 2]);
+    if (verbose) {printf("initial queue size: %d\n", queue_cpu[queue_cpu.size() - 2]);}
 
     std::vector<type_int> min_dependency_count = processor.min_dependency_count;
 
@@ -387,9 +387,11 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
         node_list_host[i] = Node<type_int, type_data>(0, 0, i);
     }
   
-    printf("CURRENTLY, MULTIPLICITY STORAGE USES INT32, DON'T NEED 64 BIT UNLESS IN EXTREME CIRCUMSTANCES \n");
-    printf("CURRENTLY, BINARY SEARCH USES INT32, DON'T NEED 64 BIT UNLESS IN EXTREME CIRCUMSTANCES \n");
-    printf("defaulting row and col to 0 in map may cause problem for column 0 \n");
+    if (verbose) {
+        printf("CURRENTLY, MULTIPLICITY STORAGE USES INT32, DON'T NEED 64 BIT UNLESS IN EXTREME CIRCUMSTANCES \n");
+        printf("CURRENTLY, BINARY SEARCH USES INT32, DON'T NEED 64 BIT UNLESS IN EXTREME CIRCUMSTANCES \n");
+        printf("defaulting row and col to 0 in map may cause problem for column 0 \n");
+    }
     
     int schedule_id[] = {0, 128, 1, 129, 2, 130, 3, 131, 4, 132, 5, 133, 6, 134, 7, 135, 8, 136, 9, 137, 10, 138, 11, 139, 12, 140, 13, 141, 14, 142, 15, 143};
     
@@ -409,7 +411,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
 
         if(omp_get_thread_num() == 0)
         {
-            printf("Factorization execution time: %f seconds\n", duration.count());
+            if (verbose) {printf("Factorization execution time: %f seconds\n", duration.count());}
             //std::cout << "Factorization execution time: " << duration.count() << " seconds" << std::endl;
         }
         
@@ -441,9 +443,10 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
         node_list_host[i].count++;
         std::sort(host_edge_map + col_start, host_edge_map + col_start + node_list_host[i].count, compare);
     }
-    
-    printf("nnz ratio: %f, factor nnz: %d, original lower triangular nnz (exclude diagonal): %d\n", double(total_needed_size) / double(spmat.nonZeros()), total_needed_size, spmat.nonZeros());
-    std::vector<type_data> csr_val_host(total_needed_size);
+    if (verbose) {
+        printf("nnz ratio: %f, factor nnz: %d, original lower triangular nnz (exclude diagonal): %d\n", double(total_needed_size) / double(spmat.nonZeros()), total_needed_size, spmat.nonZeros());
+    }
+        std::vector<type_data> csr_val_host(total_needed_size);
     std::vector<type_int> csr_col_ind_host(total_needed_size);
 
     // start writing the result into a csr, preparing for cusparse operations
@@ -475,8 +478,10 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
             std::cerr << "Failed to open file for writing." << std::endl;
             exit(1);
         }
-        printf("rowptr size: %d\n", csr_rowptr_host.size());
-        printf("col indices size: %d\n", csr_col_ind_host.size());
+        if (verbose) {
+            printf("rowptr size: %d\n", csr_rowptr_host.size());
+            printf("col indices size: %d\n", csr_col_ind_host.size());
+        }
         // write_csr_to_matrix_market(csr_rowptr_host, csr_col_ind_host, csr_val_host, spmat.num_cols, spmat.num_cols, "c_sol.mtx");
         fast_matrix_market::matrix_market_header header(diagonal_entries.size(), diagonal_entries.size());
         header.object = fast_matrix_market::matrix;
@@ -515,8 +520,9 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     {
         verify_count += layer_info[i];
     }
-    std::cout << "actual depth of tree after factorization: " << layer_info.size() - 1 << ", total count: " << verify_count << ", number of partitions: " << layer_info[1] << "\n";
-
+    if (verbose) {
+        std::cout << "actual depth of tree after factorization: " << layer_info.size() - 1 << ", total count: " << verify_count << ", number of partitions: " << layer_info[1] << "\n";
+    }
     // triangular solve longest DAG path
 
     std::vector<size_t> max_path_dp(spmat.num_cols, 1);
@@ -533,7 +539,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     }
     auto max_path = std::max_element(max_path_dp.begin(), max_path_dp.end());
 
-    printf("triangular solve max path: %d at index: %d\n", *max_path, std::distance(max_path_dp.begin(), max_path));
+    if (verbose) {printf("triangular solve max path: %d at index: %d\n", *max_path, std::distance(max_path_dp.begin(), max_path));}
   
     
 
@@ -541,7 +547,9 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     bool all_succeeded = true;
     auto num_solve = 1;
     for (std::vector<double> right_hand_side: jl_cols){
-        printf("---------------Performing solve %i\n", num_solve);
+        if (verbose) {
+            printf("---------------Performing solve %i\n", num_solve);
+        }
 
         std::vector<type_data> solution_col;
         bool converged;
@@ -614,7 +622,7 @@ FlattenedVec test_roll(FlattenedVec jl_cols) {
 
 // function that runs the solver code on rust-provided laplacian and jl sketch.
 FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \
-    rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
+    rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes, bool verbose) {
 
     //constexpr const char *input_filename = "/global/u1/d/dtench/cholesky/Parallel-Randomized-Cholesky/physics/parabolic_fem/parabolic_fem-nnz-sorted.mtx";
     int num_threads = 32; 
@@ -640,7 +648,7 @@ FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> ru
     std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
     std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
 
-    printf("problem: %s\n", input_filename.c_str());
+    if (verbose) {printf("problem: %s\n", input_filename.c_str());}
     //sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
     factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
@@ -797,7 +805,7 @@ std::vector<std::vector<double>> load_csv_columns(const std::string& filename,
     return columns;
 }
 
-void julia_test_solve(FlattenedVec interop_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes) {
+void julia_test_solve(FlattenedVec interop_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes, bool verbose) {
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   std::string sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.csv";
 
@@ -855,10 +863,12 @@ void julia_test_solve(FlattenedVec interop_jl_cols, rust::Vec<custom_idx> rust_c
 }
 
 // reads in jl sketch and lap from file (produced by tianyu julia code) and solves. status: WORKS (but figure out how to check solution for good quality later)
-bool file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
-  printf("-------------------------------------\n");
-  printf("performing file_only_solver_test\n");
-  printf("-------------------------------------\n");
+bool file_only_solver_test(std::vector<std::vector<double>> jl_cols, bool verbose) {
+  if (verbose) {
+    printf("-------------------------------------\n");
+    printf("performing file_only_solver_test\n");
+    printf("-------------------------------------\n");
+  }
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   int num_threads = 32; 
   constexpr char *output_filename = "output/file_only.txt";
@@ -868,43 +878,47 @@ bool file_only_solver_test(std::vector<std::vector<double>> jl_cols) {
   custom_idx num_rows = jl_cols.at(0).size();
   std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
 
-  printf("problem: %s\n", input_filename);
+  if (verbose) {printf("problem: %s\n", input_filename);}
   sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
   bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
-  printf("file_only_solver_test done. if the solves converged, the test passed.\n");
+  if (verbose) {printf("file_only_solver_test done. if the solves converged, the test passed.\n");}
   return result;
 }
 
 // this test establishes that the jl sketches from file and interop are the same. status: WORKS
-bool jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, std::vector<std::vector<double>> interop_jl_cols) {
-  printf("-------------------------------------\n");
-  printf("performing jl_file_interop_equiv_test\n");
-  printf("-------------------------------------\n");
+bool jl_file_interop_equiv_test(std::vector<std::vector<double>> file_jl_cols, std::vector<std::vector<double>> interop_jl_cols, bool verbose) {
+  if (verbose) {
+    printf("-------------------------------------\n");
+    printf("performing jl_file_interop_equiv_test\n");
+    printf("-------------------------------------\n");
+  }
   int num_cols = file_jl_cols.size();
   int num_rows = file_jl_cols.at(0).size();
 
-  printf("verifying the sketch matrices have the same dimensions: ");
+  if (verbose) {printf("verifying the sketch matrices have the same dimensions: ");}
   assert(num_cols = interop_jl_cols.size());
   assert(num_rows = interop_jl_cols.at(0).size());
-  printf("verified.\n");
+  if (verbose) {printf("verified.\n");}
 
-  printf("verifying the sketch matrices have the same entries: ");
+  if (verbose) {printf("verifying the sketch matrices have the same entries: ");}
   for (int i = 0; i < num_cols; i++) {
     for (int j = 0; j < num_rows; j++) {
         assert(file_jl_cols.at(i).at(j) == interop_jl_cols.at(i).at(j));
     }
   }
-  printf("verified.\n");
-  printf("jl_file_interop_equiv_test passed: jl sketch passed through interop is equivalent to the one in the file.\n");
+  if (verbose) {printf("verified.\n");}
+  if (verbose) {printf("jl_file_interop_equiv_test passed: jl sketch passed through interop is equivalent to the one in the file.\n");}
   return true;
 }
 
 // this test tries to solve with jl sketch from interop and lap from direct file read (in tianyu's sparse matrix processor code). status: WORKS
-bool jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
-  printf("-------------------------------------\n");
-  printf("performing jl_interop_lap_file_solver_test\n");
-  printf("-------------------------------------\n");
+bool jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols, bool verbose) {
+  if (verbose) {
+    printf("-------------------------------------\n");
+    printf("performing jl_interop_lap_file_solver_test\n");
+    printf("-------------------------------------\n");
+  }
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   int num_threads = 32; 
   constexpr char *output_filename = "output/jl_int_lap_file.txt";
@@ -914,22 +928,24 @@ bool jl_interop_lap_file_solver_test(std::vector<std::vector<double>> jl_cols) {
   custom_idx num_rows = jl_cols.at(0).size();
   std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
 
-  printf("problem: %s\n", input_filename);
+  if (verbose) {printf("problem: %s\n", input_filename);}
   sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
   bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
-  printf("jl_interop_lap_file_solver_test done. if the solves converged, the test passed.\n");
+  if (verbose) {printf("jl_interop_lap_file_solver_test done. if the solves converged, the test passed.\n");}
   return result;
 }
 
 // tests whether the file and interop laplacians are equivalent. status: WORKS
-bool lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
-  printf("-------------------------------------\n");
-  printf("performing lap_equiv_test:\n");
-  printf("-------------------------------------\n");
+bool lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes, bool verbose) {
+  if (verbose) {
+    printf("-------------------------------------\n");
+    printf("performing lap_equiv_test:\n");
+    printf("-------------------------------------\n");
+  }
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   sparse_matrix_processor<custom_idx, double> file_processor(input_filename);
-  printf("sparse matrix processor from file DONE building.\n");
+  if (verbose) {printf("sparse matrix processor from file DONE building.\n");}
 
 //   for (int i = 0; i < 5; i++) {
 //     printf("col ptrs in col %d: file has %d and interop has %d\n", i, file_processor.mat.col_ptrs.at(i), interop_col_ptrs.at(i));
@@ -939,7 +955,7 @@ bool lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom
 
   std::string name = "interop_processor";
   sparse_matrix_processor<custom_idx, double> interop_processor(name, num_nodes, num_nodes, std::move(interop_col_ptrs), std::move(interop_row_indices), std::move(interop_values));
-  printf("sparse matrix processor from interop DONE building.\n");
+  if (verbose) {printf("sparse matrix processor from interop DONE building.\n");}
 
 
   for (int i = 0; i < file_processor.mat.col_ptrs.size(); i++) {
@@ -949,21 +965,23 @@ bool lap_equiv_test(std::vector<custom_idx> interop_col_ptrs, std::vector<custom
   for (int i = 0; i < file_processor.mat.row_indices.size(); i++) {
     assert(file_processor.mat.row_indices.at(i) == interop_processor.mat.row_indices.at(i));
   }
-  printf("the two laplacians have the same sparsity pattern.\n");
+  if (verbose) {printf("the two laplacians have the same sparsity pattern.\n");}
 
   double allowed_error = 0.000001;
   for (int i = 0; i < file_processor.mat.row_indices.size(); i++) {
     assert(abs(file_processor.mat.values.at(i) - interop_processor.mat.values.at(i)) < allowed_error);
   }
-  printf("lap_equi_test passed: laplacian passed through interop is equivalent to the one in the file.\n");
+  if (verbose) {printf("lap_equi_test passed: laplacian passed through interop is equivalent to the one in the file.\n");}
   return true;
 }
 
 // this test tries to solve with jl sketch and lap both from interop. status: WORKS
-bool interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes) {
-  printf("-------------------------------------\n");
-  printf("performing interop_only_solver_test\n");
-  printf("-------------------------------------\n");
+bool interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vector<custom_idx> interop_col_ptrs, std::vector<custom_idx> interop_row_indices, std::vector<double> interop_values, int num_nodes, bool verbose) {
+  if (verbose) {
+    printf("-------------------------------------\n");
+    printf("performing interop_only_solver_test\n");
+    printf("-------------------------------------\n");
+  }
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   int num_threads = 32; 
   constexpr char *output_filename = "output/int_only.txt";
@@ -973,18 +991,18 @@ bool interop_only_solver_test(std::vector<std::vector<double>> jl_cols, std::vec
   custom_idx num_rows = jl_cols.at(0).size();
   std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
 
-  printf("problem: %s\n", input_filename);
+  if (verbose) {printf("problem: %s\n", input_filename);}
   std::string name = "interop_processor";
   sparse_matrix_processor<custom_idx, double> processor(name, num_nodes, num_nodes, std::move(interop_col_ptrs), std::move(interop_row_indices), std::move(interop_values));
    
   bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
-  printf("interop_only_solver_test done. if the solves converged, the test passed.\n");
+  if (verbose) {printf("interop_only_solver_test done. if the solves converged, the test passed.\n");}
   return result;
 }
 
 // this function reads jl sketch and lap info from rust via interop. intended to be used to handle boilerplate unwrapping, 
 // then you call the specific test you want from it.
-bool test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes, int test_selector) {
+bool test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rust::Vec<int> rust_row_indices, rust::Vec<double> rust_values, int num_nodes, int test_selector, bool verbose) {
   constexpr const char *input_filename = "../tianyu-stream/data/virus_lap_tianyu.mtx";
   std::string sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.csv";
 
@@ -1013,19 +1031,19 @@ bool test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rus
   bool result;
   switch (test_selector) {
     case 1:
-        result = file_only_solver_test(file_jl_cols);
+        result = file_only_solver_test(file_jl_cols, verbose);
         break;
     case 2:
-        result = jl_file_interop_equiv_test(file_jl_cols, unrolled_interop_jl_cols);
+        result = jl_file_interop_equiv_test(file_jl_cols, unrolled_interop_jl_cols, verbose);
         break;
     case 3:
-        result = jl_interop_lap_file_solver_test(unrolled_interop_jl_cols);
+        result = jl_interop_lap_file_solver_test(unrolled_interop_jl_cols, verbose);
         break;
     case 4:
-        result = lap_equiv_test(lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
+        result = lap_equiv_test(lap_col_ptrs, lap_row_indices, lap_values, num_nodes, verbose);
         break;
     case 5: 
-        result = interop_only_solver_test(unrolled_interop_jl_cols, lap_col_ptrs, lap_row_indices, lap_values, num_nodes);
+        result = interop_only_solver_test(unrolled_interop_jl_cols, lap_col_ptrs, lap_row_indices, lap_values, num_nodes, verbose);
         break;
     default:
         result = false;

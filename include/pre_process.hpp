@@ -190,7 +190,7 @@ class sparse_matrix_processor {
     // Function to sort row, column, and value vectors by column, then by row
     void sort_triplets_append_diagonal(std::vector<type_int>& rows,
                     std::vector<type_int>& cols,
-                    std::vector<double>& values, size_t num_cols, bool add_diagonal) 
+                    std::vector<double>& values, size_t num_cols, bool add_diagonal, bool verbose = false) 
     {   
 
         size_t original_cols_size = cols.size();
@@ -212,7 +212,7 @@ class sparse_matrix_processor {
         // add the diagonal entries to the end, will be in correct location after sort
         if(add_diagonal)
         {
-            printf("went into add_diagonal code\n");
+            if (verbose) {printf("went into add_diagonal code\n");}
             for(size_t i = 0; i < num_cols; i++)
             {
                 rows.push_back(i);
@@ -232,7 +232,7 @@ class sparse_matrix_processor {
             }
         }
         else {
-            printf("didn't went into add_diagonal code\n");
+            if (verbose) {printf("didn't went into add_diagonal code\n");}
         }
        
         // Create an index vector to store the initial indices
@@ -316,7 +316,7 @@ class sparse_matrix_processor {
         std::vector<type_int> min_dependency_count;
       
         // Constructor
-        sparse_matrix_processor(const std::string& name) : name(name)
+        sparse_matrix_processor(const std::string& name, bool verbose = false) : name(name)
         {
             // Load the matrix from file
             std::string path = "";
@@ -352,23 +352,25 @@ class sparse_matrix_processor {
 
             type_int n = mat.rows();
             subtree_node_count.resize(n + 1, 0);
-            std::cout << "number of nodes: " << n << "\n";
-            std::cout << "number of nonzeros: " << mat.nonZeros() << "\n";
+            if (verbose) {
+                std::cout << "number of nodes: " << n << "\n";
+                std::cout << "number of nonzeros: " << mat.nonZeros() << "\n";
+            }
             
 
             // compute elimination tree
             auto start = std::chrono::high_resolution_clock::now();
-            etree = build_elimination_tree(mat);
+            etree = build_elimination_tree(mat, verbose);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> duration = end - start;
-            std::cout << "Time taken to build etree: " << duration.count() << " seconds" << std::endl;
+            if (verbose) {std::cout << "Time taken to build etree: " << duration.count() << " seconds" << std::endl;}
 
             // compute factorization tree
             start = std::chrono::high_resolution_clock::now();
             ftree = create_factorization_tree_from_etree(etree);
             end = std::chrono::high_resolution_clock::now();
             duration = end - start;
-            std::cout << "Time taken to build factorization tree: " << duration.count() << " seconds" << std::endl;
+            if (verbose) {std::cout << "Time taken to build factorization tree: " << duration.count() << " seconds" << std::endl;}
 
             // generate layer element summary
             // also gets subtree node count, has 1 extra space due to the dummy node at top of tree
@@ -376,14 +378,14 @@ class sparse_matrix_processor {
             layer_summary = layer_information(ftree);
             end = std::chrono::high_resolution_clock::now();
             duration = end - start;
-            std::cout << "Time taken to generate summary: " << duration.count() << " seconds" << std::endl;
+            if (verbose) {std::cout << "Time taken to generate summary: " << duration.count() << " seconds" << std::endl;}
 
             // calculate minimum dependency
             min_dependency_count.resize(n, 0);
             count_minimum_dependencies(mat);
 
              // print out summary
-            std::cout << "depth of tree (has 1 extra depth due to placeholder): " << layer_summary.size() << "\n";
+            if (verbose) {std::cout << "depth of tree (has 1 extra depth due to placeholder): " << layer_summary.size() << "\n";}
             type_int layer_sum = 0;
             for (auto it = layer_summary.begin(); it != layer_summary.end(); ++it) {
                 layer_sum += *it;
@@ -393,29 +395,30 @@ class sparse_matrix_processor {
 
         //constructor for ffi csc vectors
         sparse_matrix_processor(std::string name, type_int num_rows, type_int num_cols, \
-            std::vector<type_int>&& col_ptrs, std::vector<type_int>&& row_indices, std::vector<type_data>&& values) : name(name)
+            std::vector<type_int>&& col_ptrs, std::vector<type_int>&& row_indices, std::vector<type_data>&& values, bool verbose = false) : name(name)
         {
             mat = custom_space::sparse_matrix(num_rows, num_cols, std::move(values), std::move(row_indices), std::move(col_ptrs));
             assert(mat.rows() == mat.cols());
 
             type_int n = mat.rows();
             subtree_node_count.resize(n + 1, 0);
-            std::cout << "number of nodes: " << n << "\n";
-            std::cout << "number of nonzeros: " << mat.nonZeros() << "\n";
-
+            if (verbose) {
+                std::cout << "number of nodes: " << n << "\n";
+                std::cout << "number of nonzeros: " << mat.nonZeros() << "\n";
+            }
             // compute elimination tree
             auto start = std::chrono::high_resolution_clock::now();
-            etree = build_elimination_tree(mat);
+            etree = build_elimination_tree(mat, verbose);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> duration = end - start;
-            std::cout << "Time taken to build etree: " << duration.count() << " seconds" << std::endl;
+            if (verbose) {std::cout << "Time taken to build etree: " << duration.count() << " seconds" << std::endl;}
 
             // compute factorization tree
             start = std::chrono::high_resolution_clock::now();
             ftree = create_factorization_tree_from_etree(etree);
             end = std::chrono::high_resolution_clock::now();
             duration = end - start;
-            std::cout << "Time taken to build factorization tree: " << duration.count() << " seconds" << std::endl;
+            if (verbose) {std::cout << "Time taken to build factorization tree: " << duration.count() << " seconds" << std::endl;}
 
             // generate layer element summary
             // also gets subtree node count, has 1 extra space due to the dummy node at top of tree
@@ -423,14 +426,14 @@ class sparse_matrix_processor {
             layer_summary = layer_information(ftree);
             end = std::chrono::high_resolution_clock::now();
             duration = end - start;
-            std::cout << "Time taken to generate summary: " << duration.count() << " seconds" << std::endl;
+            if (verbose) {std::cout << "Time taken to generate summary: " << duration.count() << " seconds" << std::endl;}
 
             // calculate minimum dependency
             min_dependency_count.resize(n, 0);
             count_minimum_dependencies(mat);
 
              // print out summary
-            std::cout << "depth of tree (has 1 extra depth due to placeholder): " << layer_summary.size() << "\n";
+            if (verbose) {std::cout << "depth of tree (has 1 extra depth due to placeholder): " << layer_summary.size() << "\n";}
             type_int layer_sum = 0;
             for (auto it = layer_summary.begin(); it != layer_summary.end(); ++it) {
                 layer_sum += *it;
@@ -508,7 +511,7 @@ class sparse_matrix_processor {
             }
         }
 
-        std::vector<type_int> build_elimination_tree(const custom_space::sparse_matrix<type_int, type_data>& matrix) 
+        std::vector<type_int> build_elimination_tree(const custom_space::sparse_matrix<type_int, type_data>& matrix, bool verbose) 
         {
             /* do this inductively, everytime a new node is introduced, find the nodes with the smaller indices that connect to it, 
             then track down those paths and insert the new node in. This inductively creates the step n graph. */
@@ -613,13 +616,13 @@ class sparse_matrix_processor {
                     tree[cur_list[cur_list.size() - 1]] = 0;
             }
 
-            std::cout << "num linear paths: " << path_list.size() << "\n";
+            if (verbose) {std::cout << "num linear paths: " << path_list.size() << "\n";}
             double sum = 0;
             for(int i = 0; i < path_list.size(); i++)
             {
                 sum += path_list[i].size();
             }
-            std::cout << "average per path: " << sum / path_list.size() << "\n";
+            if (verbose) {std::cout << "average per path: " << sum / path_list.size() << "\n";}
             return tree;
         }
 

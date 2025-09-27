@@ -91,22 +91,22 @@ void enforce_zero_sum_vector(type_data *h_vec, size_t n)
 }
 
 template <typename type_int, typename type_data>
-std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse_matrix<type_int, type_data> &A, custom_space::sparse_matrix<type_int, type_data> &M, type_data *diagonal, bool is_graph, std::vector<type_data>& right_hand_side) {
+std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse_matrix<type_int, type_data> &A, custom_space::sparse_matrix<type_int, type_data> &M, type_data *diagonal, bool is_graph, std::vector<type_data>& right_hand_side, bool verbose = false) {
 //void example_pcg_solver(custom_space::sparse_matrix<type_int, type_data> &A, custom_space::sparse_matrix<type_int, type_data> &M, type_data *diagonal, bool is_graph) {
     
     if(!is_graph)
     {
         remove_last_row_and_column<type_int, type_data>(A);
         remove_last_row_and_column<type_int, type_data>(M);
-        printf("treated as physics problem\n");
+        if (verbose) {printf("treated as physics problem\n");}
     }
     else
     {
-        printf("treated as graph problem\n");
+        if (verbose) {printf("treated as graph problem\n");}
     }
 
-    printf("right hand side has length %d\n", right_hand_side.size());
-    printf("trimmed laplacian nnz: %d, trimmed factor nnz: %d\n", A.nonZeros(), M.nonZeros());
+    if (verbose) {printf("right hand side has length %d\n", right_hand_side.size());}
+    if (verbose) {printf("trimmed laplacian nnz: %d, trimmed factor nnz: %d\n", A.nonZeros(), M.nonZeros());}
     type_int n = A.rows();
 
     // SPD, diagonally dominant matrix in CSR format (fully populated)
@@ -182,7 +182,7 @@ std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse
     // Calculate the duration in seconds
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-    std::cout << "Inspector time taken: " << duration.count() << " milliseconds" << std::endl;
+    if (verbose) {std::cout << "Inspector time taken: " << duration.count() << " milliseconds" << std::endl;}
 
     type_data *temp_for_pre = (type_data *)malloc(n * sizeof(type_data));
     
@@ -193,12 +193,12 @@ std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse
         dcg(&n, x.data(), b.data(), &RCI_request, ipar.data(), dpar.data(), tmp.data());
         if(counter % 50 == 0)
         {
-            std::cout << "current step: " << ipar[3] << ", current residual norm: " << sqrt(dpar[4]) << "\n";
+            if (verbose) {std::cout << "current step: " << ipar[3] << ", current residual norm: " << sqrt(dpar[4]) << "\n";}
         }
         //printf("RCI_request: %d\n", RCI_request);
         if (RCI_request == 0) 
         {
-            std::cout << "Converged. Iterations: " << ipar[3] << ", Final residual norm: " << sqrt(dpar[4]) << "\n";
+            if (verbose) {std::cout << "Converged. Iterations: " << ipar[3] << ", Final residual norm: " << sqrt(dpar[4]) << "\n";}
             break;
         } 
         else if (RCI_request == 1) 
@@ -214,7 +214,7 @@ std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse
             }
             else
             {
-                std::cout << "Converged. Iterations: " << ipar[3] << ", Final residual norm: " << sqrt(dpar[4]) << "\n";
+                if (verbose) {std::cout << "Converged. Iterations: " << ipar[3] << ", Final residual norm: " << sqrt(dpar[4]) << "\n";}
                 
                 break;
             }
@@ -244,11 +244,11 @@ std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse
     // Calculate the duration in seconds
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-    std::cout << "Solve time taken: " << duration.count() << " milliseconds" << std::endl;
+    if (verbose) {std::cout << "Solve time taken: " << duration.count() << " milliseconds" << std::endl;}
 
     double norm_rhs = cblas_dnrm2(n, b.data(), 1);
     mkl_sparse_d_mv(SPARSE_OPERATION_NON_TRANSPOSE, 1.0, A_handle, descr_A, x.data(), -1, b.data());
-    printf("relative residual: %.12f\n", cblas_dnrm2(n, b.data(), 1) / norm_rhs);
+    if (verbose) {printf("relative residual: %.12f\n", cblas_dnrm2(n, b.data(), 1) / norm_rhs);}
     double rel_residual = cblas_dnrm2(n, b.data(), 1) / norm_rhs;
     bool converged = false;
     if (rel_residual < 0.01) {
@@ -266,7 +266,7 @@ std::tuple<std::vector<type_data>, bool> example_pcg_solver(custom_space::sparse
     // std::cout << "Solution x:\n";
     // for (double val : x)
     //     std::cout << val << " ";
-    std::cout << "\n";
+    if (verbose) {std::cout << "\n";}
 
     return std::make_tuple(x, converged);
 }
