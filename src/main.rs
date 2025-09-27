@@ -68,9 +68,10 @@ impl FlattenedVec {
     pub fn to_array2(&self) -> Array2<f64>{
         let mut output = Array2::<f64>::zeros((self.num_rows, self.num_cols));
         for i in 0..self.vec.len() {
-            let row: usize = ((i as f64)/(self.num_rows as f64)).floor() as usize;
+            let row: usize = ((i as f64)/(self.num_cols as f64)).floor() as usize;
             let col: usize = i % self.num_cols;
             let value: f64 = *self.vec.get(i).unwrap();
+            //println!("index {i} has value {value} and is put in row {row} and column {col}");
             output[[row,col]] = value;
         }
         output

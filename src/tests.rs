@@ -8,7 +8,7 @@ pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: boo
     let uniform = Uniform::new(-1.0, 1.0);
     for _ in 0..nnz {
         let row_pos = rng.gen_range(0..num_rows);
-        let col_pos = rng.gen_range(0..num_rows);
+        let col_pos = rng.gen_range(0..num_cols);
         let value = uniform.sample(&mut rng);
         trip.add_triplet(row_pos, col_pos, value);
     }
@@ -75,7 +75,7 @@ mod tests {
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian.
     #[test]
-    #[ignore]
+    //#[ignore]
     fn lap_valid_random() {
         println!("TEST:----Running lap validity test: insert many random updates and periodically check laplacian for validity.-----");
         let seed: u64 = 1;
@@ -112,7 +112,7 @@ mod tests {
     // test that takes in file, triggers a dummy sparsification where fake probabilities (all 0.5) are used, and verifies that the laplacian is altered appropriately:
     // about half of the entries are deleted, total diagonal sum is multiplied by about sqrt(2)/2, and laplacian is still valid.
     #[test]
-    #[ignore]
+    //#[ignore]
     fn sampling_verify(){
         println!("TEST:-----Testing that, given edge probabilities all 0.5, laplacian is appropriately sparsified.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -169,7 +169,7 @@ mod tests {
     // and verifies that the matrices are equivalent.
     // also verifies that the laplacian is valid - each col sums to 0, matrix is symmetric.
     #[test]
-    #[ignore]
+    //#[ignore]
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -238,6 +238,7 @@ mod tests {
 
     //verifies that blocked jl sketching matrix multiplication gives the same output as library mat mult implementations.
     #[test]
+    //#[ignore]
     fn jl_sketch_equiv(){
         println!("TEST:-----Testing that blocked jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
         let num_rows = 50;
@@ -264,7 +265,7 @@ mod tests {
 
     // test whether jl sketch produces column sums near 0
     #[test]
-    #[ignore]
+    //#[ignore]
     pub fn jl_sketch_zero() {
         println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -324,6 +325,7 @@ mod tests {
     }
 
     #[test]
+    //#[ignore]
     pub fn flatten_interop() {
         println!("TEST:-----Verifying that interop doesn't corrupt jl sketch columns.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -361,8 +363,39 @@ mod tests {
         for i in 0..saved_vec.len() {
             assert!(saved_vec.get(i).unwrap() == rerolled_cols.vec.get(i).unwrap());
         }
+    }
 
-        // should turn this into a dense matrix and check equiv with sketch_cols
+    // tests whether the rolling/unrolling functionality of the FlattenedVec class works correctly.
+    #[test]
+    //#[ignore]
+    fn flatvec_equiv() {
+        let mat = make_random_matrix(400, 1000, 100000, true).to_dense();
+        // let mat = ndarray::array![[0.0, 1.0, 2.0, 3.0], 
+        //                                                         [4.0, 5.0, 6.0, 7.0],
+        //                                                         [8.0, 9.0, 10.0, 11.0],
+        //                                                         [12.0, 13.0, 14.0, 15.0],
+        //                                                         [16.0, 17.0, 18.0, 19.0],
+        //                                                         [20.0, 21.0, 22.0, 23.0]];        
+        // let mat = ndarray::array![[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 
+        //                                                         [6.0, 7.0, 8.0, 9.0, 10.0, 11.0], 
+        //                                                         [12.0, 13.0, 14.0, 15.0, 16.0, 17.0], 
+        //                                                         [18.0, 19.0, 20.0, 21.0, 22.0, 23.0]];
+        let flat = ffi::FlattenedVec::new(&mat);
+        let new_mat = flat.to_array2();
+        let num_rows = mat.dim().0;
+        let num_cols = mat.dim().1;
+        assert!(num_rows == new_mat.dim().0);
+        assert!(num_cols == new_mat.dim().1);
+        // println!("{:?}", mat);
+        // println!("{:?}", flat.vec);
+        // println!("{:?}", new_mat);
+        for row in 0..num_rows {
+            for col in 0..num_cols {
+                let value = mat[[row,col]];
+                let new_value = new_mat[[row,col]];
+                assert!(value == new_value, "row {row} col {col} mismatch: original had {value}, new had {new_value}");
+            }
+        }
     }
 
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
@@ -395,35 +428,35 @@ mod tests {
     // this test reads in jl sketch and lap from file (produced by tianyu julia code) and solves. status: WORKS 
     //(but figure out how to check solution for good quality later)
     #[test]
-    #[ignore]
+    //#[ignore]
     fn file_only_solver_test() {
         run_interop_test(1);
     }
 
     // this test establishes that the jl sketches from file and interop are the same. status: WORKS
     #[test]
-    #[ignore]
+    //#[ignore]
     fn jl_file_interop_equiv_test() {
         run_interop_test(2);
     }
 
     // this test tries to solve with jl sketch from interop and lap from direct file read (in tianyu's sparse matrix processor code). status: WORKS
     #[test]
-    #[ignore]
+    //#[ignore]
     fn jl_interop_lap_file_solver_test() {
         run_interop_test(3);
     }
 
     // tests whether the file and interop laplacians are equivalent. status: WORKS
     #[test]
-    #[ignore]
+    //#[ignore]
     fn lap_equiv_test() {
         run_interop_test(4);
     }
 
     // this test tries to solve with jl sketch and lap both from interop. status: WORKS
     #[test]
-    #[ignore]
+    //#[ignore]
     fn interop_only_solver_test() {
         run_interop_test(5);
     }

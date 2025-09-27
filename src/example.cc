@@ -569,7 +569,7 @@ void run_solve(std::vector<std::vector<double>> jl_cols, std::vector<std::vector
   bool is_graph = 1;
 
   printf("problem: %s\n", input_filename);
-  parse_matrix_processor<custom_idx, double> processor(input_filename);
+  sparse_matrix_processor<custom_idx, double> processor(input_filename);
   factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
 }
 

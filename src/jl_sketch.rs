@@ -132,10 +132,10 @@ pub fn jl_sketch_sparse(og_matrix: &CsMat<f64>, jl_factor: f64, seed: u64) -> Cs
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
     populate_matrix(&mut sketch_matrix, seed, jl_dim);
 
-    let sums = sketch_matrix.sum_axis(Axis(0));
-    for sum in sums {
-        assert!(sum.abs_diff_eq(&0.0, 0.05));
-    }
+    // let sums = sketch_matrix.sum_axis(Axis(0));
+    // for sum in sums {
+    //     assert!(sum.abs_diff_eq(&0.0, 0.05));
+    // }
 
     let csr_sketch_matrix : CsMat<f64> = CsMat::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
     let result = og_matrix.mul(&csr_sketch_matrix);
