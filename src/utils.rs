@@ -198,3 +198,9 @@ pub fn l2_norm(filename: &str) {
     println!("l2 norm of matrix: {}", norm);
 }
 
+// pub fn find_cut_weight(laplacian: CsMatI<f64,i32>, cut_vector: CsVecI<f64, i32>) -> f64{
+//     let num_rows = cut_vector.dim();
+//     assert!(laplacian.rows() == num_rows);
+//     let eye = CsMatI::<f64,i32>::eye(num_rows);
+//     &eye * &cut_vector
+// }

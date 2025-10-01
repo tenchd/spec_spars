@@ -85,7 +85,7 @@ fn lap_test(input_filename: &str) {
     let epsilon = 0.5;
     let beta_constant = 4;
     let row_constant = 2;
-    let verbose = false;
+    let verbose = true;
 
 
     let stream = InputStream::new(input_filename);

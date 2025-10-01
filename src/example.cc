@@ -525,6 +525,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     }
     // triangular solve longest DAG path
 
+    
     std::vector<size_t> max_path_dp(spmat.num_cols, 1);
     for(size_t i = 0; i < spmat.num_cols; i++)
     {
@@ -542,7 +543,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
     if (verbose) {printf("triangular solve max path: %d at index: %d\n", *max_path, std::distance(max_path_dp.begin(), max_path));}
   
     
-
+    
     custom_space::sparse_matrix<type_int, type_data> precond_M(processor.mat.rows(), processor.mat.cols(), std::move(csr_val_host), std::move(csr_col_ind_host), std::move(csr_rowptr_host));
     bool all_succeeded = true;
     auto num_solve = 1;
@@ -553,7 +554,7 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
 
         std::vector<type_data> solution_col;
         bool converged;
-        tie(solution_col, converged) = example_pcg_solver(processor.mat, precond_M, diagonal_entries.data(), is_graph, right_hand_side);
+        tie(solution_col, converged) = example_pcg_solver(processor.mat, precond_M, diagonal_entries.data(), is_graph, right_hand_side, verbose);
         //example_pcg_solver(processor.mat, precond_M, diagonal_entries.data(), is_graph);
 
         //printf("trying to write to solution column %d\n", num_solve-1);
@@ -640,7 +641,7 @@ FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> ru
     custom_idx num_cols = num_nodes;
     //printf("num rows: %d\n", col_ptrs.size()-1);
     std::string input_filename = "placeholder_sparse_matrix_processor_name";
-    sparse_matrix_processor<custom_idx, double> processor = sparse_matrix_processor(input_filename, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values));
+    sparse_matrix_processor<custom_idx, double> processor = sparse_matrix_processor(input_filename, num_rows, num_cols, std::move(col_ptrs), std::move(row_indices), std::move(values), verbose);
 
     
     custom_idx n = shared_jl_cols.num_cols;
@@ -651,7 +652,7 @@ FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> ru
     if (verbose) {printf("problem: %s\n", input_filename.c_str());}
     //sparse_matrix_processor<custom_idx, double> processor(input_filename);
     
-    factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+    factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution, verbose);
 
     FlattenedVec flat_solution = flatten_vector(solution);
     return flat_solution;

@@ -55,6 +55,10 @@ impl InputStream {
         println!("checking diagonal final time");
         sparsifier.check_diagonal();
 
+        let output_filename = "data/virus_sparse.mtx";
+        println!("sparsification done. nonzeros: {} writing to file", sparsifier.current_laplacian.nnz());
+        crate::utils::write_mtx(output_filename, &sparsifier.current_laplacian);
+
     }
 
     // used for testing purposes

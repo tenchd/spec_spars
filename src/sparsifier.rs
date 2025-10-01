@@ -156,8 +156,6 @@ impl Sparsifier {
         // initialize empty sparse matrix for the laplacian
         // it needs to have num_nodes+1 rows and cols actually
         let current_laplacian: CsMatBase<f64, i32, Vec<i32>, Vec<i32>, Vec<f64>, _> = CsMatI::<f64, i32>::zero((num_nodes.try_into().unwrap(), num_nodes.try_into().unwrap()));     
-
-        if verbose {println!("brother you just built a sparsifier");}
         
 
         Sparsifier{
@@ -284,7 +282,7 @@ impl Sparsifier {
                 nonzero_counter += 1;
             }
         }
-
+        println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
         return probs;
     }
 
