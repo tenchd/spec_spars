@@ -252,7 +252,7 @@ impl Sparsifier {
     }
 
     // returns probabilities for all off-diagonal nonzero entries in laplacian. placeholder for now
-    pub fn get_probs(&self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
+    pub fn get_probs(&mut self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
         //create a trivial solution via forward multiplication. for testing purposes, will remove later
         //NOTE: currently this call takes a LONG time. like 10-20 minutes. DIAGNOSE
         //let trivial_right_hand_side = create_trivial_rhs(self.num_nodes as usize, &self.current_laplacian);   
@@ -267,7 +267,8 @@ impl Sparsifier {
 
         //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
         let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes, self.verbose);
-
+        self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
+        
         // let solution_cols = solution.num_cols;
         // let mut diff_norms = vec![0.0; length];
         // let solution_array = solution.to_array2();
@@ -288,6 +289,7 @@ impl Sparsifier {
         // }
         // println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
         let probs = self.compute_diff_norms(length, &solution);
+        self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);
         return probs;
     }
 
@@ -316,8 +318,10 @@ impl Sparsifier {
         self.benchmarker.set_time(BenchmarkPoint::Initialize);
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
+        self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
         // then compute JL sketch of it
         let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
+        self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
         //let dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
@@ -345,8 +349,9 @@ impl Sparsifier {
             probs = (&self).get_probs_dummy(num_nnz);
         }
         else {
-            probs = (&self).get_probs(num_nnz, sketch_cols);
+            probs = self.get_probs(num_nnz, sketch_cols);
         }
+
 
         let coins = Self::flip_coins(num_nnz);
 
@@ -381,7 +386,7 @@ impl Sparsifier {
                 counter +=1;
             }
         }
-
+        self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
 
         // make sure diagonal is correct after reweightings
         reweightings.process_diagonal();
@@ -394,7 +399,6 @@ impl Sparsifier {
 
 
         self.benchmarker.set_time(BenchmarkPoint::End);
-        println!("{:?}", self.benchmarker.times);
         self.benchmarker.display_durations();
 
     }
