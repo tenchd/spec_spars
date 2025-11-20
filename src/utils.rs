@@ -148,7 +148,7 @@ where
 
 //make this generic later maybe
 pub fn write_mtx(filename: &str, matrix: &CsMatI<f64, i32>) {
-    sprs::io::write_matrix_market(filename, matrix).ok();
+        sprs::io::write_matrix_market(filename, matrix).ok();
 }
 
 // reads a jl_sketch vec of vecs from a file and 

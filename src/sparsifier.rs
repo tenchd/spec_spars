@@ -237,10 +237,12 @@ impl Sparsifier {
                 //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
                 for i in 0..solution_cols {
                     diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
+                    assert!(diff_norms[nonzero_counter] >= 0.0);
                 }
                 diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
                 // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-                probs[nonzero_counter] *= ((self.beta as f64) * value * diff_norms[nonzero_counter]).min(1.0);
+                probs[nonzero_counter] *= ((self.beta as f64) * -1.0 * value * diff_norms[nonzero_counter]/(solution_cols as f64)).min(1.0);
+                assert!(probs[nonzero_counter] >= 0.0, "negative partial prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 nonzero_counter += 1;
             }
         }
@@ -352,6 +354,11 @@ impl Sparsifier {
             probs = self.get_probs(num_nnz, sketch_cols);
         }
 
+        let average = probs.iter().sum::<f64>()/(probs.len() as f64);
+        println!("mean of probs: {}", average);
+        //let min = probs.iter().min().unwrap();
+        let min = probs.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+        println!("minimum prob: {}", min);
 
         let coins = Self::flip_coins(num_nnz);
 
@@ -373,7 +380,7 @@ impl Sparsifier {
                     // should be bigger than true value because 0 < prob < 1
                     let target_value = true_value/prob.sqrt();
                     let additive_change = true_value - target_value;
-                    assert!(additive_change < 0.0);
+                    assert!(additive_change <= 0.0, "counter = {}, prob = {}, true_value = {}, target value = {}, additive change = {}", counter, prob, true_value, target_value, additive_change);
                     //println!("{},{} stays, target value is {} so applying addition {} to existing value {}", row, col, target_value, additive_change, true_value);
                     reweightings.insert(row, col, additive_change*-1.0);
                 }
