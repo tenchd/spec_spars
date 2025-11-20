@@ -5,6 +5,7 @@ use ndarray_rand::rand_distr::num_traits::Float;
 use rand_xoshiro::rand_core::RngCore;
 use sprs::{CsMat,CsMatI,TriMatI,CsVecI};
 use sprs::io::{read_matrix_market, IoError};
+use std::time::{Instant, Duration};
 
 use ndarray::{Array2};
 use ndarray_csv::{Array2Reader, Array2Writer};
@@ -19,6 +20,70 @@ use crate::ffi;
 
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+
+pub enum BenchmarkPoint {
+    Start,
+    Initialize,
+    End,
+}
+
+pub struct Benchmarker {
+    pub active: bool,
+    pub timer: Instant,
+    //pub points: BenchmarkPoint,
+    pub times: Vec<Option<Duration>>,
+}
+
+impl Benchmarker {
+    pub fn new(benchmark: bool) -> Benchmarker {
+        // points = BenchmarkPoint {
+        //     Start: 0,
+        //     Initialize: 1,
+        //     End: 2,
+        // };
+
+        Benchmarker { 
+            active: benchmark, 
+            timer: Instant::now(), 
+            //points: points,
+            times: vec![None; 3],
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    fn resolve(&self, point: BenchmarkPoint) -> usize {
+        match point {
+            BenchmarkPoint::Start => 0,
+            BenchmarkPoint::Initialize => 1,
+            BenchmarkPoint::End => 2,
+        }
+    }
+
+    pub fn start(&mut self) {
+        assert!(self.is_active());
+        self.times[0] = Some(self.timer.elapsed());
+    }
+
+    pub fn get_time(&self) -> Duration {
+        assert!(self.is_active());
+        //assert!(self.t_start.is_some());
+        self.timer.elapsed() - self.times[0].expect("timer is not initialized")
+    }
+
+
+    pub fn set_time(&mut self, point: BenchmarkPoint) {
+        let index = self.resolve(point);
+        self.times[index] = Some(self.get_time());
+    }
+
+    pub fn display_durations(&self){
+        println!("time elapsed: {:?}", self.times[self.resolve(BenchmarkPoint::End)].unwrap() - self.times[self.resolve(BenchmarkPoint::Initialize)].unwrap());
+    }
+
+}
 
 pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
     let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();

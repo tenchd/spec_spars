@@ -1,6 +1,6 @@
 use sprs::{CsMatI};
 use crate::{read_mtx,Sparsifier};
-use crate::utils::{load_pattern_as_csr};
+use crate::utils::{Benchmarker, load_pattern_as_csr};
 
 
 pub struct InputStream {
@@ -41,8 +41,9 @@ impl InputStream {
         }
     }
 
-    pub fn run_stream(&self, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64) {
-        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+    pub fn run_stream(&self, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmark: bool) {
+        let mut benchmarker = Benchmarker::new(benchmark);
+        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in self.input_matrix.iter() {
             //assert!(*value >= 0.0);
@@ -70,7 +71,8 @@ impl InputStream {
         let beta_constant = 4;
         let row_constant = 2;
         let verbose = false;
-        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+        let mut benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in self.input_matrix.iter() {
             //assert!(*value >= 0.0);

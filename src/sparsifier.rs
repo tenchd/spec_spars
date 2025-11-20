@@ -2,9 +2,11 @@ use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
 use std::ops::Add;
 use rand::Rng;
 use approx::AbsDiffEq;
+use std::time::{Instant, Duration};
 
 use crate::jl_sketch::jl_sketch_sparse_flat;
 use crate::ffi::{self, FlattenedVec};
+use crate::utils::{BenchmarkPoint, Benchmarker};
 
 // template types later
 #[derive(Clone)]
@@ -143,10 +145,11 @@ pub struct Sparsifier{
     pub verbose: bool,    //when true, prints a bunch of debugging info
     pub jl_factor: f64, //constant factor for jl sketch matrix
     pub seed: u64,   //random seed for hashed jl sketch matrix
+    pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
 }
 
 impl Sparsifier {
-    pub fn new(num_nodes: i32, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64) -> Sparsifier {
+    pub fn new(num_nodes: i32, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmarker: Benchmarker) -> Sparsifier {
         // as per line 1
         let beta = (epsilon.powf(-2.0) * (beta_constant as f64) * (num_nodes as f64).log(2.0)).round() as i32;
         // as per 3(b) condition
@@ -170,6 +173,7 @@ impl Sparsifier {
             verbose: verbose,
             jl_factor: jl_factor,
             seed: seed,
+            benchmarker: benchmarker,
         }
     }
 
@@ -220,32 +224,32 @@ impl Sparsifier {
         //TODO: if it's too big, trigger sparsification step
     }
 
-    // // takes the solution matrix and computes an approximate effective resistance for each edge in the laplacian.
-    // fn compute_diff_norms(length: usize, &solution: ffi::FlattenedVec) -> Vec<f64>{
-    //     let solution_cols = solution.num_cols();
-    //     let diff_norms = Vec<f64>::new(length, 0.0);
-    //     let solution_array = solution.to_array2();
-    //     //loop through lower diagonal entries
-    //     let mut nonzero_counter = 0;
-    //     for (_value, (row, col)) in self.current_laplacian.iter() {
-    //         for i in 0..solution_cols {
-    //             diff_norms[nonzero_counter] += (solution_array[[row, i]] - solution_array[[col, i]]).powi(2);
-    //         }
-    //         diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
-    //         nonzero_counter += 1;
-    //     }
-    //     //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
+    // takes the solution matrix and computes an approximate effective resistance for each edge in the laplacian.
+    fn compute_diff_norms(&self, length: usize, solution: &ffi::FlattenedVec) -> Vec<f64>{
+        let solution_cols = solution.num_cols;
+        let mut diff_norms = vec![0.0; length];
+        let solution_array = solution.to_array2();
+        let mut probs: Vec<f64> = vec![1.0; length];
+        //loop through lower diagonal entries
+        let mut nonzero_counter = 0;
+        for (value, (row, col)) in self.current_laplacian.iter() {
+            if row < col {
+                //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
+                for i in 0..solution_cols {
+                    diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
+                }
+                diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
+                // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
+                probs[nonzero_counter] *= ((self.beta as f64) * value * diff_norms[nonzero_counter]).min(1.0);
+                nonzero_counter += 1;
+            }
+        }
 
-    //     let mut probs: Vec<f64> = Vec<f64>::new(length, 0.0);
+        println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
 
-    //     // compute probs from diff norm: multiply by beta, then bound at 1
-    //     for i in 0..length {
-    //         probs[i] *= (self.beta as f64).min(1.0);
-    //     }
-
-    //     return probs;
+        return probs;
         
-    // }
+    }
 
     // returns probabilities for all off-diagonal nonzero entries in laplacian. placeholder for now
     pub fn get_probs(&self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
@@ -264,25 +268,26 @@ impl Sparsifier {
         //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
         let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes, self.verbose);
 
-        let solution_cols = solution.num_cols;
-        let mut diff_norms = vec![0.0; length];
-        let solution_array = solution.to_array2();
-        let mut probs: Vec<f64> = vec![1.0; length];
-        //loop through lower diagonal entries
-        let mut nonzero_counter = 0;
-        for (value, (row, col)) in self.current_laplacian.iter() {
-            if row < col {
-                //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
-                for i in 0..solution_cols {
-                    diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
-                }
-                diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
-                // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-                probs[nonzero_counter] *= ((self.beta as f64) * value).min(1.0);
-                nonzero_counter += 1;
-            }
-        }
-        println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
+        // let solution_cols = solution.num_cols;
+        // let mut diff_norms = vec![0.0; length];
+        // let solution_array = solution.to_array2();
+        // let mut probs: Vec<f64> = vec![1.0; length];
+        // //loop through lower diagonal entries
+        // let mut nonzero_counter = 0;
+        // for (value, (row, col)) in self.current_laplacian.iter() {
+        //     if row < col {
+        //         //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
+        //         for i in 0..solution_cols {
+        //             diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
+        //         }
+        //         diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
+        //         // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
+        //         probs[nonzero_counter] *= ((self.beta as f64) * value).min(1.0);
+        //         nonzero_counter += 1;
+        //     }
+        // }
+        // println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
+        let probs = self.compute_diff_norms(length, &solution);
         return probs;
     }
 
@@ -307,6 +312,8 @@ impl Sparsifier {
 
     pub fn sparsify(&mut self, end_early: bool, test: bool) {
         // compute evim format of new triplet entries (no diagonal)
+        self.benchmarker.start();
+        self.benchmarker.set_time(BenchmarkPoint::Initialize);
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
         // then compute JL sketch of it
@@ -384,6 +391,11 @@ impl Sparsifier {
 
         println!("checking diagonal after sampling");
         self.check_diagonal();
+
+
+        self.benchmarker.set_time(BenchmarkPoint::End);
+        println!("{:?}", self.benchmarker.times);
+        self.benchmarker.display_durations();
 
     }
 

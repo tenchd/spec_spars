@@ -66,11 +66,11 @@ pub fn populate_matrix(input: &mut Array2<f64>, seed: u64, jl_dim: usize) {
             input[[i,j]] += (hash_with_inputs(seed, i as u64, j as u64) as f64) / scaling_factor;
         }
     }
-    println!("jl sketch matrix column sums:");
-    let sums = input.sum_axis(Axis(0));
-    //println!("{:?}", sums);
-    let result = mean_and_std_dev(&sums);
-    println!("mean {} std dev {}", result.0, result.1);
+    // println!("jl sketch matrix column sums:");
+    // let sums = input.sum_axis(Axis(0));
+    // //println!("{:?}", sums);
+    // let result = mean_and_std_dev(&sums);
+    // println!("mean {} std dev {}", result.0, result.1);
 }
 
 pub fn hash_with_inputs_murmur(seed: u64, input1: u64, input2: u64) -> i64 {
