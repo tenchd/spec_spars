@@ -68,6 +68,7 @@ mod tests {
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
     use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur,mean_and_std_dev}, utils, Sparsifier,InputStream};
+    use crate::utils::Benchmarker;
     use std::ops::Add;
     use approx::AbsDiffEq;
     use crate::ffi;
@@ -91,7 +92,8 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let mut sparsifier = Sparsifier::new(num_nodes, epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+        let mut benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(num_nodes, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         //generate random stream of updates
         let mut rng = rand::thread_rng();
@@ -130,7 +132,8 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+        let mut benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -161,6 +164,7 @@ mod tests {
 
         let weight_ratio_target = 2.0/(2.0_f64).sqrt();
 
+        println!("edge ratio: {}", edge_ratio);
         assert!(edge_ratio.abs_diff_eq(&2.0, 0.05));
         assert!(weight_ratio.abs_diff_eq(&weight_ratio_target, 0.05));
     }
@@ -187,7 +191,8 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+        let mut benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -288,7 +293,8 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+        let mut benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -342,7 +348,8 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed);
+        let mut benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -461,5 +468,53 @@ mod tests {
         run_interop_test(5, false);
     }
 
+    // helper function for below test
+    fn map_to_pattern(value: &f64) -> i32 {
+        if value.abs_diff_eq(&0.0, 0.00005) {
+            0
+        }
+        else {
+            1
+        }
+    }
+
+    // this test produces a sparsifier and verifies that the edge set of the sparsifier is a subset of the edge set of the original graph.
+    #[test]
+    //#[ignore]
+    fn check_for_additions() {
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
+
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let benchmark = true;
+        let test = true;
+
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+        let stream = InputStream::new(input_filename);
+        let sparsifier: Sparsifier = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+
+        //stream.input_matrix       // input matrix
+        //sparsifier.current_laplacian   //sparsifier matrix
+
+        let input_pattern = stream.input_matrix.map(&map_to_pattern);
+        let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
+        let difference = &input_pattern - &sparsifier_pattern;
+        let mut neg_counter = 0;
+        let mut one_counter = 0;
+        for (value, (row, col)) in difference.iter() {
+            if *value > 0 {
+                neg_counter += 1;
+                if *value == 1 {
+                    one_counter += 1;
+                }
+            }
+        }
+        assert_eq!(neg_counter, one_counter);
+        assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
+    }
 
 }

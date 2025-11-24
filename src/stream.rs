@@ -41,7 +41,7 @@ impl InputStream {
         }
     }
 
-    pub fn run_stream(&self, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmark: bool) {
+    pub fn run_stream(&self, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmark: bool, test: bool) -> Sparsifier {
         let mut benchmarker = Benchmarker::new(benchmark);
         let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
@@ -57,9 +57,12 @@ impl InputStream {
         sparsifier.check_diagonal();
 
         let output_filename = "data/virus_sparse.mtx";
-        println!("sparsification done. nonzeros: {} writing to file", sparsifier.current_laplacian.nnz());
-        crate::utils::write_mtx(output_filename, &sparsifier.current_laplacian);
+        if (!test) {
+            println!("writing to file.");
+            crate::utils::write_mtx(output_filename, &sparsifier.current_laplacian);
+        }
 
+        sparsifier
     }
 
     // used for testing purposes

@@ -269,7 +269,9 @@ impl Sparsifier {
 
         //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
         let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes, self.verbose);
-        self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
+        }
         
         // let solution_cols = solution.num_cols;
         // let mut diff_norms = vec![0.0; length];
@@ -291,7 +293,9 @@ impl Sparsifier {
         // }
         // println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
         let probs = self.compute_diff_norms(length, &solution);
-        self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);
+        }
         return probs;
     }
 
@@ -316,14 +320,20 @@ impl Sparsifier {
 
     pub fn sparsify(&mut self, end_early: bool, test: bool) {
         // compute evim format of new triplet entries (no diagonal)
-        self.benchmarker.start();
-        self.benchmarker.set_time(BenchmarkPoint::Initialize);
+        if self.benchmarker.is_active(){
+            self.benchmarker.start();
+            self.benchmarker.set_time(BenchmarkPoint::Initialize);
+        }
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
         println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
-        self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
+        }
         // then compute JL sketch of it
         let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
-        self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
+        }
         //let dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
         //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
 
@@ -387,14 +397,17 @@ impl Sparsifier {
                 else {
                     // else the edge wasn't sampled so delete it with an "insertion" with opposite value, cancelling it out.
                     //println!("{},{} is deleted, so apply addition {} to existing value {}", row, col, -1.0*true_value, true_value);
-                    reweightings.insert(row, col, true_value*-1.0);
+                    let additive_change = true_value*-1.0;
+                    reweightings.insert(row, col, additive_change);
+                    assert!(additive_change == *value);
                 }
 
                 counter +=1;
             }
         }
-        self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
-
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
+        }
         // make sure diagonal is correct after reweightings
         reweightings.process_diagonal();
         let csc_reweightings = reweightings.to_csc();
@@ -404,9 +417,10 @@ impl Sparsifier {
         println!("checking diagonal after sampling");
         self.check_diagonal();
 
-
-        self.benchmarker.set_time(BenchmarkPoint::End);
-        self.benchmarker.display_durations();
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::End);
+            self.benchmarker.display_durations();
+        }
 
     }
 

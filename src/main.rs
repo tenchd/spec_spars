@@ -87,10 +87,10 @@ fn lap_test(input_filename: &str) {
     let row_constant = 2;
     let verbose = false;
     let benchmark = true;
-
+    let test = false;
 
     let stream = InputStream::new(input_filename);
-    stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark);
+    stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 }
 
 fn main() {

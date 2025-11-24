@@ -106,6 +106,7 @@ impl Benchmarker {
 }
 
 pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
+    println!("reading file {}", filename);
     let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();
     // for i in trip.triplet_iter() {
     //     println!("{:?}", i);
