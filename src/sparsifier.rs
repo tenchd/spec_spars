@@ -379,6 +379,8 @@ impl Sparsifier {
         let mut reweightings: Triplet = Triplet::new(self.num_nodes);
 
         let mut counter = 0;
+        let mut deletion_counter = 0;
+//        let mut first_deletion = true;
         for (value, (row, col)) in self.current_laplacian.iter() {
             if row > col {
                 // actual value is the negative of what's in the off-diagonal. flip the sign so the following code is easier to read.
@@ -397,10 +399,17 @@ impl Sparsifier {
                 else {
                     // else the edge wasn't sampled so delete it with an "insertion" with opposite value, cancelling it out.
                     //println!("{},{} is deleted, so apply addition {} to existing value {}", row, col, -1.0*true_value, true_value);
-                    let additive_change = true_value*-1.0;
+                    //let additive_change = true_value*-1.0;
+                    let additive_change = true_value;
                     reweightings.insert(row, col, additive_change);
-                    assert!(additive_change == *value);
+                    //assert!(additive_change == *value);
+                    deletion_counter += 1;
+                    // if first_deletion {
+                    //     println!("row = {}, col = {}, value = {}, true value = {}, is_sampled = {}, prob = {}, additive change = {}", row, col, *value, true_value, is_sampled, prob, additive_change);
+                    //     first_deletion = false;
+                    // }
                 }
+
 
                 counter +=1;
             }
@@ -413,6 +422,8 @@ impl Sparsifier {
         let csc_reweightings = reweightings.to_csc();
 
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
+
+        println!("total number of deletions should be: {}", deletion_counter);
 
         println!("checking diagonal after sampling");
         self.check_diagonal();

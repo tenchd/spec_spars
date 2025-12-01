@@ -482,6 +482,7 @@ mod tests {
     #[test]
     //#[ignore]
     fn check_for_additions() {
+        println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
 
