@@ -1,6 +1,7 @@
-use sprs::{CsMatI};
+use sprs::{CsMatI, DenseVector};
 use crate::{read_mtx,Sparsifier};
 use crate::utils::{Benchmarker, load_pattern_as_csr};
+use std::process::Command;
 
 
 pub struct InputStream {
@@ -56,10 +57,16 @@ impl InputStream {
         println!("checking diagonal final time");
         sparsifier.check_diagonal();
 
-        let output_filename = "data/virus_sparse.mtx";
+        let output_prefix = "data/virus_sparse";
+        let output_suffix_mtx = ".mtx";
+        let output_suffix_edgelist = ".edgelist";
+
         if (!test) {
             println!("writing to file.");
-            crate::utils::write_mtx(output_filename, &sparsifier.current_laplacian);
+            let output_mtx = output_prefix.to_owned() + output_suffix_mtx;
+            crate::utils::write_mtx(&output_mtx, &sparsifier.current_laplacian);
+            println!("converting to edgelist format.");
+            Command::new("bash").arg("-c").arg("sed '1,3d' data/virus_sparse.mtx > data/virus_sparse.edgelist").output();
         }
 
         sparsifier
