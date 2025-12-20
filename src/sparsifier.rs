@@ -375,6 +375,7 @@ impl Sparsifier {
         //encodes whether each edge survives sampling or not. True means it is sampled, False means it's not sampled
         let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();
 
+        //println!("{:?}", self.current_laplacian.to_dense());
         // probably move below code into sample and reweight funtion for testing purposes
         let mut reweightings: Triplet = Triplet::new(self.num_nodes);
 
@@ -399,15 +400,13 @@ impl Sparsifier {
                 else {
                     // else the edge wasn't sampled so delete it with an "insertion" with opposite value, cancelling it out.
                     //println!("{},{} is deleted, so apply addition {} to existing value {}", row, col, -1.0*true_value, true_value);
-                    //let additive_change = true_value*-1.0;
-                    let additive_change = true_value;
+                    let additive_change = true_value*-1.0;
                     reweightings.insert(row, col, additive_change);
                     //assert!(additive_change == *value);
+                    if deletion_counter == 0 {
+                        println!("deletion. row = {}, col = {}, value = {}, true value = {}, is_sampled = {}, prob = {}, additive change = {}", row, col, *value, true_value, is_sampled, prob, additive_change);
+                    }
                     deletion_counter += 1;
-                    // if first_deletion {
-                    //     println!("row = {}, col = {}, value = {}, true value = {}, is_sampled = {}, prob = {}, additive change = {}", row, col, *value, true_value, is_sampled, prob, additive_change);
-                    //     first_deletion = false;
-                    // }
                 }
 
 

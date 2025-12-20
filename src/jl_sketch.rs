@@ -205,7 +205,7 @@ pub fn jl_sketch_sparse_blocked(og_matrix: &CsMat<f64>, result_matrix: &mut CsMa
     let block_col_size = min(jl_dim, block_cols);
     
     for i in (0..og_cols).step_by(block_row_size){
-        print!(".");
+        //print!(".");
         for j in (0..jl_dim).step_by(block_col_size){
 
             // make sure we don't overrun the last column in the JL sketch matrix (can happen when JL output dim isn't a multiple of block_col_size)

@@ -95,10 +95,20 @@ fn lap_test(input_filename: &str) {
 
 fn main() {
     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+    //let input_filename = "data/virus_input.mtx";
     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
     lap_test(input_filename);
+
+    // let mat = ndarray::array![[-7.0, 1.0, 2.0, 4.0], 
+    //                                                     [1.0, -8.0, 3.0, 5.0],
+    //                                                     [2.0, 3.0, -11.0, 6.0],
+    //                                                     [4.0, 5.0, 6.0, -15.0], ];   
+    // let sprsmat = sprs::CsMatBase::csc_from_dense(mat.view(), 0.1);
+    // utils::write_mtx("data/test.mtx", &sprsmat);
+}
+
+
     //jl_visualize();
     //l2_norm("/global/u1/d/dtench/rust_spars/cxx-test/sketch/virus_sketch.mtx");
     //tianyu_test(); 
-}

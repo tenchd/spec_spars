@@ -1,6 +1,8 @@
 use sprs::{CsMat,TriMat,CsVec};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
+use std::time::{Instant, Duration};
+
 
 pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
     let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
@@ -64,6 +66,7 @@ mod tests {
     use fasthash::murmur;
     //use test::Bencher;
     use ndarray::{Axis};
+    use sprs::linalg::etree::Parent;
     use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
@@ -118,6 +121,7 @@ mod tests {
     fn sampling_verify(){
         println!("TEST:-----Testing that, given edge probabilities all 0.5, laplacian is appropriately sparsified.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+        //let input_filename = "data/test.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
         let block_rows: usize = 100;
@@ -155,6 +159,8 @@ mod tests {
             after_diag_sum += value;
         }
 
+        //println!("{:?}", sparsifier.current_laplacian.to_dense());
+        println!("original had {} edges and sparsifier had {} edges", before_num_edges, after_num_edges);
         let edge_ratio = (before_num_edges as f64)/(after_num_edges as f64);
         let weight_ratio = before_diag_sum/after_diag_sum;
 
@@ -246,9 +252,9 @@ mod tests {
     //#[ignore]
     fn jl_sketch_equiv(){
         println!("TEST:-----Testing that blocked jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
-        let num_rows = 50;
-        let num_cols = 50;
-        let nnz = 1000;
+        let num_rows = 5000;
+        let num_cols = 5000;
+        let nnz = 1000000;
         let csc = true;
             
         let seed: u64 = 1;
@@ -260,11 +266,22 @@ mod tests {
         let display: bool = false;
 
         let input_matrix = make_random_matrix(num_rows, num_cols, nnz, csc);
+
+
+        let mut nonblocked_timer = Instant::now();
         let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed);
+        let nonblocked_time = nonblocked_timer.elapsed().as_millis();
+
+        let mut blocked_timer = Instant::now();
         let mut sparse_blocked:CsMat<f64> = CsMat::zero((num_cols, jl_dim)).into_csc();
         jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
+        let blocked_time = blocked_timer.elapsed().as_millis();
 
         assert!(sparse_blocked == sparse_nonblocked);
+        println!("---- Time for jl sketch multiplication methods: ----");
+        println!("nonblocked: {} ms", nonblocked_time);
+        println!("blocked:    {} ms", blocked_time);
+        //assert!(false, "time for nonblocked: {} time for blocked: {}", nonblocked_time, blocked_time);
 
     }
 
@@ -480,7 +497,7 @@ mod tests {
 
     // this test produces a sparsifier and verifies that the edge set of the sparsifier is a subset of the edge set of the original graph.
     #[test]
-    //#[ignore]
+    #[ignore]
     fn check_for_additions() {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
         let seed: u64 = 1;
@@ -506,11 +523,16 @@ mod tests {
         let difference = &input_pattern - &sparsifier_pattern;
         let mut neg_counter = 0;
         let mut one_counter = 0;
+        let mut yet = false;
         for (value, (row, col)) in difference.iter() {
-            if *value > 0 {
+            if *value < 0 {
                 neg_counter += 1;
-                if *value == 1 {
+                if *value == -1 {
                     one_counter += 1;
+                }
+                if !yet {
+                    println!("uh oh. ({}, {}) = {}", row, col, *value);
+                    yet = true;
                 }
             }
         }
