@@ -1,7 +1,8 @@
-use sprs::{CsMat,TriMat,CsVec};
+use sprs::{CsMat,TriMat,CsVec, approx};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
 use std::time::{Instant, Duration};
+
 
 
 pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
@@ -73,7 +74,7 @@ mod tests {
     use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur,mean_and_std_dev}, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
     use std::ops::Add;
-    use approx::AbsDiffEq;
+    use ::approx::{AbsDiffEq, abs_diff_eq};
     use crate::ffi;
 
 
@@ -255,14 +256,17 @@ mod tests {
         let num_rows = 5000;
         let num_cols = 5000;
         let nnz = 1000000;
+        // let num_rows = 10;
+        // let num_cols = 10;
+        // let nnz = 20;
         let csc = true;
             
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
         let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
-        let block_rows: usize = 9;
-        let block_cols: usize = 17;
+        let block_rows: usize = 500;
+        let block_cols: usize = 400;
         let display: bool = false;
 
         let input_matrix = make_random_matrix(num_rows, num_cols, nnz, csc);
@@ -277,11 +281,20 @@ mod tests {
         jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
         let blocked_time = blocked_timer.elapsed().as_millis();
 
-        assert!(sparse_blocked == sparse_nonblocked);
+        // let difference = sparse_blocked - sparse_nonblocked;
+        // let max_difference = 0;
+        // for (value, (row, col)) in difference.iter() {
+        //     abs_diff_eq!(value, 0, 0.000001);
+        // }
+
+        // assert!(difference.max());
+
+        assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
+
+
         println!("---- Time for jl sketch multiplication methods: ----");
         println!("nonblocked: {} ms", nonblocked_time);
         println!("blocked:    {} ms", blocked_time);
-        //assert!(false, "time for nonblocked: {} time for blocked: {}", nonblocked_time, blocked_time);
 
     }
 

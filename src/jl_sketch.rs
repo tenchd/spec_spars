@@ -1,4 +1,9 @@
 use ndarray::{Array1,Array2};
+use std::ops::Add;
+
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 use fasthash::xx::Hasher64 as XXHasher;
 use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
@@ -132,18 +137,9 @@ pub fn jl_sketch_sparse(og_matrix: &CsMat<f64>, jl_factor: f64, seed: u64) -> Cs
     let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,jl_dim));
     populate_matrix(&mut sketch_matrix, seed, jl_dim);
 
-    // let sums = sketch_matrix.sum_axis(Axis(0));
-    // for sum in sums {
-    //     assert!(sum.abs_diff_eq(&0.0, 0.05));
-    // }
-
     let csr_sketch_matrix : CsMat<f64> = CsMat::csr_from_dense(sketch_matrix.view(), -1.0); // i'm nervous about using csr_from_dense with negative epsilon, but it seems to work
     let result = og_matrix.mul(&csr_sketch_matrix);
-    /*
-    println!("{:?}", og_matrix);
-    println!("{:?}", sketch_matrix);
-    println!("{:?}", result);
-    */
+
     result
  }
 
@@ -195,6 +191,47 @@ pub fn jl_sketch_sparse_flat(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed:
  }
  
 
+ pub fn jl_sketch_sparse_blocked_generate_block(og_matrix: &CsMat<f64>, jl_dim: usize, seed: u64, block_rows: usize, block_cols: usize, display: bool, i: usize, block_row_size: usize, j: usize, block_col_size: usize) -> CsMat<f64>{
+    // make sure we don't overrun the last column in the JL sketch matrix (can happen when JL output dim isn't a multiple of block_col_size)
+    // we're going to iterate from column j to column j+num_cols
+    //let num_cols = min(jl_dim + j - 1, block_col_size);
+    let og_cols = og_matrix.cols();
+    let mut output_block = CsMat::zero((og_cols, jl_dim)).into_csc();
+    let inner_cols_max = min(jl_dim, j+block_col_size);
+    let inner_cols_min = j;
+    let num_cols = inner_cols_max-inner_cols_min;
+    // make vector that we'll use to temporarily store a row of the jl sketch matrix.
+    let mut jl_temp_row: Array1<f64> = Array1::zeros(num_cols);
+    //make sure we don't overrun the last row in the JL sketch matrix
+    let inner_rows_min = i;
+    let inner_rows_max = min(i+block_row_size, og_cols);
+
+    if display {println!("-----i={},j={},sketch_row_range={}-{},sketch_col_range={}-{}-----", i, j, inner_rows_min, inner_rows_max, inner_cols_min, inner_cols_max);}
+    for sketch_row in inner_rows_min..inner_rows_max {
+        // grab every nonzero entry in the row_th column of A
+        if display {println!("range of nonzeros in column {} of original matrix: {:?}", sketch_row, og_matrix.indptr().outer_inds(sketch_row));}
+        for index in og_matrix.indptr().outer_inds(sketch_row) {
+            let nonzero_row_index = og_matrix.indices()[index];
+            if display {println!("{} row index of nonzero in col {} of original matrix: {:?}", index, sketch_row, nonzero_row_index);}
+            populate_row(&mut jl_temp_row, sketch_row, inner_cols_min, inner_cols_max, seed, jl_dim);
+            if display {println!("{:?}", jl_temp_row);}
+            for k in 0..num_cols {
+                if display {println!("sketch_row={},index={},k={}",sketch_row,index,k);}
+                //println!("answer matrix entry {},{} has entry {:?} and we will add {}*{}", sketch_row, j+k, result_matrix.get_mut(j+k, sketch_row), jl_temp_row[[k]], og_matrix.data()[index]);
+//                if display {println!("answer matrix entry {},{} has entry {:?} and we will add {}*{}", nonzero_row_index, j+k, result_matrix.get_mut(j+k, sketch_row), jl_temp_row[[k]], og_matrix.data()[index]);}
+                //println!("{:?}", jl_temp_row[[k]]);
+                //println!("{:?}", og_matrix.data()[index]);
+                let new_value: f64 = jl_temp_row[[k]] * og_matrix.data()[index];
+                //add_to_position(result_matrix, j+k, row, new_value);
+                add_to_position(&mut output_block, nonzero_row_index, j+k, new_value);
+                
+                //result_matrix.get_mut(j+k, row) += jl_temp_row[[k]] * og_matrix.data()[index];
+            }
+        }
+    }
+    return output_block;
+ }
+
 // NOTE: this and the above versions don't rescale by 1/sqrt(k) after. need to do that
 pub fn jl_sketch_sparse_blocked(og_matrix: &CsMat<f64>, result_matrix: &mut CsMat<f64>, jl_dim: usize, seed: u64, block_rows: usize, block_cols: usize, display: bool) {
     let og_rows = og_matrix.rows();
@@ -204,47 +241,23 @@ pub fn jl_sketch_sparse_blocked(og_matrix: &CsMat<f64>, result_matrix: &mut CsMa
     let block_row_size = min(og_rows, block_rows);
     let block_col_size = min(jl_dim, block_cols);
     
-    for i in (0..og_cols).step_by(block_row_size){
-        //print!(".");
-        for j in (0..jl_dim).step_by(block_col_size){
-
-            // make sure we don't overrun the last column in the JL sketch matrix (can happen when JL output dim isn't a multiple of block_col_size)
-            // we're going to iterate from column j to column j+num_cols
-            //let num_cols = min(jl_dim + j - 1, block_col_size);
-            let inner_cols_max = min(jl_dim, j+block_col_size);
-            let inner_cols_min = j;
-            let num_cols = inner_cols_max-inner_cols_min;
-            // make vector that we'll use to temporarily store a row of the jl sketch matrix.
-            let mut jl_temp_row: Array1<f64> = Array1::zeros(num_cols);
-            //make sure we don't overrun the last row in the JL sketch matrix
-            let inner_rows_min = i;
-            let inner_rows_max = min(i+block_row_size, og_cols);
-
-            if display {println!("-----i={},j={},sketch_row_range={}-{},sketch_col_range={}-{}-----", i, j, inner_rows_min, inner_rows_max, inner_cols_min, inner_cols_max);}
-            for sketch_row in inner_rows_min..inner_rows_max {
-                // grab every nonzero entry in the row_th column of A
-                if display {println!("range of nonzeros in column {} of original matrix: {:?}", sketch_row, og_matrix.indptr().outer_inds(sketch_row));}
-                for index in og_matrix.indptr().outer_inds(sketch_row) {
-                    let nonzero_row_index = og_matrix.indices()[index];
-                    if display {println!("{} row index of nonzero in col {} of original matrix: {:?}", index, sketch_row, nonzero_row_index);}
-                    populate_row(&mut jl_temp_row, sketch_row, inner_cols_min, inner_cols_max, seed, jl_dim);
-                    if display {println!("{:?}", jl_temp_row);}
-                    for k in 0..num_cols {
-                        if display {println!("sketch_row={},index={},k={}",sketch_row,index,k);}
-                        //println!("answer matrix entry {},{} has entry {:?} and we will add {}*{}", sketch_row, j+k, result_matrix.get_mut(j+k, sketch_row), jl_temp_row[[k]], og_matrix.data()[index]);
-                        if display {println!("answer matrix entry {},{} has entry {:?} and we will add {}*{}", nonzero_row_index, j+k, result_matrix.get_mut(j+k, sketch_row), jl_temp_row[[k]], og_matrix.data()[index]);}
-                        //println!("{:?}", jl_temp_row[[k]]);
-                        //println!("{:?}", og_matrix.data()[index]);
-                        let new_value: f64 = jl_temp_row[[k]] * og_matrix.data()[index];
-                        //add_to_position(result_matrix, j+k, row, new_value);
-                        add_to_position(result_matrix, nonzero_row_index, j+k, new_value);
-                        
-                        //result_matrix.get_mut(j+k, row) += jl_temp_row[[k]] * og_matrix.data()[index];
-                    }
-                }
+    let (tx, rx) = mpsc::channel();
+    thread::scope(|s| {
+        for i in (0..og_cols).step_by(block_row_size){
+            //print!(".");
+            for j in (0..jl_dim).step_by(block_col_size){
+                let clone = tx.clone();
+                s.spawn(move || {
+                    let output_block = jl_sketch_sparse_blocked_generate_block(og_matrix, jl_dim, seed, block_rows, block_cols, display, i, block_row_size, j, block_col_size);
+                    clone.send(output_block).unwrap();
+                    drop(clone);
+                });
             }
-               // */
         }
-    }
+        drop(tx);
+        for received in rx {
+            *result_matrix = result_matrix.add(&received);
+        }
+    });
 }
 
