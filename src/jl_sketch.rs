@@ -241,6 +241,22 @@ pub fn jl_sketch_sparse_blocked(og_matrix: &CsMat<f64>, result_matrix: &mut CsMa
     let block_row_size = min(og_rows, block_rows);
     let block_col_size = min(jl_dim, block_cols);
     
+    for i in (0..og_cols).step_by(block_row_size){
+        for j in (0..jl_dim).step_by(block_col_size){
+            let output_block = jl_sketch_sparse_blocked_generate_block(og_matrix, jl_dim, seed, block_rows, block_cols, display, i, block_row_size, j, block_col_size);
+            *result_matrix = result_matrix.add(&output_block);
+        }
+    }
+}
+
+pub fn jl_sketch_sparse_blocked_multi(og_matrix: &CsMat<f64>, result_matrix: &mut CsMat<f64>, jl_dim: usize, seed: u64, block_rows: usize, block_cols: usize, display: bool) {
+    let og_rows = og_matrix.rows();
+    let og_cols = og_matrix.cols();
+    //let jl_dim = ((og_cols as f64).log2() *jl_factor).ceil() as usize; //should this be based on rows or cols? I think cols because there are one col for each vertex.
+    // make sure you don't set a bigger window size than the JL sketch matrix in either dimension
+    let block_row_size = min(og_rows, block_rows);
+    let block_col_size = min(jl_dim, block_cols);
+    
     let (tx, rx) = mpsc::channel();
     thread::scope(|s| {
         for i in (0..og_cols).step_by(block_row_size){

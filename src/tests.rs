@@ -71,7 +71,7 @@ mod tests {
     use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur,mean_and_std_dev}, utils, Sparsifier,InputStream};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_blocked_multi, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur,mean_and_std_dev}, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
     use std::ops::Add;
     use ::approx::{AbsDiffEq, abs_diff_eq};
@@ -281,6 +281,11 @@ mod tests {
         jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
         let blocked_time = blocked_timer.elapsed().as_millis();
 
+        let mut blocked_multi_timer = Instant::now();
+        let mut sparse_blocked_multi:CsMat<f64> = CsMat::zero((num_cols, jl_dim)).into_csc();
+        jl_sketch_sparse_blocked_multi(&input_matrix, &mut sparse_blocked_multi, jl_dim, seed, block_rows, block_cols, display);
+        let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
+
         // let difference = sparse_blocked - sparse_nonblocked;
         // let max_difference = 0;
         // for (value, (row, col)) in difference.iter() {
@@ -293,8 +298,9 @@ mod tests {
 
 
         println!("---- Time for jl sketch multiplication methods: ----");
-        println!("nonblocked: {} ms", nonblocked_time);
-        println!("blocked:    {} ms", blocked_time);
+        println!("nonblocked: ---------------- {} ms", nonblocked_time);
+        println!("blocked: ------------------- {} ms", blocked_time);
+        println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
 
     }
 
