@@ -15,10 +15,13 @@ use ndarray::{Axis};
 
 //use math::round::ceil;
 
-use sprs::{CsMat,CsMatI};
+use sprs::{CsMat,CsMatI,indexing::SpIndex};
 use std::ops::Mul;
 
 use crate::{ffi, utils};
+
+use num_traits::{Float, cast};
+
 
 
 //maps hash function output to {-1,1} evenly
@@ -27,8 +30,14 @@ fn transform(input: i64) -> i64 {
     result
 }
 
+pub trait CustomValue: num_traits::float::Float + std::ops::AddAssign + Default + std::fmt::Debug{
+}
+
+impl CustomValue for f64 {}
+
+
 // function to add value 'val' to position 'row', 'col' in sparse matrix. 
-pub fn add_to_position(matrix: &mut CsMat<f64>, row: usize, col: usize, val:f64) {
+pub fn add_to_position<IndexType: SpIndex, ValueType: CustomValue>(matrix: &mut CsMatI<ValueType, IndexType>, row: usize, col: usize, val:ValueType) {
     let location = matrix.get_mut(row,col);
     match location {
         Some(p) => *p += val,
@@ -100,12 +109,12 @@ pub fn populate_matrix_murmur(input: &mut Array2<f64>, seed: u64, jl_dim: usize)
 
 }
 
-pub fn populate_row(input: &mut Array1<f64>, row: usize, col_start: usize, col_end: usize, seed: u64, jl_dim: usize){
-    let num_cols = col_end - col_start;
-    let scaling_factor = (jl_dim as f64).sqrt();
+pub fn populate_row<IndexType: SpIndex, ValueType: CustomValue>(input: &mut Array1<ValueType>, row: IndexType, col_start: IndexType, col_end: IndexType, seed: u64, jl_dim: IndexType){
+    let num_cols = (col_end - col_start).index();
+    let scaling_factor = (jl_dim.index() as f64).sqrt();
     for col in 0..num_cols {
-        let actual_col = col+col_start; //have to hash actual column value which should be col+col_start
-        input[[col]] = (hash_with_inputs(seed, row as u64, actual_col as u64) as f64) / scaling_factor; 
+        let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
+        input[[col]] = cast::<f64, ValueType>((hash_with_inputs(seed, row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap(); 
     }
 }
 
@@ -191,37 +200,37 @@ pub fn jl_sketch_sparse_flat(og_matrix: &CsMatI<f64, i32>, jl_factor: f64, seed:
  }
  
 
- pub fn jl_sketch_sparse_blocked_generate_block(og_matrix: &CsMat<f64>, jl_dim: usize, seed: u64, block_rows: usize, block_cols: usize, display: bool, i: usize, block_row_size: usize, j: usize, block_col_size: usize) -> CsMat<f64>{
+ pub fn jl_sketch_sparse_blocked_generate_block<IndexType: SpIndex + std::range::Step, ValueType: CustomValue>(og_matrix: &CsMatI<ValueType, IndexType>, jl_dim: usize, seed: u64, block_rows: usize, block_cols: usize, display: bool, i: usize, block_row_size: usize, j: usize, block_col_size: usize) -> CsMatI<ValueType, IndexType>{
     // make sure we don't overrun the last column in the JL sketch matrix (can happen when JL output dim isn't a multiple of block_col_size)
     // we're going to iterate from column j to column j+num_cols
     //let num_cols = min(jl_dim + j - 1, block_col_size);
     let og_cols = og_matrix.cols();
-    let mut output_block = CsMat::zero((og_cols, jl_dim)).into_csc();
+    let mut output_block: CsMatI<ValueType, IndexType> = CsMatI::zero((og_cols, jl_dim.index())).into_csc();
     let inner_cols_max = min(jl_dim, j+block_col_size);
     let inner_cols_min = j;
     let num_cols = inner_cols_max-inner_cols_min;
     // make vector that we'll use to temporarily store a row of the jl sketch matrix.
-    let mut jl_temp_row: Array1<f64> = Array1::zeros(num_cols);
+    let mut jl_temp_row: Array1<ValueType> = Array1::zeros(num_cols.index());
     //make sure we don't overrun the last row in the JL sketch matrix
     let inner_rows_min = i;
     let inner_rows_max = min(i+block_row_size, og_cols);
 
-    if display {println!("-----i={},j={},sketch_row_range={}-{},sketch_col_range={}-{}-----", i, j, inner_rows_min, inner_rows_max, inner_cols_min, inner_cols_max);}
+//    if display {println!("-----i={},j={},sketch_row_range={}-{},sketch_col_range={}-{}-----", i, j, inner_rows_min, inner_rows_max, inner_cols_min, inner_cols_max);}
     for sketch_row in inner_rows_min..inner_rows_max {
         // grab every nonzero entry in the row_th column of A
-        if display {println!("range of nonzeros in column {} of original matrix: {:?}", sketch_row, og_matrix.indptr().outer_inds(sketch_row));}
-        for index in og_matrix.indptr().outer_inds(sketch_row) {
-            let nonzero_row_index = og_matrix.indices()[index];
-            if display {println!("{} row index of nonzero in col {} of original matrix: {:?}", index, sketch_row, nonzero_row_index);}
+//        if display {println!("range of nonzeros in column {} of original matrix: {:?}", sketch_row, og_matrix.indptr().outer_inds(sketch_row));}
+        for index in og_matrix.indptr().outer_inds(sketch_row).map(|v| v.index()).collect::<Vec<usize>>() {
+            let nonzero_row_index = og_matrix.indices()[index].index();
+//            if display {println!("{} row index of nonzero in col {} of original matrix: {:?}", index, sketch_row, nonzero_row_index);}
             populate_row(&mut jl_temp_row, sketch_row, inner_cols_min, inner_cols_max, seed, jl_dim);
-            if display {println!("{:?}", jl_temp_row);}
+//            if display {println!("{:?}", jl_temp_row);}
             for k in 0..num_cols {
-                if display {println!("sketch_row={},index={},k={}",sketch_row,index,k);}
+//                if display {println!("sketch_row={},index={},k={}",sketch_row,index,k);}
                 //println!("answer matrix entry {},{} has entry {:?} and we will add {}*{}", sketch_row, j+k, result_matrix.get_mut(j+k, sketch_row), jl_temp_row[[k]], og_matrix.data()[index]);
 //                if display {println!("answer matrix entry {},{} has entry {:?} and we will add {}*{}", nonzero_row_index, j+k, result_matrix.get_mut(j+k, sketch_row), jl_temp_row[[k]], og_matrix.data()[index]);}
                 //println!("{:?}", jl_temp_row[[k]]);
                 //println!("{:?}", og_matrix.data()[index]);
-                let new_value: f64 = jl_temp_row[[k]] * og_matrix.data()[index];
+                let new_value: ValueType = jl_temp_row[[k]] * og_matrix.data()[index];
                 //add_to_position(result_matrix, j+k, row, new_value);
                 add_to_position(&mut output_block, nonzero_row_index, j+k, new_value);
                 

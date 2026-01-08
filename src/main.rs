@@ -1,5 +1,7 @@
 #![allow(unused)]
 //#![feature(test)]
+#![feature(step_trait)]
+#![feature(new_range_api)]
 extern crate fasthash;
 extern crate csv;
 extern crate ndarray;
