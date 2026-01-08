@@ -4,7 +4,7 @@ use rand::Rng;
 use approx::AbsDiffEq;
 use std::time::{Instant, Duration};
 
-use crate::jl_sketch::jl_sketch_sparse_flat;
+use crate::jl_sketch::{jl_sketch_sparse_flat, jl_sketch_sparse_blocked_flat, jl_sketch_sparse_blocked_multi_flat};
 use crate::ffi::{self, FlattenedVec};
 use crate::utils::{BenchmarkPoint, Benchmarker};
 
@@ -240,8 +240,8 @@ impl Sparsifier {
                     assert!(diff_norms[nonzero_counter] >= 0.0);
                 }
                 diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
-                // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-                probs[nonzero_counter] *= ((self.beta as f64) * -1.0 * value * diff_norms[nonzero_counter]/(solution_cols as f64)).min(1.0);
+                //compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
+                probs[nonzero_counter] *= ((self.beta as f64) * (-1.0) * value * diff_norms[nonzero_counter]/(solution_cols as f64)).min(1.0);
                 assert!(probs[nonzero_counter] >= 0.0, "negative partial prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 nonzero_counter += 1;
             }
@@ -330,6 +330,10 @@ impl Sparsifier {
             self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
         }
         // then compute JL sketch of it
+        let block_rows = 50000;
+        let block_cols = 40000;
+        let display = false;
+        //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_blocked_multi_flat(&evim, self.jl_factor, self.seed, block_rows, block_cols, display);
         let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);

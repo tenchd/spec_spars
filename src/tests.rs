@@ -71,7 +71,7 @@ mod tests {
     use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, jl_sketch_sparse_blocked_multi, jl_sketch_sparse_flat, jl_sketch_sparse_flat_murmur,mean_and_std_dev}, utils, Sparsifier,InputStream};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, mean_and_std_dev, jl_sketch_sparse_blocked_multi, jl_sketch_sparse_flat}, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
     use std::ops::Add;
     use ::approx::{AbsDiffEq, abs_diff_eq};
@@ -352,14 +352,14 @@ mod tests {
         //println!("TOTAL: {:?}", total);
         //assert!(total[0].abs_diff_eq(&0.0, 0.05));
 
-        println!("now outputing results for murmurhash");
-        let murmur_sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat_murmur(&evim, sparsifier.jl_factor, sparsifier.seed);
-        let murmur_sketch_array = murmur_sketch_cols.to_array2();
+        // println!("now outputing results for murmurhash");
+        // let murmur_sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat_murmur(&evim, sparsifier.jl_factor, sparsifier.seed);
+        // let murmur_sketch_array = murmur_sketch_cols.to_array2();
         
-        let sums = murmur_sketch_array.sum_axis(Axis(0));
-        //println!("{:?}", sums);
-        let result = mean_and_std_dev(&sums);
-        println!("mean {}, std dev {}", result.0, result.1);
+        // let sums = murmur_sketch_array.sum_axis(Axis(0));
+        // //println!("{:?}", sums);
+        // let result = mean_and_std_dev(&sums);
+        // println!("mean {}, std dev {}", result.0, result.1);
 
         let total = sums.sum_axis(Axis(0));
         //println!("TOTAL: {:?}", total);
