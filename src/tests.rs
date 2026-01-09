@@ -273,7 +273,7 @@ mod tests {
 
 
         let mut nonblocked_timer = Instant::now();
-        let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed);
+        let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed, display);
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
 
         let mut blocked_timer = Instant::now();
@@ -294,8 +294,9 @@ mod tests {
 
         // assert!(difference.max());
 
+        let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
         assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
-
+        assert!(sparse_blocked_multi.abs_diff_eq(&sparse_nonblocked, 0.00001));
 
         println!("---- Time for jl sketch multiplication methods: ----");
         println!("nonblocked: ---------------- {} ms", nonblocked_time);
@@ -340,7 +341,7 @@ mod tests {
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
         println!("now outputing results for xxhash");
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed);
+        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed, display);
         let sketch_array = sketch_cols.to_array2();
         
         let sums = sketch_array.sum_axis(Axis(0));
@@ -393,7 +394,7 @@ mod tests {
 
         // create EVIM representation
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
-        let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed);
+        let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed,display);
         let saved_rows = sketch_cols.num_rows;
         let saved_cols = sketch_cols.num_cols;
         let saved_vec = sketch_cols.vec.clone();

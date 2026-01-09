@@ -334,7 +334,7 @@ impl Sparsifier {
         let block_cols = 40000;
         let display = false;
         //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_blocked_multi_flat(&evim, self.jl_factor, self.seed, block_rows, block_cols, display);
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed);
+        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed, display);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
         }
