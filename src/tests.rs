@@ -533,7 +533,7 @@ mod tests {
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
         let stream = InputStream::new(input_filename);
-        let sparsifier: Sparsifier = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+        let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 
         //stream.input_matrix       // input matrix
         //sparsifier.current_laplacian   //sparsifier matrix

@@ -15,12 +15,13 @@ use ndarray::{Axis};
 
 //use math::round::ceil;
 
-use sprs::{CsMat,CsMatI,indexing::SpIndex};
+use sprs::{CsMat,CsMatI};
 use std::ops::Mul;
 
 use crate::{ffi, utils};
 
 use num_traits::{Float, Zero, cast};
+use utils::{CustomIndex, CustomValue};
 
 
 
@@ -30,11 +31,7 @@ fn transform(input: i64) -> i64 {
     result
 }
 
-pub trait CustomValue: num_traits::float::Float + std::ops::AddAssign + Default + std::fmt::Debug + Clone + num_traits::Zero {}
-impl<T> CustomValue for T where T: num_traits::float::Float + std::ops::AddAssign + Default + std::fmt::Debug + Clone + num_traits::Zero {}
 
-pub trait CustomIndex: SpIndex + std::range::Step {}
-impl<T> CustomIndex for T where T: SpIndex + std::range::Step {}
 
 // function to add value 'val' to position 'row', 'col' in sparse matrix. 
 pub fn add_to_position<IndexType: CustomIndex, ValueType: CustomValue>(matrix: &mut CsMatI<ValueType, IndexType>, row: usize, col: usize, val:ValueType) {
@@ -141,12 +138,12 @@ pub fn jl_sketch_sparse_flat<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, Ind
     // we're going to iterate from column j to column j+num_cols
     //let num_cols = min(jl_dim + j - 1, block_col_size);
     let og_cols = og_matrix.cols();
-    let mut output_block: CsMatI<ValueType, IndexType> = CsMatI::zero((og_cols, jl_dim.index())).into_csc();
+    let mut output_block: CsMatI<ValueType, IndexType> = CsMatI::zero((og_cols, jl_dim)).into_csc();
     let inner_cols_max = min(jl_dim, j+block_col_size);
     let inner_cols_min = j;
     let num_cols = inner_cols_max-inner_cols_min;
     // make vector that we'll use to temporarily store a row of the jl sketch matrix.
-    let mut jl_temp_row: Array1<ValueType> = Array1::zeros(num_cols.index());
+    let mut jl_temp_row: Array1<ValueType> = Array1::zeros(num_cols);
     //make sure we don't overrun the last row in the JL sketch matrix
     let inner_rows_min = i;
     let inner_rows_max = min(i+block_row_size, og_cols);
@@ -244,3 +241,7 @@ pub fn jl_sketch_sparse_blocked_multi_flat<IndexType: CustomIndex>(og_matrix: &C
     println!("performed jl sketch multiplication");
     ffi::FlattenedVec::new(&result_matrix.to_dense())
 }
+
+// pub fn add_generic_matrices<IndexType: CustomIndex, ValueType: CustomValue>(lhs: &CsMatI<ValueType, IndexType>, rhs: &CsMatI<ValueType, IndexType>) -> CsMatI<ValueType, IndexType> where for<'r> &'r ValueType: Add, for<'a> <&'a ValueType as Add>::Output: num_traits::Zero, for<'a> <&'a ValueType as Add>::Output: Clone {
+//     lhs+(rhs)
+// }

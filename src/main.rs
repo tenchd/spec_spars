@@ -2,6 +2,7 @@
 //#![feature(test)]
 #![feature(step_trait)]
 #![feature(new_range_api)]
+#![feature(import_trait_associated_functions)]
 extern crate fasthash;
 extern crate csv;
 extern crate ndarray;
@@ -15,7 +16,7 @@ mod sparsifier;
 mod stream;
 mod tests;
 
-use utils::{read_mtx, read_vecs_from_file_flat, l2_norm, read_sketch_from_mtx, convert_mtx_to_csv};
+use utils::{read_mtx, read_vecs_from_file_flat, l2_norm, read_sketch_from_mtx, convert_mtx_to_csv, CustomIndex, CustomValue};
 use jl_sketch::{populate_matrix};
 use sparsifier::{Sparsifier};
 use stream::InputStream;
@@ -24,14 +25,18 @@ use ndarray::Array2;
 use sprs::CsMatI;
 
 
+
+
 #[cxx::bridge]
 mod ffi {
+
 
     struct FlattenedVec {
         vec: Vec<f64>,
         num_cols: usize,
         num_rows: usize,
     }
+
 
     unsafe extern "C++" {
         include!("cxx-test/include/example.h");

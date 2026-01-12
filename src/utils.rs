@@ -2,8 +2,9 @@
 // boring means not related to ffi, not really part of the core sparsifier logic, etc.
 
 use ndarray_rand::rand_distr::num_traits::Float;
+use num_traits::{NumCast, ToPrimitive, PrimInt};
 use rand_xoshiro::rand_core::RngCore;
-use sprs::{CsMat,CsMatI,TriMatI,CsVecI};
+use sprs::{CsMat,CsMatI,TriMatI,CsVecI,indexing::SpIndex};
 use sprs::io::{read_matrix_market, IoError};
 use std::time::{Instant, Duration};
 
@@ -20,6 +21,36 @@ use crate::ffi;
 
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+
+pub trait CustomValue: num_traits::float::Float + std::ops::AddAssign + Default + std::fmt::Debug + Clone + num_traits::Zero + std::fmt::Display + num_traits::cast::ToPrimitive{
+    fn from_float<U: num_traits::float::Float>(value: U) -> Self;
+    fn as_f64(&self) -> f64;
+}
+impl<T> CustomValue for T where T: num_traits::float::Float + std::ops::AddAssign + Default + std::fmt::Debug + Clone + num_traits::Zero + std::fmt::Display + num_traits::cast::ToPrimitive {
+    fn from_float<U: num_traits::float::Float>(value: U) -> Self {
+        T::from(value).unwrap()
+    }
+    fn as_f64(&self) -> f64 {
+        self.to_f64().unwrap()
+    }
+}
+
+pub trait CustomIndex: SpIndex + std::range::Step + std::fmt::Display {
+    fn from_int<U: num_traits::int::PrimInt>(value: U) -> Self;
+    fn as_i32(&self) -> i32;
+}
+impl<T> CustomIndex for T where T: SpIndex + std::range::Step + std::fmt::Display {
+    fn from_int<U: num_traits::int::PrimInt>(value: U) -> Self {
+        T::from(value).unwrap()
+    }
+    fn as_i32(&self) -> i32 {
+        self.to_i32().unwrap()
+    }
+}
+
+pub fn convert_indices_to_i32<IndexType: CustomIndex>(input_vec: &Vec<IndexType>) -> Vec<i32>{
+    input_vec.into_iter().map(|v| v.as_i32()).collect()
+}
 
 pub enum BenchmarkPoint {
     Start,
@@ -104,6 +135,19 @@ impl Benchmarker {
     }
 
 }
+
+
+// fn convert_index_type_to_int<InitialIndexType: CustomIndex, DesiredIndexType: PrimInt>(vector: Vec<InitialIndexType>) -> Vec<DesiredIndexType> {
+//     vector.into_iter().map(|v| v.index().try_into()).collect()
+// }
+
+// fn convert_value_type_to_float<InitialValueType: CustomValue, DesiredValueType: Float>(vector: Vec<InitialValueType>) -> Vec<DesiredValueType> {
+//     vector.into_iter().map(|v| v.as_f64().try_into()).collect()
+// }
+
+// fn stage_for_solve() {
+
+// }
 
 pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
     println!("reading file {}", filename);

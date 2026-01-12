@@ -6,23 +6,23 @@ use std::time::{Instant, Duration};
 
 use crate::jl_sketch::{jl_sketch_sparse_flat, jl_sketch_sparse_blocked_flat, jl_sketch_sparse_blocked_multi_flat};
 use crate::ffi::{self, FlattenedVec};
-use crate::utils::{BenchmarkPoint, Benchmarker};
+use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue, CustomValue::from_float};
 
 // template types later
 #[derive(Clone)]
-pub struct Triplet{
-    pub num_nodes: i32, 
-    pub col_indices: Vec<i32>,
-    pub row_indices: Vec<i32>,
+pub struct Triplet<IndexType: CustomIndex>{
+    pub num_nodes: IndexType, 
+    pub col_indices: Vec<IndexType>,
+    pub row_indices: Vec<IndexType>,
     pub diagonal: Vec<f64>,
     pub values: Vec<f64>
 }
-impl Triplet {
+impl<IndexType: CustomIndex> Triplet <IndexType> {
     // default constructor that just returns three empty vectors.
-    pub fn new(num_nodes: i32) -> Triplet {
-        let col_indices: Vec<i32> = vec![];
-        let row_indices: Vec<i32> = vec![];
-        let diagonal: Vec<f64> = vec![0.0; num_nodes.try_into().unwrap()];
+    pub fn new(num_nodes: IndexType) -> Triplet <IndexType> {
+        let col_indices: Vec<IndexType> = vec![];
+        let row_indices: Vec<IndexType> = vec![];
+        let diagonal: Vec<f64> = vec![0.0; num_nodes.index().try_into().unwrap()];
         let values: Vec<f64> = vec![];
         Triplet { 
             num_nodes: num_nodes, 
@@ -34,7 +34,7 @@ impl Triplet {
     }
 
     // inserts an edge with a weight/value into the triplet format. keeps track of diagonal too.
-    pub fn insert(&mut self, v1: i32, v2: i32, value: f64) {
+    pub fn insert(&mut self, v1: IndexType, v2: IndexType, value: f64) {
         // make sure node IDs are valid (0 indexed)
         assert!(v1 < self.num_nodes);
         assert!(v2 < self.num_nodes);
@@ -53,52 +53,52 @@ impl Triplet {
             self.values.push(value*-1.0);
 
             // add 1 to diagonal entries v1,v1 and v2,v2
-            self.diagonal[<i32 as TryInto<usize>>::try_into(v1).unwrap()] += value;
-            self.diagonal[<i32 as TryInto<usize>>::try_into(v2).unwrap()] += value;
+            self.diagonal[v1.index()] += value;
+            self.diagonal[v2.index()] += value;
         }
     }
 
     pub fn process_diagonal(&mut self) {
         // add diagonal entries to triplet format
         for (index, value) in self.diagonal.iter().enumerate() {
-            let new_index = index as i32;
-            self.row_indices.push(new_index);
-            self.col_indices.push(new_index);
+            //let new_index = index as i32;
+            self.row_indices.push(from_int(index));
+            self.col_indices.push(from_int(index));
             self.values.push(*value);
         }
     }
 
-    pub fn to_csc(self) -> CsMatI::<f64, i32> {
+    pub fn to_csc(self) -> CsMatI::<f64, IndexType> {
 
         //I think i need to change this so that there's an empty row and column at the end. i should be able to do this by simply setting the number of rows and cols
         // equal to self.num_nodes+1. since this is a triplet rep i think that's ok because neither the row indices or col indices rely on the number of rows or cols.
         // (except for overflow purposes.)
-        let trip_form: TriMatBase<Vec<i32>, Vec<f64>>  = TriMatI::<f64, i32>::from_triplets((self.num_nodes as usize, self.num_nodes as usize), self.row_indices, self.col_indices, self.values);
-        let csc_form: CsMatBase<f64, i32, Vec<i32>, Vec<i32>, Vec<f64>, _> = trip_form.to_csc();
+        let trip_form: TriMatI<f64, IndexType>  = TriMatI::<f64, IndexType>::from_triplets((self.num_nodes.index(), self.num_nodes.index()), self.row_indices, self.col_indices, self.values);
+        let csc_form: CsMatI<f64, IndexType> = trip_form.to_csc();
 
         csc_form
     }
 
 
     // converts triplet into signed edge-vertex incidence matrix to be JL sketched
-    pub fn to_edge_vertex_incidence_matrix(&self) -> CsMatI<f64, i32> {
+    pub fn to_edge_vertex_incidence_matrix(&self) -> CsMatI<f64, IndexType> {
         //we grab every other entry in the triplet vectors because each edge (i,j) is inserted as (i,j) and then also immediately as (j,i)
         let mut evim_triplets = Triplet::new(self.num_nodes);
         assert!(self.col_indices.len()%2 == 0);
         let end: usize = self.col_indices.len()/2;
         for i in 0..end {
             let index = 2*i as usize;
-            evim_triplets.col_indices.push(i.try_into().unwrap());
+            evim_triplets.col_indices.push(from_int(i));
             evim_triplets.row_indices.push(self.col_indices[index]);
             evim_triplets.values.push(-1.0 * self.values[index]);
 
 
-            evim_triplets.col_indices.push(i.try_into().unwrap());
+            evim_triplets.col_indices.push(from_int(i));
             evim_triplets.row_indices.push(self.row_indices[index]);
             evim_triplets.values.push(self.values[index]);
         }
-        let evim_trip_form: TriMatBase<Vec<i32>, Vec<f64>>  = TriMatI::<f64, i32>::from_triplets((evim_triplets.num_nodes as usize, end), evim_triplets.row_indices, evim_triplets.col_indices, evim_triplets.values);
-        let evim_csc_form: CsMatBase<f64, i32, Vec<i32>, Vec<i32>, Vec<f64>, _> = evim_trip_form.to_csc();
+        let evim_trip_form: TriMatBase<Vec<IndexType>, Vec<f64>>  = TriMatI::<f64, IndexType>::from_triplets((evim_triplets.num_nodes.index(), end), evim_triplets.row_indices, evim_triplets.col_indices, evim_triplets.values);
+        let evim_csc_form: CsMatBase<f64, IndexType, Vec<IndexType>, Vec<IndexType>, Vec<f64>, _> = evim_trip_form.to_csc();
         evim_csc_form
     }
 
@@ -106,7 +106,7 @@ impl Triplet {
 
         self.col_indices = vec![];
         self.row_indices = vec![];
-        self.diagonal = vec![0.0; self.num_nodes.try_into().unwrap()];
+        self.diagonal = vec![0.0; self.num_nodes.index()];
         self.values = vec![];
 
     }
@@ -132,33 +132,37 @@ impl Triplet {
     }
 }
 
-pub struct Sparsifier{
-    pub num_nodes: i32,     // number of nodes in input graph. we need to know this at construction time.
-    pub new_entries: Triplet,  //stores values that haven't been sparsified yet
-    pub current_laplacian: CsMatBase<f64, i32, Vec<i32>, Vec<i32>, Vec<f64>, i32>,   //stores all values that survive sparsification
-    pub threshold: i32,     //sparsify if size(new_entries) + size(current_laplacian) > threshold. computed from num_nodes, epsilon, and constants
+// pub struct LapToSolve<IndexType: CustomIndex>{
+//     pub 
+// }
+
+pub struct Sparsifier<IndexType: CustomIndex>{
+    pub num_nodes: IndexType,     // number of nodes in input graph. we need to know this at construction time.
+    pub new_entries: Triplet<IndexType>,  //stores values that haven't been sparsified yet
+    pub current_laplacian: CsMatI<f64, IndexType>,   //stores all values that survive sparsification
+    pub threshold: IndexType,     //sparsify if size(new_entries) + size(current_laplacian) > threshold. computed from num_nodes, epsilon, and constants
                               // set to be row_constant*beta*nodesize in line 3(b) of alg pseudocode
     pub epsilon: f64,     //epsilon controls space (aggressivenes of sampling) and approximation factor guarantee.
-    pub beta_constant: i32,    // set to be 200 in line 1 of alg pseudocode, probably can be far smaller
-    pub row_constant: i32,    // set to be 20 in line 3(b) of alg pseudocode, probably can be far smaller
-    pub beta: i32,     // parameter defined in line 1 of alg pseudocode
+    pub beta_constant: IndexType,    // set to be 200 in line 1 of alg pseudocode, probably can be far smaller
+    pub row_constant: IndexType,    // set to be 20 in line 3(b) of alg pseudocode, probably can be far smaller
+    pub beta: IndexType,     // parameter defined in line 1 of alg pseudocode
     pub verbose: bool,    //when true, prints a bunch of debugging info
     pub jl_factor: f64, //constant factor for jl sketch matrix
     pub seed: u64,   //random seed for hashed jl sketch matrix
     pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
 }
 
-impl Sparsifier {
-    pub fn new(num_nodes: i32, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmarker: Benchmarker) -> Sparsifier {
+impl<IndexType: CustomIndex> Sparsifier<IndexType> {
+    pub fn new(num_nodes: IndexType, epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, seed: u64, benchmarker: Benchmarker) -> Sparsifier<IndexType> {
         // as per line 1
-        let beta = (epsilon.powf(-2.0) * (beta_constant as f64) * (num_nodes as f64).log(2.0)).round() as i32;
+        let beta = from_int((epsilon.powf(-2.0) * (beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
         // as per 3(b) condition
         let threshold = num_nodes * beta * row_constant;
         // initialize empty new elements triplet vectors
-        let new_entries = Triplet::new(num_nodes);
+        let new_entries: Triplet<IndexType> = Triplet::new(num_nodes);
         // initialize empty sparse matrix for the laplacian
         // it needs to have num_nodes+1 rows and cols actually
-        let current_laplacian: CsMatBase<f64, i32, Vec<i32>, Vec<i32>, Vec<f64>, _> = CsMatI::<f64, i32>::zero((num_nodes.try_into().unwrap(), num_nodes.try_into().unwrap()));     
+        let current_laplacian: CsMatI<f64, IndexType> = CsMatI::<f64, IndexType>::zero((num_nodes.index(), num_nodes.index()));     
         
 
         Sparsifier{
@@ -179,10 +183,10 @@ impl Sparsifier {
 
     // returns # of edges in the entire sparsifier (including the new edges in triplet form and old edges in sparse matrix form)
     // note that currently it overcounts for laplacian since it also counts diagonals. maybe change this later?
-    pub fn size_of(&self) -> i32 {
-        <usize as TryInto<i32>>::try_into(self.new_entries.col_indices.len()).unwrap()  // total entries in triplet form
+    pub fn size_of(&self) -> IndexType {
+        IndexType::from_int(self.new_entries.col_indices.len())  // total entries in triplet form
         + 
-        <usize as TryInto<i32>>::try_into(self.current_laplacian.nnz()).unwrap()  // total nonzeros in laplacian
+        IndexType::from_int(self.current_laplacian.nnz())  // total nonzeros in laplacian
         
     }
 
@@ -206,7 +210,7 @@ impl Sparsifier {
     // }
 
     // inserts an edge into the sparsifier. if this makes the size of the sparsifier cross the threshold, trigger sparsification.
-    pub fn insert(&mut self, v1: i32, v2: i32, value: f64) {
+    pub fn insert(&mut self, v1: IndexType, v2: IndexType, value: f64) {
         // insert -1 into v1,v2 and v2,v1. add 1 to v1,v1 and v2,v2
         // problem: duplicate values in diagonals for triplets. 
         // am i assuming that each edge appears at most once in the stream? if that's violated, i could have duplicate entries in the triplets
@@ -236,18 +240,20 @@ impl Sparsifier {
             if row < col {
                 //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
                 for i in 0..solution_cols {
-                    diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
+                    diff_norms[nonzero_counter] += (solution_array[[row.index(), i as usize]] - solution_array[[col.index(), i as usize]]).powi(2);
                     assert!(diff_norms[nonzero_counter] >= 0.0);
                 }
                 diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
                 //compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-                probs[nonzero_counter] *= ((self.beta as f64) * (-1.0) * value * diff_norms[nonzero_counter]/(solution_cols as f64)).min(1.0);
-                assert!(probs[nonzero_counter] >= 0.0, "negative partial prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
+                probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter]/(solution_cols as f64)).min(1.0);
+                assert!(probs[nonzero_counter] >= 0.0, "negative prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
+                assert!(probs[nonzero_counter] <= 1.0, "prob greater than 1. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 nonzero_counter += 1;
             }
         }
 
-        println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
+        //println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
+
 
         return probs;
         
@@ -261,37 +267,18 @@ impl Sparsifier {
         //println!("done generating trivial rhs");
 
 
-        let col_ptrs: Vec<i32> = self.current_laplacian.indptr().as_slice().unwrap().to_vec();
-        let row_indices: Vec<i32> = self.current_laplacian.indices().to_vec();
+        let col_ptrs: Vec<IndexType> = self.current_laplacian.indptr().as_slice().unwrap().to_vec();
+        let row_indices: Vec<IndexType> = self.current_laplacian.indices().to_vec();
         let values: Vec<f64> = self.current_laplacian.data().to_vec();
         //println!("jl sketch col has {} entries. lap has {} cols and {} nzs", sketch_cols.vec.len(), col_ptrs.len()-1, row_indices.len());
         //println!("there are {} nonzeros in the last column", col_ptrs[self.num_nodes as usize] - col_ptrs[(self.num_nodes-1) as usize]);
 
         //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
-        let solution = ffi::run_solve_lap(sketch_cols, col_ptrs, row_indices, values, self.num_nodes, self.verbose);
+        let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, self.num_nodes.as_i32(), self.verbose);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
         }
-        
-        // let solution_cols = solution.num_cols;
-        // let mut diff_norms = vec![0.0; length];
-        // let solution_array = solution.to_array2();
-        // let mut probs: Vec<f64> = vec![1.0; length];
-        // //loop through lower diagonal entries
-        // let mut nonzero_counter = 0;
-        // for (value, (row, col)) in self.current_laplacian.iter() {
-        //     if row < col {
-        //         //for each edge u,v, compute l2 norm of dot products with columns of solution matrix
-        //         for i in 0..solution_cols {
-        //             diff_norms[nonzero_counter] += (solution_array[[row as usize, i as usize]] - solution_array[[col as usize, i as usize]]).powi(2);
-        //         }
-        //         diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
-        //         // CHECK THIS: compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-        //         probs[nonzero_counter] *= ((self.beta as f64) * value).min(1.0);
-        //         nonzero_counter += 1;
-        //     }
-        // }
-        // println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
+
         let probs = self.compute_diff_norms(length, &solution);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);
@@ -334,7 +321,7 @@ impl Sparsifier {
         let block_cols = 40000;
         let display = false;
         //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_blocked_multi_flat(&evim, self.jl_factor, self.seed, block_rows, block_cols, display);
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, self.jl_factor, self.seed, display);
+        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
         }
@@ -381,7 +368,7 @@ impl Sparsifier {
 
         //println!("{:?}", self.current_laplacian.to_dense());
         // probably move below code into sample and reweight funtion for testing purposes
-        let mut reweightings: Triplet = Triplet::new(self.num_nodes);
+        let mut reweightings: Triplet<IndexType> = Triplet::new(self.num_nodes);
 
         let mut counter = 0;
         let mut deletion_counter = 0;
@@ -390,7 +377,7 @@ impl Sparsifier {
             if row > col {
                 // actual value is the negative of what's in the off-diagonal. flip the sign so the following code is easier to read.
                 // actually this turned out to be more confusing. it's correct currently, but I should go back and carefully undo this.
-                let true_value = value*-1.0;
+                let true_value = *value* -1.0;
                 let is_sampled = outcomes[counter];
                 let prob = probs[counter];
                 if is_sampled {
@@ -469,9 +456,9 @@ impl Sparsifier {
     // also find a way to write efficient code to sum rows. for now, maybe just do em as you do cols?
     pub fn check_diagonal(&self) {
         for (col_index, col_vector) in self.current_laplacian.outer_iterator().enumerate() {
-            let mut sum:f64 = 0.0;
+            let mut sum: f64 = 0.0;
             for (_, value) in col_vector.iter() {
-                sum += value;
+                sum += (value).as_f64();
             }
             // check each column is sum 0. floating point error means you'll be a little off
             assert!(sum.abs_diff_eq(&0.0, 1e-10), "column where we messed up: {}. column sum: {}.", col_index, sum);

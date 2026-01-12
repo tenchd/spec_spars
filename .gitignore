@@ -5,3 +5,5 @@
 .vscode/
 *.data
 Cargo.lock
+/graph_test
+example.txt
