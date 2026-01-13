@@ -11,11 +11,11 @@ use crate::fasthash::FastHasher;
 use std::hash::{Hash,Hasher};
 use std::cmp::min;
 use approx::AbsDiffEq;
-use ndarray::{Axis};
+use ndarray::{Axis,s};
 
 //use math::round::ceil;
 
-use sprs::{CsMat,CsMatI};
+use sprs::{CsMat,CsMatI, CsMatViewI};
 use std::ops::Mul;
 
 use crate::{ffi, utils};
@@ -243,37 +243,42 @@ pub fn jl_sketch_sparse_blocked_multi_flat<IndexType: CustomIndex>(og_matrix: &C
     ffi::FlattenedVec::new(&result_matrix.to_dense())
 }
 
-pub fn jl_sketch_new<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, IndexType>, result_matrix: &mut CsMatI<f64, IndexType>, jl_dim: usize, seed: u64, display: bool) {
+pub fn jl_sketch_colwise<IndexType: CustomIndex>(og_matrix: &CsMatViewI<f64, IndexType>, result_matrix: &mut CsMatI<f64, IndexType>, jl_dim: usize, seed: u64, display: bool) -> Array2<f64> {
     let og_rows = og_matrix.rows();
-    let og_cols = og_matrix.cols();
+    // let og_cols = og_matrix.cols();
     // later go back and do this with outer_block_iter to get convenient chunks of work for each thread.
-    // println!("suspect sketch matrix:");
-    // for j in 0..og_rows {
-    //     let mut jl_sketch_row: Array1<f64> = Array1::zeros(jl_dim);
-    //     populate_row(&mut jl_sketch_row, j, 0, jl_dim, seed, jl_dim);
-    //     println!("{:?}", jl_sketch_row);
-    // }
+    let mut output_block: Array2<f64> = Array2::zeros([og_rows, jl_dim]);
     for (col_ind, col_vec) in og_matrix.outer_iterator().enumerate() {
         //assert_eq!(col_vec.nnz(), 2);
         let mut jl_sketch_row: Array1<f64> = Array1::zeros(jl_dim);
         populate_row(&mut jl_sketch_row, col_ind, 0, jl_dim, seed, jl_dim);
         for (row_ind, &value) in col_vec.iter() {
-            for i in 0..jl_dim {
-                let jl_value = jl_sketch_row[i];
-                let dot = jl_value*value;
-                add_to_position(result_matrix, row_ind, i, dot);
-            }
+            let product_row: Array1<f64> = jl_sketch_row.clone() * value;
+            let mut row_view = output_block.slice_mut(s![row_ind, ..]);
+            row_view += &product_row;
         }
+    }
+    output_block
+}
+
+pub fn jl_sketch_colwise_batch<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, IndexType>, result_matrix: &mut CsMatI<f64, IndexType>, jl_dim: usize, seed: u64, display: bool) {
+    let og_rows = og_matrix.rows();
+    let og_cols = og_matrix.cols();
+    
+    for (block_index, block) in og_matrix.outer_block_iter(og_rows).enumerate() {
+        let output_block = jl_sketch_colwise(&block, result_matrix, jl_dim, seed, display);
+        let mut sprs_block = CsMatI::<f64, IndexType>::csc_from_dense(output_block.view(), 0.0);
+        *result_matrix = result_matrix.add(& sprs_block);
     }
 }
 
 
-pub fn jl_sketch_new_flat<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, IndexType>, jl_factor: f64, seed: u64, batch_size: usize, display: bool) -> ffi::FlattenedVec {
+pub fn jl_sketch_colwise_flat<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, IndexType>, jl_factor: f64, seed: u64, batch_size: usize, display: bool) -> ffi::FlattenedVec {
     let og_rows = og_matrix.rows();
     let og_cols = og_matrix.cols();
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
     let mut result_matrix: CsMatI<f64, IndexType> = CsMatI::zero((og_rows, jl_dim)).into_csc();
-    let result = jl_sketch_new(og_matrix, &mut result_matrix, jl_dim, seed,  display);
+    let result = jl_sketch_colwise(&og_matrix.view(), &mut result_matrix, jl_dim, seed,  display);
     println!("performed jl sketch multiplication");
     ffi::FlattenedVec::new(&result_matrix.to_dense())
 }
