@@ -4,7 +4,7 @@ use rand::Rng;
 use approx::AbsDiffEq;
 use std::time::{Instant, Duration};
 
-use crate::jl_sketch::{jl_sketch_sparse_flat, jl_sketch_sparse_blocked_flat, jl_sketch_sparse_blocked_multi_flat};
+use crate::jl_sketch::{jl_sketch_sparse_flat, jl_sketch_sparse_blocked_flat, jl_sketch_sparse_blocked_multi_flat, jl_sketch_colwise_flat};
 use crate::ffi::{self, FlattenedVec};
 use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue, CustomValue::from_float};
 
@@ -320,7 +320,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let block_rows = 50000;
         let block_cols = 40000;
         let display = false;
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_blocked_multi_flat(&evim, self.jl_factor, self.seed, block_rows, block_cols, display);
+        let sketch_cols: ffi::FlattenedVec = jl_sketch_colwise_flat(&evim, self.jl_factor, self.seed, display);
         //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
@@ -338,7 +338,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        println!("checking diagonal after populating laplacian:");
+        println!("checking diagonal after populating laplacian");
         self.check_diagonal();
 
         if end_early {
@@ -355,11 +355,11 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             probs = self.get_probs(num_nnz, sketch_cols);
         }
 
-        let average = probs.iter().sum::<f64>()/(probs.len() as f64);
-        println!("mean of probs: {}", average);
-        //let min = probs.iter().min().unwrap();
-        let min = probs.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-        println!("minimum prob: {}", min);
+        // let average = probs.iter().sum::<f64>()/(probs.len() as f64);
+        // println!("mean of probs: {}", average);
+        // //let min = probs.iter().min().unwrap();
+        // let min = probs.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+        // println!("minimum prob: {}", min);
 
         let coins = Self::flip_coins(num_nnz);
 
@@ -394,9 +394,9 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
                     let additive_change = true_value*-1.0;
                     reweightings.insert(row, col, additive_change);
                     //assert!(additive_change == *value);
-                    if deletion_counter == 0 {
-                        println!("deletion. row = {}, col = {}, value = {}, true value = {}, is_sampled = {}, prob = {}, additive change = {}", row, col, *value, true_value, is_sampled, prob, additive_change);
-                    }
+                    // if deletion_counter == 0 {
+                    //     println!("deletion. row = {}, col = {}, value = {}, true value = {}, is_sampled = {}, prob = {}, additive change = {}", row, col, *value, true_value, is_sampled, prob, additive_change);
+                    // }
                     deletion_counter += 1;
                 }
 
@@ -413,7 +413,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
 
-        println!("total number of deletions should be: {}", deletion_counter);
+        //println!("total number of deletions should be: {}", deletion_counter);
 
         println!("checking diagonal after sampling");
         self.check_diagonal();
@@ -438,7 +438,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        println!("checking diagonal after populating laplacian:");
+        println!("checking diagonal after populating laplacian");
         self.check_diagonal();
         println!("laplacian populated from stream. diagonal is correct.");
 

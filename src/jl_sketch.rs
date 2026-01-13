@@ -249,7 +249,7 @@ pub fn jl_sketch_colwise<IndexType: CustomIndex>(og_matrix: &CsMatViewI<f64, Ind
     for (col_ind, col_vec) in og_matrix.outer_iterator().enumerate() {
         // adjust col ind because this is a subblock of the total input matrix
         let true_col_ind = block_number*og_rows + col_ind;
-        assert!(col_vec.nnz() == 2|| col_vec.nnz() == 0);
+        assert!(col_vec.nnz() == 2);
         let mut jl_sketch_row: Array1<f64> = Array1::zeros(jl_dim);
         populate_row(&mut jl_sketch_row, true_col_ind, 0, jl_dim, seed, jl_dim);
         for (row_ind, &value) in col_vec.iter() {
@@ -261,6 +261,7 @@ pub fn jl_sketch_colwise<IndexType: CustomIndex>(og_matrix: &CsMatViewI<f64, Ind
     output_block
 }
 
+// too slow to be useful. was using it as a reference implementation. should delete soon.
 pub fn jl_sketch_colwise_slow<IndexType: CustomIndex>(og_matrix: &CsMatViewI<f64, IndexType>, result_matrix: &mut CsMatI<f64, IndexType>, jl_dim: usize, seed: u64, display: bool) {
 
     for (col_ind, col_vec) in og_matrix.outer_iterator().enumerate() {
@@ -274,9 +275,6 @@ pub fn jl_sketch_colwise_slow<IndexType: CustomIndex>(og_matrix: &CsMatViewI<f64
                 add_to_position(result_matrix, row_ind, i, dot);
             }
         }
-        // if col_ind % 10000 == 0 {
-        //     println!{"{} done", col_ind};
-        // }
     }
 }
 
@@ -306,7 +304,7 @@ pub fn jl_sketch_colwise_batch<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, I
 }
 
 
-pub fn jl_sketch_colwise_flat<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, IndexType>, jl_factor: f64, seed: u64, batch_size: usize, display: bool) -> ffi::FlattenedVec {
+pub fn jl_sketch_colwise_flat<IndexType: CustomIndex>(og_matrix: &CsMatI<f64, IndexType>, jl_factor: f64, seed: u64, display: bool) -> ffi::FlattenedVec {
     let og_rows = og_matrix.rows();
     let og_cols = og_matrix.cols();
     let jl_dim = ((og_rows as f64).log2() *jl_factor).ceil() as usize;
