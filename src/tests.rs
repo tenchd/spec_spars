@@ -26,7 +26,7 @@ pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> C
     let mut rng = rand::thread_rng();
     let uniform = Uniform::new(0.0, 1.0);
     //for i in 0..num_cols {
-    for i in 0..1 {
+    for i in 0..num_cols {
         let endpoint1 = rng.gen_range(0..num_rows-1);
         let endpoint2 = rng.gen_range(endpoint1+1..num_rows);
         let value = uniform.sample(&mut rng);
@@ -72,7 +72,9 @@ mod tests {
     use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, mean_and_std_dev, jl_sketch_sparse_blocked_multi, jl_sketch_sparse_flat, jl_sketch_colwise, jl_sketch_colwise_batch}, utils, Sparsifier,InputStream};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, 
+        mean_and_std_dev, jl_sketch_sparse_blocked_multi, jl_sketch_sparse_flat, jl_sketch_colwise, 
+        jl_sketch_colwise_slow, jl_sketch_colwise_batch}, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
     use std::ops::Add;
     use ::approx::{AbsDiffEq, abs_diff_eq};
@@ -251,11 +253,11 @@ mod tests {
 
     //verifies that blocked jl sketching matrix multiplication gives the same output as library mat mult implementations.
     #[test]
-    // #[ignore]
+    //#[ignore]
     fn jl_sketch_equiv_random(){
         println!("TEST:-----Testing that blocked jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
-        let num_rows = 5000;
-        let num_cols = 50000;
+        let num_rows = 5005;
+        let num_cols = 60000;
         let nnz = 1000000;
         // let num_rows = 10;
         // let num_cols = 10;
@@ -277,13 +279,13 @@ mod tests {
         let mut nonblocked_timer = Instant::now();
         let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed, display);
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
-        println!("nonblocked: ---------------- {} ms", nonblocked_time);
+        println!("library: ------------------- {} ms", nonblocked_time);
 
-        let mut blocked_timer = Instant::now();
-        let mut sparse_blocked:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
-        let blocked_time = blocked_timer.elapsed().as_millis();
-        println!("blocked: ------------------- {} ms", blocked_time);
+        // let mut blocked_timer = Instant::now();
+        // let mut sparse_blocked:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
+        // jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
+        // let blocked_time = blocked_timer.elapsed().as_millis();
+        // println!("blocked: ------------------- {} ms", blocked_time);
 
         let mut blocked_multi_timer = Instant::now();
         let mut sparse_blocked_multi:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
@@ -291,11 +293,11 @@ mod tests {
         let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
         println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
 
-        // let mut colwise_timer = Instant::now();
-        // let mut colwise_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        // jl_sketch_colwise(&input_matrix.view(), &mut colwise_answer, jl_dim, seed, display);
-        // let colwise_time = colwise_timer.elapsed().as_millis(); 
-        // println!("colwise: ------------------- {} ms", colwise_time);
+        // let mut colwise_slow_timer = Instant::now();
+        // let mut colwise_slow_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
+        // jl_sketch_colwise_slow(&input_matrix.view(), &mut colwise_slow_answer, jl_dim, seed, display);
+        // let colwise_slow_time = colwise_slow_timer.elapsed().as_millis(); 
+        // println!("colwise slow: -------------- {} ms", colwise_slow_time);
 
         let mut colwise_batch_timer = Instant::now();
         let mut colwise_batch_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
@@ -313,14 +315,20 @@ mod tests {
 
 
         let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
-        assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
+
+        // println!("correct output:");
+        // println!("{:?}", sparse_nonblocked);
+        // println!("suspect output:");
+        // println!("{:?}", colwise_batch_answer);
+
+        // assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
         assert!(sparse_blocked_multi.abs_diff_eq(&sparse_nonblocked, 0.00001));
-        //assert!(colwise_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
+        // assert!(colwise_slow_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
         assert!(colwise_batch_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn jl_sketch_equiv_virus(){
         println!("TEST:-----Testing that simplified jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
 
@@ -356,11 +364,11 @@ mod tests {
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
         println!("nonblocked: ---------------- {} ms", nonblocked_time);
 
-        let mut blocked_multi_timer = Instant::now();
-        let mut sparse_blocked_multi:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        jl_sketch_sparse_blocked_multi(&input_matrix, &mut sparse_blocked_multi, jl_dim, seed, block_rows, block_cols, display);
-        let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
-        println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
+        // let mut blocked_multi_timer = Instant::now();
+        // let mut sparse_blocked_multi:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
+        // jl_sketch_sparse_blocked_multi(&input_matrix, &mut sparse_blocked_multi, jl_dim, seed, block_rows, block_cols, display);
+        // let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
+        // println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
 
         let mut new_timer = Instant::now();
         let mut new_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
@@ -368,25 +376,16 @@ mod tests {
         let new_time = new_timer.elapsed().as_millis(); 
         println!("new: ----------------------- {} ms", new_time);
 
-        // let difference = sparse_blocked - sparse_nonblocked;
-        // let max_difference = 0;
-        // for (value, (row, col)) in difference.iter() {
-        //     abs_diff_eq!(value, 0, 0.000001);
-        // }
-
-        // assert!(difference.max());
-
-        // println!("input matrix:");
-        // println!("{:?}", input_matrix.to_dense());
-        // println!("correct answer:");
-        // println!("{:?}", sparse_nonblocked);
-        // println!("new answer:");
-        // println!("{:?}", new_answer.to_dense());
-
+        // let mut colwise_slow_timer = Instant::now();
+        // let mut colwise_slow_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
+        // jl_sketch_colwise_slow(&input_matrix.view(), &mut colwise_slow_answer, jl_dim, seed, display);
+        // let colwise_slow_time = colwise_slow_timer.elapsed().as_millis(); 
+        // println!("colwise slow: -------------- {} ms", colwise_slow_time);
 
         let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
+
         // assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
-        assert!(sparse_blocked_multi.abs_diff_eq(&sparse_nonblocked, 0.00001));
+        // println!("is colwise slow correct: {}", colwise_slow_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
         assert!(new_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
     }
 

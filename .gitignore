@@ -7,3 +7,6 @@
 Cargo.lock
 /graph_test
 example.txt
+*.out
+cluster_run.sh
+test_jl.sh
