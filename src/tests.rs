@@ -1,18 +1,15 @@
-
-
 #[cfg(test)]
 mod tests {
-    //use super::*;
+    use std::ops::Add;
+    use std::time::{Instant};
     use sprs::{CsMat,TriMat,CsMatI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use std::time::{Instant};
     use ndarray::{Axis, Array1};
+    use ::approx::{AbsDiffEq};
     use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_flat, 
         jl_sketch_colwise_batch}, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
-    use std::ops::Add;
-    use ::approx::{AbsDiffEq};
     use crate::ffi;
 
     pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
@@ -130,7 +127,7 @@ mod tests {
 
         let end_early = false;
         let test = true;
-        sparsifier.sparsify(end_early, test);
+        sparsifier.sparsify(end_early, test, true);
 
         let after_num_edges = sparsifier.num_edges();
         let mut after_diag_sum: f64 = 0.0;

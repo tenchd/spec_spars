@@ -1,4 +1,4 @@
-//#![allow(unused)]
+#![allow(unused)]
 //#![feature(test)]
 #![feature(step_trait)]
 #![feature(new_range_api)]
@@ -8,7 +8,6 @@ extern crate csv;
 extern crate ndarray;
 extern crate ndarray_csv;
 extern crate rand;
-//extern crate test;
 
 mod utils;
 mod jl_sketch;

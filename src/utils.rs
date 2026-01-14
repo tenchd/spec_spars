@@ -1,6 +1,5 @@
 // this file stores boring functions for the Rust side of the sparsifier implementation. 
 // boring means not related to ffi, not really part of the core sparsifier logic, etc.
-
 use sprs::{CsMatI,TriMatI,indexing::SpIndex};
 use sprs::io::{read_matrix_market, IoError};
 use std::time::{Instant, Duration};

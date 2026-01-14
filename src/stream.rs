@@ -1,7 +1,7 @@
+use std::process::Command;
 use sprs::CsMatI;
 use crate::{read_mtx,Sparsifier};
 use crate::utils::Benchmarker;
-use std::process::Command;
 
 
 pub struct InputStream {
@@ -52,7 +52,7 @@ impl InputStream {
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
-        sparsifier.sparsify(false, false);
+        sparsifier.sparsify(false, false, false);
 
         println!("checking diagonal final time");
         sparsifier.check_diagonal();

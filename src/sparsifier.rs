@@ -1,5 +1,5 @@
-use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
 use std::ops::Add;
+use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
 use rand::Rng;
 use approx::AbsDiffEq;
 
@@ -307,14 +307,14 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         
     // }
 
-    pub fn sparsify(&mut self, end_early: bool, test: bool) {
+    pub fn sparsify(&mut self, end_early: bool, test: bool, check: bool) {
         // compute evim format of new triplet entries (no diagonal)
         if self.benchmarker.is_active(){
             self.benchmarker.start();
             self.benchmarker.set_time(BenchmarkPoint::Initialize);
         }
         let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
-        println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
+        // println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
         }
@@ -338,8 +338,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        println!("checking diagonal after populating laplacian");
-        self.check_diagonal();
+        if check {println!("checking diagonal after populating laplacian");
+        self.check_diagonal();}
 
         if end_early {
             return;
@@ -415,8 +415,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
         //println!("total number of deletions should be: {}", deletion_counter);
 
-        println!("checking diagonal after sampling");
-        self.check_diagonal();
+        if check {println!("checking diagonal after sampling");
+        self.check_diagonal();}
 
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::End);
