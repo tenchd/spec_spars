@@ -1,85 +1,66 @@
-use sprs::{CsMat,TriMat,CsVec, approx};
-use rand::Rng;
-use rand::distributions::{Distribution, Uniform};
-use std::time::{Instant, Duration};
 
-
-
-pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
-    let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
-    let mut rng = rand::thread_rng();
-    let uniform = Uniform::new(-1.0, 1.0);
-    for _ in 0..nnz {
-        let row_pos = rng.gen_range(0..num_rows);
-        let col_pos = rng.gen_range(0..num_cols);
-        let value = uniform.sample(&mut rng);
-        trip.add_triplet(row_pos, col_pos, value);
-    }
-    if csc {
-        return trip.to_csc();
-    }
-    trip.to_csr()
-}
-
-pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> CsMat<f64> {
-    let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
-    let mut rng = rand::thread_rng();
-    let uniform = Uniform::new(0.0, 1.0);
-    //for i in 0..num_cols {
-    for i in 0..num_cols {
-        let endpoint1 = rng.gen_range(0..num_rows-1);
-        let endpoint2 = rng.gen_range(endpoint1+1..num_rows);
-        let value = uniform.sample(&mut rng);
-        trip.add_triplet(endpoint1, i, value);
-        trip.add_triplet(endpoint2, i, -1.0*value);
-    }
-    if csc {
-        return trip.to_csc();
-    }
-    trip.to_csr()
-}
-
-pub fn make_random_vec(num_values: usize) -> CsVec<f64> {
-
-    let indices: Vec<usize> = (0..num_values).collect();
-    let mut values: Vec<f64> = vec![0.0; num_values];
-    let mut rng = rand::thread_rng();
-    let uniform = Uniform::new(-1.0, 1.0);
-    // add random values for each entry except the last.
-    for i in 0..num_values {
-        if i%50000 == 0 {
-            println!("{}",i);
-        }
-        let value = uniform.sample(&mut rng);
-        if let Some(position) = values.get_mut(i) {
-            *position += value;
-        }
-        //fake_jl_col.get_mut(i) += value;
-    }
-    println!("done");
-
-    let rand_vec = CsVec::new(num_values, indices, values);
-    rand_vec
-}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use fasthash::murmur;
-    //use test::Bencher;
-    use ndarray::{Axis};
-    use sprs::linalg::etree::Parent;
-    use sprs::{CsMat,CsMatI,TriMat,TriMatI,CsVec,CsVecI};
+    //use super::*;
+    use sprs::{CsMat,TriMat,CsMatI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_blocked, 
-        mean_and_std_dev, jl_sketch_sparse_blocked_multi, jl_sketch_sparse_flat, jl_sketch_colwise, 
-        jl_sketch_colwise_slow, jl_sketch_colwise_batch}, utils, Sparsifier,InputStream};
+    use std::time::{Instant};
+    use ndarray::{Axis, Array1};
+    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_flat, 
+        jl_sketch_colwise_batch}, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
     use std::ops::Add;
-    use ::approx::{AbsDiffEq, abs_diff_eq};
+    use ::approx::{AbsDiffEq};
     use crate::ffi;
 
+    pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
+        let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
+        let mut rng = rand::thread_rng();
+        let uniform = Uniform::new(-1.0, 1.0);
+        for _ in 0..nnz {
+            let row_pos = rng.gen_range(0..num_rows);
+            let col_pos = rng.gen_range(0..num_cols);
+            let value = uniform.sample(&mut rng);
+            trip.add_triplet(row_pos, col_pos, value);
+        }
+        if csc {
+            return trip.to_csc();
+        }
+        trip.to_csr()
+    }
+
+    pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> CsMat<f64> {
+        let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
+        let mut rng = rand::thread_rng();
+        let uniform = Uniform::new(0.0, 1.0);
+        for i in 0..num_cols {
+            let endpoint1 = rng.gen_range(0..num_rows-1);
+            let endpoint2 = rng.gen_range(endpoint1+1..num_rows);
+            let value = uniform.sample(&mut rng);
+            trip.add_triplet(endpoint1, i, value);
+            trip.add_triplet(endpoint2, i, -1.0*value);
+        }
+        if csc {
+            return trip.to_csc();
+        }
+        trip.to_csr()
+    }
+
+    pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
+        let total = input.sum_axis(Axis(0));
+        let length = input.len() as f64;
+        let mean: f64 = total[()] / length;
+        let mut variance: f64 = 0.0;
+        for sum in input {
+            let sq_diff = (mean - sum).powi(2);
+            variance += sq_diff;
+        }
+        variance = variance / length;
+        let st_dev = variance.sqrt(); 
+        return (mean, st_dev);
+    }
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian.
     #[test]
@@ -88,9 +69,6 @@ mod tests {
         println!("TEST:----Running lap validity test: insert many random updates and periodically check laplacian for validity.-----");
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let block_rows: usize = 100;
-        let block_cols: usize = 15000;
-        let display: bool = false;
 
         let num_nodes = 10000;
 
@@ -99,7 +77,7 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(num_nodes, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         //generate random stream of updates
@@ -111,7 +89,7 @@ mod tests {
             let col_pos = rng.gen_range(0..num_nodes);
             let value = uniform.sample(&mut rng);
             sparsifier.insert(row_pos, col_pos, value);
-            if (i%500 == 0) {
+            if i%500 == 0 {
                 sparsifier.check_diagonal();
             }
         }
@@ -128,9 +106,6 @@ mod tests {
         //let input_filename = "data/test.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let block_rows: usize = 100;
-        let block_cols: usize = 15000;
-        let display: bool = false;
 
         let epsilon = 0.5;
         let beta_constant = 4;
@@ -140,7 +115,7 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -149,7 +124,7 @@ mod tests {
 
         let before_num_edges = sparsifier.new_entries.col_indices.len()/2; 
         let mut before_diag_sum: f64 = 0.0;
-        for (index, value) in sparsifier.new_entries.diagonal.iter().enumerate() {
+        for (_index, value) in sparsifier.new_entries.diagonal.iter().enumerate() {
             before_diag_sum += value;
         }
 
@@ -189,19 +164,15 @@ mod tests {
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let block_rows: usize = 100;
-        let block_cols: usize = 15000;
-        let display: bool = false;
 
         let epsilon = 0.5;
         let beta_constant = 4;
         let row_constant = 2;
         let verbose = false;
 
-
         let stream = InputStream::new(input_filename);
 
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -213,7 +184,7 @@ mod tests {
         let evim_nnz = evim.nnz();
 
         // make sure each evim column has 2 distinct entries (no empty cols, no diagonal (single-nz col) entries)
-        for (col_ind, col_vec) in evim.outer_iterator().enumerate() {
+        for (_col_ind, col_vec) in evim.outer_iterator().enumerate() {
             assert!(col_vec.nnz() == 2);
         }
 
@@ -230,7 +201,7 @@ mod tests {
 
         assert_eq!(evim_nnz, lap_nnz);
 
-        for (edge_number, edge_vec) in evim.outer_iterator().enumerate() {
+        for (_edge_number, edge_vec) in evim.outer_iterator().enumerate() {
             //println!("{}", edge_number);
             let mut indices: Vec<i32> = vec![];
             let mut values: Vec<f64> = vec![];
@@ -258,72 +229,30 @@ mod tests {
         println!("TEST:-----Testing that blocked jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
         let num_rows = 5005;
         let num_cols = 60000;
-        let nnz = 1000000;
-        // let num_rows = 10;
-        // let num_cols = 10;
-        // let nnz = 20;
         let csc = true;
             
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
         let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
-        let block_rows: usize = 500;
-        let block_cols: usize = 400;
         let display: bool = false;
 
         let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
 
         println!("---- Time for jl sketch multiplication methods: ----");
 
-        let mut nonblocked_timer = Instant::now();
+        let nonblocked_timer = Instant::now();
         let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed, display);
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
         println!("library: ------------------- {} ms", nonblocked_time);
 
-        // let mut blocked_timer = Instant::now();
-        // let mut sparse_blocked:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        // jl_sketch_sparse_blocked(&input_matrix, &mut sparse_blocked, jl_dim, seed, block_rows, block_cols, display);
-        // let blocked_time = blocked_timer.elapsed().as_millis();
-        // println!("blocked: ------------------- {} ms", blocked_time);
-
-        // let mut blocked_multi_timer = Instant::now();
-        // let mut sparse_blocked_multi:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        // jl_sketch_sparse_blocked_multi(&input_matrix, &mut sparse_blocked_multi, jl_dim, seed, block_rows, block_cols, display);
-        // let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
-        // println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
-
-        // let mut colwise_slow_timer = Instant::now();
-        // let mut colwise_slow_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        // jl_sketch_colwise_slow(&input_matrix.view(), &mut colwise_slow_answer, jl_dim, seed, display);
-        // let colwise_slow_time = colwise_slow_timer.elapsed().as_millis(); 
-        // println!("colwise slow: -------------- {} ms", colwise_slow_time);
-
-        let mut colwise_batch_timer = Instant::now();
+        let colwise_batch_timer = Instant::now();
         let mut colwise_batch_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
         jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer, jl_dim, seed, display);
         let colwise_batch_time = colwise_batch_timer.elapsed().as_millis(); 
         println!("colwise batch: ------------- {} ms", colwise_batch_time);
 
-        // let difference = sparse_blocked - sparse_nonblocked;
-        // let max_difference = 0;
-        // for (value, (row, col)) in difference.iter() {
-        //     abs_diff_eq!(value, 0, 0.000001);
-        // }
-
-        // assert!(difference.max());
-
-
         let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
-
-        // println!("correct output:");
-        // println!("{:?}", sparse_nonblocked);
-        // println!("suspect output:");
-        // println!("{:?}", colwise_batch_answer);
-
-        // assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
-        // assert!(sparse_blocked_multi.abs_diff_eq(&sparse_nonblocked, 0.00001));
-        // assert!(colwise_slow_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
         assert!(colwise_batch_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
     }
 
@@ -331,12 +260,9 @@ mod tests {
     //#[ignore]
     fn jl_sketch_equiv_virus(){
         println!("TEST:-----Testing that simplified jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
-
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let block_rows: usize = 500;
-        let block_cols: usize = 15000;
         let display: bool = false;
 
         let epsilon = 0.5;
@@ -348,7 +274,7 @@ mod tests {
         let num_rows = stream.num_nodes;
         let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -359,7 +285,7 @@ mod tests {
 
         println!("---- Time for jl sketch multiplication methods: ----");
 
-        let mut nonblocked_timer = Instant::now();
+        let nonblocked_timer = Instant::now();
         let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed, display);
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
         println!("library: ------------------- {} ms", nonblocked_time);
@@ -370,7 +296,7 @@ mod tests {
         // let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
         // println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
 
-        let mut new_timer = Instant::now();
+        let new_timer = Instant::now();
         let mut new_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
         jl_sketch_colwise_batch(&input_matrix, &mut new_answer, jl_dim, seed, display);
         let new_time = new_timer.elapsed().as_millis(); 
@@ -399,8 +325,6 @@ mod tests {
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/bcsstk30/bcsstk30.mtx";
         let seed: u64 = 2;
         let jl_factor: f64 = 1.5;
-        let block_rows: usize = 100;
-        let block_cols: usize = 15000;
         let display: bool = false;
 
         let epsilon = 0.5;
@@ -414,7 +338,7 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -433,22 +357,10 @@ mod tests {
         let result = mean_and_std_dev(&sums);
         println!("mean {}, std dev {}", result.0, result.1);
 
-        let total = sums.sum_axis(Axis(0));
+        let _total = sums.sum_axis(Axis(0));
         //println!("TOTAL: {:?}", total);
         //assert!(total[0].abs_diff_eq(&0.0, 0.05));
 
-        // println!("now outputing results for murmurhash");
-        // let murmur_sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat_murmur(&evim, sparsifier.jl_factor, sparsifier.seed);
-        // let murmur_sketch_array = murmur_sketch_cols.to_array2();
-        
-        // let sums = murmur_sketch_array.sum_axis(Axis(0));
-        // //println!("{:?}", sums);
-        // let result = mean_and_std_dev(&sums);
-        // println!("mean {}, std dev {}", result.0, result.1);
-
-        let total = sums.sum_axis(Axis(0));
-        //println!("TOTAL: {:?}", total);
-        //assert!(total[0].abs_diff_eq(&0.0, 0.05));
     }
 
     #[test]
@@ -458,8 +370,6 @@ mod tests {
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let block_rows: usize = 100;
-        let block_cols: usize = 15000;
         let display: bool = false;
 
         let epsilon = 0.5;
@@ -469,7 +379,7 @@ mod tests {
 
         let stream = InputStream::new(input_filename);
 
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -478,12 +388,12 @@ mod tests {
 
         // create EVIM representation
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
-        let mut sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed,display);
+        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed,display);
         let saved_rows = sketch_cols.num_rows;
         let saved_cols = sketch_cols.num_cols;
         let saved_vec = sketch_cols.vec.clone();
 
-        let mut rerolled_cols: ffi::FlattenedVec = test_roll(sketch_cols);
+        let rerolled_cols: ffi::FlattenedVec = test_roll(sketch_cols);
 
         assert!(saved_cols == rerolled_cols.num_cols);
         assert!(saved_rows == rerolled_cols.num_rows);

@@ -1,6 +1,6 @@
-use sprs::{CsMatI, DenseVector};
+use sprs::CsMatI;
 use crate::{read_mtx,Sparsifier};
-use crate::utils::{Benchmarker, load_pattern_as_csr};
+use crate::utils::Benchmarker;
 use std::process::Command;
 
 
@@ -27,7 +27,7 @@ impl InputStream {
         for result in input.diag_iter_mut() {
             match result {
                 Some(x) => *x = 0.0,
-                none => diag_zeros += 1,
+                None => diag_zeros += 1,
             }
         }
 
@@ -43,7 +43,7 @@ impl InputStream {
     }
 
     pub fn run_stream(&self, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmark: bool, test: bool) -> Sparsifier<i32> {
-        let mut benchmarker = Benchmarker::new(benchmark);
+        let benchmarker = Benchmarker::new(benchmark);
         let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in self.input_matrix.iter() {
@@ -73,6 +73,8 @@ impl InputStream {
     }
 
     // used for testing purposes
+
+    #[allow(dead_code)]
     pub fn produce_laplacian(&self) -> CsMatI<f64, i32>{
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
@@ -81,7 +83,7 @@ impl InputStream {
         let beta_constant = 4;
         let row_constant = 2;
         let verbose = false;
-        let mut benchmarker = Benchmarker::new(false);
+        let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         for (value, (row, col)) in self.input_matrix.iter() {

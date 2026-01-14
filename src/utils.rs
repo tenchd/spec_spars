@@ -1,28 +1,16 @@
 // this file stores boring functions for the Rust side of the sparsifier implementation. 
 // boring means not related to ffi, not really part of the core sparsifier logic, etc.
 
-use ndarray_rand::rand_distr::num_traits::Float;
-use num_traits::{NumCast, ToPrimitive, PrimInt};
-use rand_xoshiro::rand_core::RngCore;
-use sprs::{CsMat,CsMatI,TriMatI,CsVecI,indexing::SpIndex};
+use sprs::{CsMatI,TriMatI,indexing::SpIndex};
 use sprs::io::{read_matrix_market, IoError};
 use std::time::{Instant, Duration};
-
-use ndarray::{Array2};
-use ndarray_csv::{Array2Reader, Array2Writer};
-use std::error::Error;
-use csv::{ReaderBuilder, WriterBuilder};
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use rand::distributions::{Distribution, Uniform};
-use approx::AbsDiffEq;
-use std::path::Path;
 use crate::ffi;
+use std::path::Path;
 
-use rand::SeedableRng;
-use rand_xoshiro::Xoshiro256PlusPlus;
 
+//Following traits are used for generic types for sparse matrix indices (implemented) and values (not yet implemented)
 pub trait CustomValue: num_traits::float::Float + std::ops::AddAssign + Default + std::fmt::Debug + Clone + num_traits::Zero + std::fmt::Display + num_traits::cast::ToPrimitive{
+    #[allow(dead_code)]
     fn from_float<U: num_traits::float::Float>(value: U) -> Self;
     fn as_f64(&self) -> f64;
 }
@@ -52,6 +40,15 @@ pub fn convert_indices_to_i32<IndexType: CustomIndex>(input_vec: &Vec<IndexType>
     input_vec.into_iter().map(|v| v.as_i32()).collect()
 }
 
+// fn convert_index_type_to_int<InitialIndexType: CustomIndex, DesiredIndexType: PrimInt>(vector: Vec<InitialIndexType>) -> Vec<DesiredIndexType> {
+//     vector.into_iter().map(|v| v.index().try_into()).collect()
+// }
+
+// fn convert_value_type_to_float<InitialValueType: CustomValue, DesiredValueType: Float>(vector: Vec<InitialValueType>) -> Vec<DesiredValueType> {
+//     vector.into_iter().map(|v| v.as_f64().try_into()).collect()
+// }
+
+// following code provides simple code for timing different parts of sparsification pipeline
 pub enum BenchmarkPoint {
     Start,
     Initialize,
@@ -72,12 +69,6 @@ pub struct Benchmarker {
 
 impl Benchmarker {
     pub fn new(benchmark: bool) -> Benchmarker {
-        // points = BenchmarkPoint {
-        //     Start: 0,
-        //     Initialize: 1,
-        //     End: 2,
-        // };
-
         Benchmarker { 
             active: benchmark, 
             timer: Instant::now(), 
@@ -114,7 +105,6 @@ impl Benchmarker {
         self.timer.elapsed() - self.times[0].expect("timer is not initialized")
     }
 
-
     pub fn set_time(&mut self, point: BenchmarkPoint) {
         let index = self.resolve(point);
         self.times[index] = Some(self.get_time());
@@ -125,58 +115,41 @@ impl Benchmarker {
     }
 
     pub fn display_durations(&self){
-        if (self.active){
+        if self.active{
             println!("------------ Runtime information: --------------------------");
-            println!("time to compute EVIM: ======================== {:?}", self.compute_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize));
-            println!("time to JL sketch: --------------------------- {:?}", self.compute_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete));
-            println!("time to solve: =============================== {:?}", self.compute_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete));
-            println!("time to compute diff norms: ------------------ {:?}", self.compute_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete));
-            println!("time to reweight: ============================ {:?}", self.compute_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete));
+            println!("time to compute EVIM: ======================== {:?}", 
+                self.compute_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize));
+            println!("time to JL sketch: --------------------------- {:?}", 
+                self.compute_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete));
+            println!("time to solve: =============================== {:?}", 
+                self.compute_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete));
+            println!("time to compute diff norms: ------------------ {:?}", 
+                self.compute_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete));
+            println!("time to reweight: ============================ {:?}", 
+                self.compute_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete));
             println!("------------------------------------------------------------");
         }
     }
 
 }
 
-
-// fn convert_index_type_to_int<InitialIndexType: CustomIndex, DesiredIndexType: PrimInt>(vector: Vec<InitialIndexType>) -> Vec<DesiredIndexType> {
-//     vector.into_iter().map(|v| v.index().try_into()).collect()
-// }
-
-// fn convert_value_type_to_float<InitialValueType: CustomValue, DesiredValueType: Float>(vector: Vec<InitialValueType>) -> Vec<DesiredValueType> {
-//     vector.into_iter().map(|v| v.as_f64().try_into()).collect()
-// }
-
-// fn stage_for_solve() {
-
-// }
-
 pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
     println!("reading file {}", filename);
-    let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();
-    // for i in trip.triplet_iter() {
-    //     println!("{:?}", i);
-    // }
-
-    // let mut trip = TriMatI::<f64, i32>::new((trip_pattern.rows(), trip_pattern.cols()));
-    // for (value, (row, col)) in trip_pattern.triplet_iter(){
-    //     trip.add_triplet(row.try_into().unwrap(), col.try_into().unwrap(), *value as f64);
-    // }
-
-    //assert_eq!(trip.cols(), trip.rows());
-    
+    let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();    
     let col_format = trip.to_csc::<i32>();
-
     return col_format;
-    
-    
-    // for i in guy.iter() {
-    //     println!("{:?}", i);
-    // }
-    //println!("density of input {}: {}", filename, guy.density());
+}
+
+#[allow(dead_code)]
+pub fn read_sketch_from_mtx(filename: &str) -> ffi::FlattenedVec {
+    let csc: CsMatI<f64, i32> = read_mtx(filename);
+    let dense = csc.to_dense();
+    let output = ffi::FlattenedVec::new(&dense);
+    output
 }
 
 //BROKEN: function to read pattern .mtx files. needs to be fixed
+#[allow(dead_code)]
 pub fn load_pattern_as_csr<P>(path: P) -> Result<CsMatI<f64, i32>, std::io::Error>
 where
     P: AsRef<Path>,
@@ -192,134 +165,12 @@ where
     Ok(triplet.to_csr())
 }
 
-
 //make this generic later maybe
 pub fn write_mtx(filename: &str, matrix: &CsMatI<f64, i32>) {
         sprs::io::write_matrix_market(filename, matrix).ok();
 }
 
-// reads a jl_sketch vec of vecs from a file and 
-pub fn read_vecs_from_file_flat(filename: &str) -> ffi::FlattenedVec {
-    let file = File::open(filename).unwrap();
-    let reader = BufReader::new(file);
-
-    let mut jl_vec: Vec<f64> = vec![];
-    let mut line_length: usize = 0; 
-    let mut first: bool = true;
-    let mut line_counter: usize = 0;
-
-    for line in reader.lines() {
-        line_counter += 1;
-        let mut col: Vec<f64> = line.expect("uh oh").split(",")
-                                        .map(|x| x.trim().parse::<f64>().unwrap())
-                                        //.map(|v| ffi::Shared { v })
-                                        .collect();
-        if first {
-            line_length = col.len().try_into().unwrap();
-            first = false;
-        }
-        let current_line_length= col.len().try_into().unwrap();
-        assert_eq!(line_length, current_line_length);
-        jl_vec.append(&mut col);
-    }
-    //println!("line length = {}, num_lines = {}", line_length, line_counter);
-
-    let jl_cols_flat = ffi::FlattenedVec{vec: jl_vec, num_cols: line_counter, num_rows: line_length};
-    jl_cols_flat
-}
-
-pub fn read_sketch_from_mtx(filename: &str) -> ffi::FlattenedVec {
-    let csc: CsMatI<f64, i32> = read_mtx(filename);
-    let dense = csc.to_dense();
-    let output = ffi::FlattenedVec::new(&dense);
-    output
-}
-
-pub fn convert_mtx_to_csv(input_filename: &str, output_filename: &str) {
-    let csc: CsMatI<f64, i32> = read_mtx(input_filename);
-    let dense = csc.to_dense();
-    write_csv(output_filename, &dense);
-}
-
-pub fn write_csv(filename: &str, array: &Array2<f64>) -> Result<(), Box<dyn Error>> {
-
-    // Write the array into the file.
-    {
-        let file = File::create(filename)?;
-        let mut writer = WriterBuilder::new().has_headers(false).from_writer(file);
-        writer.serialize_array2(&array)?;
-    }
-
-    // Read an array back from the file
-    let file = File::open("data/test.csv")?;
-    let mut reader = ReaderBuilder::new().has_headers(false).from_reader(file);
-    let array_read: Array2<f64> = reader.deserialize_array2((2, 3))?;
-
-    // Ensure that we got the original array back
-    assert_eq!(array_read, array);
-    Ok(())
-}
-
-//used for testing solver. assumes num_values is equal to number of nodes in graph +1.
-//put random values in for all positions except the last, which is set so that the sum
-// is equal to 0.
-
-pub fn make_fake_jl_col(num_values: usize) -> ffi::FlattenedVec{
-    let mut fake_jl_col: Vec<f64> = vec![0.0; num_values];
-    let mut rng = rand::thread_rng();
-    let uniform = Uniform::new(-1.0, 1.0);
-    // add random values for each entry except the last.
-    for i in 0..num_values-1 {
-        let value = uniform.sample(&mut rng);
-        if let Some(position) = fake_jl_col.get_mut(i) {
-            *position += value;
-        }
-        //fake_jl_col.get_mut(i) += value;
-    }
-    let sum: f64 = fake_jl_col.iter().sum();
-    if let Some(position) = fake_jl_col.get_mut(num_values-1){
-        *position += -1.0 * sum;
-    }
-    //fake_jl_col.get_mut(num_values-1) += -1.0 * sum;
-    let sum: f64 = fake_jl_col.iter().sum();
-    assert!(sum.abs_diff_eq(&0.0, 1e-10), "fake jl sketch vector sum is nonzero: {}", sum);
-    let output = ffi::FlattenedVec{vec: fake_jl_col, num_cols: 1, num_rows: num_values};
-    return output;
-
-}
-
-//laplacian: &CsMatI<f64, i32>
-pub fn create_trivial_rhs(num_values: usize, matrix: &CsMatI<f64,i32>) -> ffi::FlattenedVec {
-
-    println!("Creating trivial rhs:");
-    let indices: Vec<i32> = (0..num_values as i32).collect();
-    let mut values: Vec<f64> = vec![0.0; num_values];
-    let mut rng = rand::thread_rng();
-    let uniform = Uniform::new(-1.0, 1.0);
-    // add random values for each entry except the last.
-    for i in 0..num_values {
-        // if i%50000 == 0 {
-        //     println!("{}",i);
-        // }
-        let value = uniform.sample(&mut rng);
-        if let Some(position) = values.get_mut(i) {
-            *position += value;
-        }
-        //fake_jl_col.get_mut(i) += value;
-    }
-    println!("done creating trivial solution entries");
-
-    let trivial_solution = CsVecI::<f64, i32>::new(num_values, indices, values);
-    println!("trivial solution CsVec build done");
-    let temp_trivial_rhs = matrix * &trivial_solution;
-    println!("multiplication done");
-    let trivial_rhs = temp_trivial_rhs.to_dense().to_vec();
-    println!("conversion done");
-    ffi::FlattenedVec{vec: trivial_rhs, num_cols: 1, num_rows: num_values}
-}
-
-//pub fn 
-
+#[allow(dead_code)]
 pub fn l2_norm(filename: &str) {
     let matrix = read_mtx(filename);
     let mut sum = 0.0;
@@ -329,10 +180,3 @@ pub fn l2_norm(filename: &str) {
     let norm = sum.sqrt();
     println!("l2 norm of matrix: {}", norm);
 }
-
-// pub fn find_cut_weight(laplacian: CsMatI<f64,i32>, cut_vector: CsVecI<f64, i32>) -> f64{
-//     let num_rows = cut_vector.dim();
-//     assert!(laplacian.rows() == num_rows);
-//     let eye = CsMatI::<f64,i32>::eye(num_rows);
-//     &eye * &cut_vector
-// }

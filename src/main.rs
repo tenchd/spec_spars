@@ -1,4 +1,4 @@
-#![allow(unused)]
+//#![allow(unused)]
 //#![feature(test)]
 #![feature(step_trait)]
 #![feature(new_range_api)]
@@ -16,45 +16,41 @@ mod sparsifier;
 mod stream;
 mod tests;
 
-use utils::{read_mtx, read_vecs_from_file_flat, l2_norm, read_sketch_from_mtx, convert_mtx_to_csv, CustomIndex, CustomValue};
-use jl_sketch::{populate_matrix};
+use utils::read_mtx;
 use sparsifier::{Sparsifier};
 use stream::InputStream;
 use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
-use sprs::CsMatI;
-
-
-
 
 #[cxx::bridge]
 mod ffi {
-
-
     struct FlattenedVec {
         vec: Vec<f64>,
         num_cols: usize,
         num_rows: usize,
     }
 
-
     unsafe extern "C++" {
         include!("cxx-test/include/example.h");
 
-        //fn f(elements: Vec<Shared>) -> Vec<Shared>;
-
+        #[allow(dead_code)]
         fn go(shared_jl_cols: FlattenedVec) -> FlattenedVec;
 
+        #[allow(dead_code)]
         fn test_roll(jl_cols: FlattenedVec) -> FlattenedVec;
 
+        #[allow(dead_code)]
         fn sprs_test(col_ptrs: Vec<usize>, row_indices: Vec<usize>, values: Vec<f64>);
 
+        #[allow(dead_code)]
         fn sprs_correctness_test(col_ptrs: Vec<i32>, row_indices: Vec<i32>, values: Vec<f64>);
 
         fn run_solve_lap(shared_jl_cols: FlattenedVec, rust_col_ptrs: Vec<i32>, rust_row_indices: Vec<i32>, rust_values: Vec<f64>, num_nodes:i32, verbose: bool) -> FlattenedVec;
     
+        #[allow(dead_code)]
         fn julia_test_solve(interop_jl_cols: FlattenedVec, lap_col_ptrs: Vec<i32>, lap_row_indices: Vec<i32>, lap_values: Vec<f64>, num_nodes:i32);
 
+        #[allow(dead_code)]
         fn test_stager(interop_jl_cols: FlattenedVec, lap_col_ptrs: Vec<i32>, lap_row_indices: Vec<i32>, lap_values: Vec<f64>, num_nodes:i32, test_selector:i32, verbose: bool) -> bool;
     }
 }

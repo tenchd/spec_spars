@@ -2,11 +2,10 @@ use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
 use std::ops::Add;
 use rand::Rng;
 use approx::AbsDiffEq;
-use std::time::{Instant, Duration};
 
-use crate::jl_sketch::{jl_sketch_sparse_flat, jl_sketch_sparse_blocked_flat, jl_sketch_sparse_blocked_multi_flat, jl_sketch_colwise_flat};
+use crate::jl_sketch::jl_sketch_colwise_flat;
 use crate::ffi::{self, FlattenedVec};
-use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue, CustomValue::from_float};
+use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
 
 // template types later
 #[derive(Clone)]
@@ -111,6 +110,8 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
 
     }
 
+
+    #[allow(dead_code)]
     pub fn display(&self) {
         println!("triplet values:");
         for value in &self.col_indices {
@@ -183,6 +184,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
     // returns # of edges in the entire sparsifier (including the new edges in triplet form and old edges in sparse matrix form)
     // note that currently it overcounts for laplacian since it also counts diagonals. maybe change this later?
+    #[allow(dead_code)]
     pub fn size_of(&self) -> IndexType {
         IndexType::from_int(self.new_entries.col_indices.len())  // total entries in triplet form
         + 
@@ -317,8 +319,6 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
         }
         // then compute JL sketch of it
-        let block_rows = 50000;
-        let block_cols = 40000;
         let display = false;
         let sketch_cols: ffi::FlattenedVec = jl_sketch_colwise_flat(&evim, self.jl_factor, self.seed, display);
         //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
@@ -371,7 +371,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let mut reweightings: Triplet<IndexType> = Triplet::new(self.num_nodes);
 
         let mut counter = 0;
-        let mut deletion_counter = 0;
+        //let mut deletion_counter = 0;
 //        let mut first_deletion = true;
         for (value, (row, col)) in self.current_laplacian.iter() {
             if row > col {
@@ -397,7 +397,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
                     // if deletion_counter == 0 {
                     //     println!("deletion. row = {}, col = {}, value = {}, true value = {}, is_sampled = {}, prob = {}, additive change = {}", row, col, *value, true_value, is_sampled, prob, additive_change);
                     // }
-                    deletion_counter += 1;
+                    //deletion_counter += 1;
                 }
 
 
@@ -444,6 +444,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
     }
 
+
+    #[allow(dead_code)]
     pub fn sparse_display(&self) {
         println!("laplacian: ");
         for (value, (row, col)) in self.current_laplacian.iter() {
