@@ -1,8 +1,8 @@
 #pragma once
-#include "cxx-test/src/main.rs.h"
+#include "spec_spars/src/main.rs.h"
 #include "rust/cxx.h"
 #include <iostream>
-#include "cxx-test/include/custom_cg.hpp"
+#include "spec_spars/include/custom_cg.hpp"
 
 
 //rust::Vec<Shared> f(rust::Vec<Shared> elements);

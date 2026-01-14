@@ -31,7 +31,7 @@ mod ffi {
     }
 
     unsafe extern "C++" {
-        include!("cxx-test/include/example.h");
+        include!("spec_spars/include/example.h");
 
         #[allow(dead_code)]
         fn go(shared_jl_cols: FlattenedVec) -> FlattenedVec;

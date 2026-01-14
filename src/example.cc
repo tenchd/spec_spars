@@ -1,5 +1,5 @@
 
-#include "cxx-test/include/example.h"
+#include "spec_spars/include/example.h"
 #include <algorithm>
 #include <cassert>
 #include <iostream>

@@ -1,5 +1,5 @@
 [package]
-name = "cxx-test"
+name = "spec_spars"
 version = "0.1.0"
 edition = "2024"
 
@@ -18,3 +18,10 @@ num-traits = "0.2.19"
 
 [build-dependencies]
 cxx-build = "1.0"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "my_benchmark"
+harness = false

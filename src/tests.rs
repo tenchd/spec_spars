@@ -247,7 +247,7 @@ mod tests {
         let mut colwise_batch_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
         jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer, jl_dim, seed, display);
         let colwise_batch_time = colwise_batch_timer.elapsed().as_millis(); 
-        println!("colwise batch: ------------- {} ms", colwise_batch_time);
+        println!("multithreaded simple: ------ {} ms", colwise_batch_time);
 
         let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
         assert!(colwise_batch_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
