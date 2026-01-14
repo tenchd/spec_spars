@@ -3,6 +3,7 @@
 #![feature(step_trait)]
 #![feature(new_range_api)]
 #![feature(import_trait_associated_functions)]
+
 extern crate fasthash;
 extern crate csv;
 extern crate ndarray;

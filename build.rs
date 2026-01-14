@@ -23,6 +23,7 @@ fn main() {
     println!("cargo::rustc-link-lib=mkl_core");
     println!("cargo::rustc-link-lib=iomp5");
     println!("cargo::rustc-link-lib=pthread");
+    //println!("cargo::rustc-link-lib=libirc");
     //println!("cargo::rustc-link-arg=-fopenmp");
 
 
