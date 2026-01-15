@@ -7,8 +7,7 @@ mod tests {
     use rand::distributions::{Distribution, Uniform};
     use ndarray::{Axis, Array1};
     use ::approx::{AbsDiffEq};
-    use crate::{ffi::test_roll, jl_sketch::{jl_sketch_sparse, jl_sketch_sparse_flat, 
-        jl_sketch_colwise_batch}, utils, Sparsifier,InputStream};
+    use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
     use crate::utils::Benchmarker;
     use crate::ffi;
 
@@ -230,22 +229,31 @@ mod tests {
             
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
+
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
         let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
         let display: bool = false;
+
+        let benchmarker = Benchmarker::new(false);
+        let mut sparsifier = Sparsifier::new(num_rows, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+
 
         let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
 
         println!("---- Time for jl sketch multiplication methods: ----");
 
         let nonblocked_timer = Instant::now();
-        let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed, display);
+        let sparse_nonblocked = sparsifier.jl_sketch_sparse(&input_matrix);
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
         println!("library: ------------------- {} ms", nonblocked_time);
 
         let colwise_batch_timer = Instant::now();
         let mut colwise_batch_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer, jl_dim, seed, display);
+        sparsifier.jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer);
         let colwise_batch_time = colwise_batch_timer.elapsed().as_millis(); 
         println!("multithreaded simple: ------ {} ms", colwise_batch_time);
 
@@ -283,7 +291,7 @@ mod tests {
         println!("---- Time for jl sketch multiplication methods: ----");
 
         let nonblocked_timer = Instant::now();
-        let sparse_nonblocked = jl_sketch_sparse(&input_matrix, jl_factor, seed, display);
+        let sparse_nonblocked = sparsifier.jl_sketch_sparse(&input_matrix);
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
         println!("library: ------------------- {} ms", nonblocked_time);
 
@@ -295,7 +303,7 @@ mod tests {
 
         let new_timer = Instant::now();
         let mut new_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        jl_sketch_colwise_batch(&input_matrix, &mut new_answer, jl_dim, seed, display);
+        sparsifier.jl_sketch_colwise_batch(&input_matrix, &mut new_answer);
         let new_time = new_timer.elapsed().as_millis(); 
         println!("multithreaded simple: ------ {} ms", new_time);
 
@@ -346,7 +354,7 @@ mod tests {
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
         println!("now outputing results for xxhash");
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed, display);
+        let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_sparse_flat(&evim);
         let sketch_array = sketch_cols.to_array2();
         
         let sums = sketch_array.sum_axis(Axis(0));
@@ -385,7 +393,7 @@ mod tests {
 
         // create EVIM representation
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(&evim, sparsifier.jl_factor, sparsifier.seed,display);
+        let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_sparse_flat(&evim);
         let saved_rows = sketch_cols.num_rows;
         let saved_cols = sketch_cols.num_cols;
         let saved_vec = sketch_cols.vec.clone();

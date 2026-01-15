@@ -1,11 +1,23 @@
 use std::ops::Add;
-use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI};
+use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI, CsMatViewI};
 use rand::Rng;
 use approx::AbsDiffEq;
 
-use crate::jl_sketch::jl_sketch_colwise_flat;
+
 use crate::ffi::{self, FlattenedVec};
 use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
+
+use std::sync::mpsc;
+use std::thread;
+use std::hash::{Hash,Hasher};
+use std::ops::Mul;
+
+use crate::fasthash::FastHasher;
+use crate::{utils};
+
+use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
+use ndarray::{Array1,Array2,s};
+use num_traits::cast;
 
 // template types later
 #[derive(Clone)]
@@ -149,6 +161,7 @@ pub struct Sparsifier<IndexType: CustomIndex>{
     pub beta: IndexType,     // parameter defined in line 1 of alg pseudocode
     pub verbose: bool,    //when true, prints a bunch of debugging info
     pub jl_factor: f64, //constant factor for jl sketch matrix
+    pub jl_dim: IndexType, 
     pub seed: u64,   //random seed for hashed jl sketch matrix
     pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
 }
@@ -164,7 +177,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // initialize empty sparse matrix for the laplacian
         // it needs to have num_nodes+1 rows and cols actually
         let current_laplacian: CsMatI<f64, IndexType> = CsMatI::<f64, IndexType>::zero((num_nodes.index(), num_nodes.index()));     
-        
+        let jl_dim = from_int(((num_nodes.index() as f64).log2() *jl_factor).ceil() as usize);
 
         Sparsifier{
             num_nodes: num_nodes,
@@ -177,6 +190,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             beta: beta,
             verbose: verbose,
             jl_factor: jl_factor,
+            jl_dim: jl_dim,
             seed: seed,
             benchmarker: benchmarker,
         }
@@ -229,6 +243,121 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
         //TODO: if it's too big, trigger sparsification step
     }
+
+        //maps hash function output to {-1,1} evenly
+    fn transform(&self, input: i64) -> i64 {
+        let result = ((input >> 31) * 2 - 1 ) as i64;
+        result
+    }
+
+    pub fn hash_with_inputs(&self, input1: u64, input2: u64) -> i64 {
+    let mut checkhash = Murmur2Hasher::with_seed(self.seed);
+        input1.hash(&mut checkhash);
+        input2.hash(&mut checkhash);
+        let result = checkhash.finish() as u32;
+        //println!("{}",result);
+        self.transform(result as i64)
+    }
+
+    // used to completely fill a jl sketch matrix with random values from a hash function. only used for correctness testing
+    pub fn populate_matrix(&self, input: &mut Array2<f64>) {
+        let rows = input.dim().0;
+        let cols = input.dim().1;
+        let scaling_factor = (self.jl_dim.index() as f64).sqrt();
+        for i in 0..rows {
+            for j in 0..cols {
+                input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) / scaling_factor;
+            }
+        }
+    }
+
+    // used to compute a single row of a jl sketch matrix. entries should match that of the corresponding row in the matrix returned
+    // by populate_matrix() above
+    pub fn populate_row<ValueType: CustomValue>(&self, input: &mut Array1<ValueType>, row: IndexType, col_start: IndexType, col_end: IndexType){
+        let num_cols = (col_end - col_start).index();
+        let scaling_factor = (self.jl_dim.index() as f64).sqrt();
+        for col in 0..num_cols {
+            let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
+            input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap(); 
+        }
+    }
+
+    // computes the jl sketch multiplication by creating the entire factor matrix and performing the mult with the sprs crate multiplication function.
+    // not scalable; used as a reference implementation for correctness.
+    #[allow(dead_code)]
+    pub fn jl_sketch_sparse(&self, og_matrix: &CsMatI<f64, IndexType>) -> Array2<f64> {
+        let og_rows = og_matrix.rows();
+        let og_cols = og_matrix.cols();
+        let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,self.jl_dim.index()));
+        if self.verbose {println!("EVIM has {} rows and {} cols, jl sketch matrix has {} rows and {} cols", og_rows, og_cols, og_cols, self.jl_dim);}
+        self.populate_matrix(&mut sketch_matrix);
+        if self.verbose {println!("populated sketch matrix");}
+        let result = og_matrix.mul(&sketch_matrix);
+        if self.verbose {println!("performed multiplication");}
+        result
+    }
+
+    // this function JL sketches a sparse encoding of the input matrix and outputs in a sparse format as well. 
+    // it doesn't do blocked operations though, so it's still not scalable because it represents the entire
+    // dense sketch matrix at all times.
+    #[allow(dead_code)]
+    pub fn jl_sketch_sparse_flat(&self, og_matrix: &CsMatI<f64, IndexType>) -> ffi::FlattenedVec {
+        let result = self.jl_sketch_sparse(og_matrix);
+        ffi::FlattenedVec::new(&result)
+    }
+
+    // computes the jl sketch product of a block of the overall EVIM matrix. a single thread computes this.
+    pub fn jl_sketch_colwise(&self, og_matrix: &CsMatViewI<f64, IndexType>, block_number: usize) -> Array2<f64> {
+        let og_rows = og_matrix.rows();
+        let mut output_block: Array2<f64> = Array2::zeros([og_rows, self.jl_dim.index()]);
+        for (col_ind, col_vec) in og_matrix.outer_iterator().enumerate() {
+            // adjust col ind because this is a subblock of the total input matrix
+            let true_col_ind = block_number*og_rows + col_ind;
+            assert!(col_vec.nnz() == 2);
+            let mut jl_sketch_row: Array1<f64> = Array1::zeros(self.jl_dim.index());
+            self.populate_row(&mut jl_sketch_row, from_int(true_col_ind), from_int(0), self.jl_dim);
+            for (row_ind, &value) in col_vec.iter() {
+                let product_row: Array1<f64> = jl_sketch_row.clone() * value;
+                let mut row_view = output_block.slice_mut(s![row_ind, ..]);
+                row_view += &product_row;
+            }
+        }
+        output_block
+    }
+
+    // performs the jl sketch multiplication by breaking up the EVIM into blocks of columns, and assigning the multiplication for each column to a thread.
+    pub fn jl_sketch_colwise_batch(&self, og_matrix: &CsMatI<f64, IndexType>, result_matrix: &mut CsMatI<f64, IndexType>) {
+        let og_rows = og_matrix.rows();
+        
+        let (tx, rx) = mpsc::channel();
+        thread::scope(|s| {
+            for (block_index, block) in og_matrix.outer_block_iter(og_rows).enumerate() {
+                let clone = tx.clone();
+                s.spawn(move || {
+                    let output_block = self.jl_sketch_colwise(&block, block_index);
+                    let sprs_block = CsMatI::<f64, IndexType>::csc_from_dense(output_block.view(), 0.0);
+                    clone.send(sprs_block).unwrap();
+                    drop(clone);
+                });
+
+            }
+            drop(tx);
+            for received in rx {
+                *result_matrix = result_matrix.add(&received);
+            }
+        });
+    }
+
+    // outer function for the optimized jl sketch multiplication function.
+    pub fn jl_sketch_colwise_flat(&self, og_matrix: &CsMatI<f64, IndexType>) -> ffi::FlattenedVec {
+        let og_rows = og_matrix.rows();
+        let jl_dim = ((og_rows as f64).log2() *self.jl_factor).ceil() as usize;
+        let mut result_matrix: CsMatI<f64, IndexType> = CsMatI::zero((og_rows, jl_dim)).into_csc();
+        self.jl_sketch_colwise_batch(&og_matrix, &mut result_matrix);
+        println!("performed jl sketch multiplication");
+        ffi::FlattenedVec::new(&result_matrix.to_dense())
+    }
+
 
     // takes the solution matrix and computes an approximate effective resistance for each edge in the laplacian.
     fn compute_diff_norms(&self, length: usize, solution: &ffi::FlattenedVec) -> Vec<f64>{
@@ -320,7 +449,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         }
         // then compute JL sketch of it
         let display = false;
-        let sketch_cols: ffi::FlattenedVec = jl_sketch_colwise_flat(&evim, self.jl_factor, self.seed, display);
+        let sketch_cols: ffi::FlattenedVec = self.jl_sketch_colwise_flat(&evim);
         //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
