@@ -11,7 +11,6 @@ extern crate ndarray_csv;
 extern crate rand;
 
 mod utils;
-mod jl_sketch;
 mod sparsifier;
 mod stream;
 mod tests;

@@ -114,20 +114,32 @@ mod tests {
         let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
+        // insert edges into new_entries
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
-
+        
+        // record current number of edges
         let before_num_edges = sparsifier.new_entries.col_indices.len()/2; 
         let mut before_diag_sum: f64 = 0.0;
         for (_index, value) in sparsifier.new_entries.diagonal.iter().enumerate() {
             before_diag_sum += value;
         }
 
-        let end_early = false;
-        let test = true;
-        sparsifier.sparsify(end_early, test, true);
+        // apply new entries to laplacian
+        sparsifier.new_entries.process_diagonal();
+        let new_stuff = sparsifier.new_entries.clone().to_csc();
+        sparsifier.new_entries.delete_state();
+        sparsifier.current_laplacian = sparsifier.current_laplacian.add(&new_stuff);
 
+        // sample each edge with probability 0.5
+        let probs = vec![0.5; before_num_edges];
+        let mut reweightings = sparsifier.sample_and_reweight(probs);
+        reweightings.process_diagonal();
+        let csc_reweightings = reweightings.to_csc();
+        sparsifier.current_laplacian = sparsifier.current_laplacian.add(&csc_reweightings);
+
+        // record number of edges after sampling
         let after_num_edges = sparsifier.num_edges();
         let mut after_diag_sum: f64 = 0.0;
         for (_position, value) in sparsifier.current_laplacian.diag().iter() {
@@ -236,10 +248,8 @@ mod tests {
         let verbose = false;
         let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
-        let display: bool = false;
-
         let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(num_rows, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let sparsifier = Sparsifier::new(num_rows, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
 
         let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
@@ -268,7 +278,6 @@ mod tests {
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let display: bool = false;
 
         let epsilon = 0.5;
         let beta_constant = 4;
@@ -330,7 +339,6 @@ mod tests {
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/bcsstk30/bcsstk30.mtx";
         let seed: u64 = 2;
         let jl_factor: f64 = 1.5;
-        let display: bool = false;
 
         let epsilon = 0.5;
         let beta_constant = 4;
@@ -375,7 +383,6 @@ mod tests {
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
-        let display: bool = false;
 
         let epsilon = 0.5;
         let beta_constant = 4;

@@ -1,23 +1,20 @@
 use std::ops::Add;
 use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI, CsMatViewI};
-use rand::Rng;
-use approx::AbsDiffEq;
-
-
-use crate::ffi::{self, FlattenedVec};
-use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
-
 use std::sync::mpsc;
 use std::thread;
 use std::hash::{Hash,Hasher};
 use std::ops::Mul;
 
-use crate::fasthash::FastHasher;
-use crate::{utils};
-
+use rand::Rng;
+use approx::AbsDiffEq;
+use fasthash::FastHasher;
 use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
 use ndarray::{Array1,Array2,s};
 use num_traits::cast;
+
+use crate::ffi::{self, FlattenedVec};
+use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
+
 
 // template types later
 #[derive(Clone)]
@@ -417,11 +414,6 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         return probs;
     }
 
-    pub fn get_probs_dummy(&self, length: usize) -> Vec<f64> {
-        // dummy version for testing
-        vec![0.5; length]
-    }
-
     pub fn flip_coins(length: usize) -> Vec<f64> {
         let mut rng = rand::thread_rng();
         //let coins = vec![rng.gen_range(0.0..1.0); length];
@@ -432,65 +424,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         coins
     }
     //TODO: move sampling and reweighting logic into this function
-    // pub fn sample_and_reweight(&mut self, probs: Vec<f64>) {
-        
-    // }
-
-    pub fn sparsify(&mut self, end_early: bool, test: bool, check: bool) {
-        // compute evim format of new triplet entries (no diagonal)
-        if self.benchmarker.is_active(){
-            self.benchmarker.start();
-            self.benchmarker.set_time(BenchmarkPoint::Initialize);
-        }
-        let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
-        // println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
-        if self.benchmarker.is_active(){
-            self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
-        }
-        // then compute JL sketch of it
-        let display = false;
-        let sketch_cols: ffi::FlattenedVec = self.jl_sketch_colwise_flat(&evim);
-        //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
-        if self.benchmarker.is_active(){
-            self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
-        }
-        //let dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
-        //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
-
-        // apply diagonals to new triplet entries
-        self.new_entries.process_diagonal();
-        // get the new entries in csc format
-        // improve this later; currently it clones the triplet object which uses extra memory
-        let new_stuff = self.new_entries.clone().to_csc();
-        // clear the new entries from the triplet representation
-        self.new_entries.delete_state();
-        // add the new entries to the laplacian
-        self.current_laplacian = self.current_laplacian.add(&new_stuff);
-
-        if check {println!("checking diagonal after populating laplacian");
-        self.check_diagonal();}
-
-        if end_early {
-            return;
-        }
-
-        let num_nnz = self.num_edges();
-        // get probabilities for each edge
-        let mut probs = vec![];
-        if test {
-            probs = (&self).get_probs_dummy(num_nnz);
-        }
-        else {
-            probs = self.get_probs(num_nnz, sketch_cols);
-        }
-
-        // let average = probs.iter().sum::<f64>()/(probs.len() as f64);
-        // println!("mean of probs: {}", average);
-        // //let min = probs.iter().min().unwrap();
-        // let min = probs.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-        // println!("minimum prob: {}", min);
-
-        let coins = Self::flip_coins(num_nnz);
+    pub fn sample_and_reweight(&mut self, probs: Vec<f64>) -> Triplet<IndexType> {
+        let coins = Self::flip_coins(probs.len());
 
         //encodes whether each edge survives sampling or not. True means it is sampled, False means it's not sampled
         let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();
@@ -533,6 +468,61 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
                 counter +=1;
             }
         }
+        reweightings
+    }
+
+    pub fn sparsify(&mut self, end_early: bool, check: bool) {
+        // compute evim format of new triplet entries (no diagonal)
+        if self.benchmarker.is_active(){
+            self.benchmarker.start();
+            self.benchmarker.set_time(BenchmarkPoint::Initialize);
+        }
+        let evim = &self.new_entries.to_edge_vertex_incidence_matrix();
+        // println!("signed edge-vertex incidence matrix has {} rows and {} cols", evim.rows(), evim.cols());
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::EvimComplete);
+        }
+        // then compute JL sketch of it
+        let sketch_cols: ffi::FlattenedVec = self.jl_sketch_colwise_flat(&evim);
+        //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
+        if self.benchmarker.is_active(){
+            self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
+        }
+        //let dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
+        //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
+
+        // apply diagonals to new triplet entries
+        self.new_entries.process_diagonal();
+        // get the new entries in csc format
+        // improve this later; currently it clones the triplet object which uses extra memory
+        let new_stuff = self.new_entries.clone().to_csc();
+        // clear the new entries from the triplet representation
+        self.new_entries.delete_state();
+        // add the new entries to the laplacian
+        self.current_laplacian = self.current_laplacian.add(&new_stuff);
+
+        if check {println!("checking diagonal after populating laplacian");
+        self.check_diagonal();}
+
+        if end_early {
+            return;
+        }
+
+        let num_nnz = self.num_edges();
+        // get probabilities for each edge
+        let mut probs = vec![];
+        
+        probs = self.get_probs(num_nnz, sketch_cols);
+        
+        let mut reweightings: Triplet<IndexType> = self.sample_and_reweight(probs);
+
+        // let average = probs.iter().sum::<f64>()/(probs.len() as f64);
+        // println!("mean of probs: {}", average);
+        // //let min = probs.iter().min().unwrap();
+        // let min = probs.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+        // println!("minimum prob: {}", min);
+
+        
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
         }

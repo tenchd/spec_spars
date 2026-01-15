@@ -52,7 +52,7 @@ impl InputStream {
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
-        sparsifier.sparsify(false, false, false);
+        sparsifier.sparsify(false, false);
 
         println!("checking diagonal final time");
         sparsifier.check_diagonal();
