@@ -80,7 +80,7 @@ impl FlattenedVec {
     }
 }
 
-pub fn lap_test(input_filename: &str) {
+pub fn lap_test(input_filename: &str, dataset_name: &str) {
     let seed: u64 = 1;
     let jl_factor: f64 = 1.5;
 
@@ -91,7 +91,7 @@ pub fn lap_test(input_filename: &str) {
     let benchmark = true;
     let test = false;
 
-    let stream = InputStream::new(input_filename);
+    let stream = InputStream::new(input_filename, dataset_name);
     stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 }
 

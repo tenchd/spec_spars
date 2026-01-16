@@ -116,7 +116,7 @@ mod tests {
         let verbose = false;
 
 
-        let stream = InputStream::new(input_filename);
+        let stream = InputStream::new(input_filename, "");
 
         let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
@@ -181,7 +181,7 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let stream = InputStream::new(input_filename);
+        let stream = InputStream::new(input_filename, "");
 
         let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
@@ -280,7 +280,7 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let stream = InputStream::new(input_filename);
+        let stream = InputStream::new(input_filename, "");
         let num_rows = stream.num_nodes;
         let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
@@ -331,7 +331,7 @@ mod tests {
         // let test = utils::load_pattern_as_csr(input_filename);
         // println!("made it");
 
-        let stream = InputStream::new(input_filename);
+        let stream = InputStream::new(input_filename, "");
 
         let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
@@ -371,7 +371,7 @@ mod tests {
         let row_constant = 2;
         let verbose = false;
 
-        let stream = InputStream::new(input_filename);
+        let stream = InputStream::new(input_filename, "");
 
         let benchmarker = Benchmarker::new(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
@@ -439,7 +439,7 @@ mod tests {
         let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(sketch_filename);
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
         
-        let lap_stream: InputStream = InputStream::new(lap_filename);
+        let lap_stream: InputStream = InputStream::new(lap_filename, "");
         //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
         let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
         let n = lap.cols();
@@ -520,7 +520,7 @@ mod tests {
 
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
-        let stream = InputStream::new(input_filename);
+        let stream = InputStream::new(input_filename, "");
         let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 
         //stream.input_matrix       // input matrix

@@ -9,13 +9,14 @@ pub struct InputStream {
 //    pub input_iterator: 
     pub num_nodes: usize,
 //    pub num_edges: usize,
+    pub dataset_name: String,
 }
 
 impl InputStream {
     // deal with diagonals?
     // if the graph is symmetric, de-symmetrize it ideally
     // how does the mtx reader handle symmetry?
-    pub fn new(filename: &str) -> InputStream {
+    pub fn new(filename: &str, dataset_name: &str) -> InputStream {
         let mut input = read_mtx(filename);
         //let mut input = load_pattern_as_csr(filename).expect("file read error");
         
@@ -39,6 +40,7 @@ impl InputStream {
         InputStream{
             input_matrix: input,
             num_nodes: num_nodes,
+            dataset_name: dataset_name.to_string(),
         }
     }
 
@@ -52,21 +54,27 @@ impl InputStream {
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
-        sparsifier.sparsify(false);
+        sparsifier.sparsify(test);
 
-        println!("checking diagonal final time");
-        sparsifier.check_diagonal();
+        if test{println!("checking diagonal final time");
+        sparsifier.check_diagonal();}
 
-        let output_prefix = "data/virus_sparse";
+        let output_prefix = "data/";
+        let output_name = &self.dataset_name;
+        let output_suffix_sparse = "_sparse";
         let output_suffix_mtx = ".mtx";
         let output_suffix_edgelist = ".edgelist";
 
         if (!test) {
-            println!("writing to file.");
-            let output_mtx = output_prefix.to_owned() + output_suffix_mtx;
-            crate::utils::write_mtx(&output_mtx, &sparsifier.current_laplacian);
-            println!("converting to edgelist format.");
-            Command::new("bash").arg("-c").arg("sed '1,3d' data/virus_sparse.mtx > data/virus_sparse.edgelist").output();
+            let output_mtx_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_mtx;
+            let output_edgelist_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_edgelist;
+            println!("writing to file {}", output_mtx_full);
+            crate::utils::write_mtx(&output_mtx_full, &sparsifier.current_laplacian);
+            let conversion_command = "sed '1,3d' ".to_owned() + &output_mtx_full + " > " + &output_edgelist_full;
+            println!("converting mtx file to edgelist with the following command:");
+            println!("{}", conversion_command);
+            //Command::new("bash").arg("-c").arg("sed '1,3d' data/virus_sparse.mtx > data/virus_sparse.edgelist").output();
+            Command::new("bash").arg("-c").arg(conversion_command).output();
         }
 
         sparsifier

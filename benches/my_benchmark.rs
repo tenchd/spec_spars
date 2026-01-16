@@ -62,7 +62,7 @@ fn jl_sketch_naive_virus(c: &mut Criterion) {
     let row_constant = 2;
     let verbose = false;
 
-    let stream = InputStream::new(input_filename);
+    let stream = InputStream::new(input_filename,"");
     let num_rows = stream.num_nodes;
     let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
@@ -87,7 +87,7 @@ fn jl_sketch_fast_virus(c: &mut Criterion) {
     let row_constant = 2;
     let verbose = false;
 
-    let stream = InputStream::new(input_filename);
+    let stream = InputStream::new(input_filename, "");
     let num_rows = stream.num_nodes;
     let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 

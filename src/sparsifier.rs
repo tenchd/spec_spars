@@ -484,7 +484,11 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         reweightings.process_diagonal();
         let csc_reweightings = reweightings.to_csc();
 
+        println!("number of edges before sparsification: {}", self.num_edges());
+
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
+
+        println!("number of edges after sparsification: {}", self.num_edges());
 
         //println!("total number of deletions should be: {}", deletion_counter);
 
