@@ -80,7 +80,7 @@ impl FlattenedVec {
     }
 }
 
-fn lap_test(input_filename: &str) {
+pub fn lap_test(input_filename: &str) {
     let seed: u64 = 1;
     let jl_factor: f64 = 1.5;
 
