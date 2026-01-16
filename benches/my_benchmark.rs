@@ -27,7 +27,7 @@ fn jl_sketch_naive_benchmark(c: &mut Criterion) {
         let sparsifier = Sparsifier::new(num_rows, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
 
         let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
-        c.bench_function("sketch naive", |b| b.iter(|| sparsifier.jl_sketch_sparse(&input_matrix)));
+        c.bench_function("naive jl sketch, random input", |b| b.iter(|| sparsifier.jl_sketch_sparse(&input_matrix)));
 }
 
 fn jl_sketch_fast_benchmark(c: &mut Criterion) {
@@ -49,7 +49,7 @@ fn jl_sketch_fast_benchmark(c: &mut Criterion) {
 
         let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
         let mut colwise_batch_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        c.bench_function("sketch fast", |b| b.iter(|| sparsifier.jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer)));
+        c.bench_function("fast jl sketch, random input", |b| b.iter(|| sparsifier.jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer)));
 }
 
 criterion_group!(benches, jl_sketch_naive_benchmark, jl_sketch_fast_benchmark);
