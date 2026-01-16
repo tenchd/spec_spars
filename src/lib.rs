@@ -80,15 +80,14 @@ impl FlattenedVec {
     }
 }
 
-pub fn lap_test(input_filename: &str, dataset_name: &str) {
-    let seed: u64 = 1;
+pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose: bool, seed: u64, benchmark: bool) {
+    
+    // for now, users can't set these parameters
     let jl_factor: f64 = 1.5;
-
-    let epsilon = 0.5;
     let beta_constant = 4;
     let row_constant = 2;
-    let verbose = false;
-    let benchmark = true;
+
+    // not a test
     let test = false;
 
     let stream = InputStream::new(input_filename, dataset_name);
@@ -96,14 +95,7 @@ pub fn lap_test(input_filename: &str, dataset_name: &str) {
 }
 
 
-#[inline]
-pub fn fibonacci(n: u64) -> u64 {
-    match n {
-        0 => 1,
-        1 => 1,
-        n => fibonacci(n-1) + fibonacci(n-2),
-    }
-}
+
 
 // fn main() {
 //     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
