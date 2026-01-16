@@ -15,8 +15,6 @@ use num_traits::cast;
 use crate::ffi::{self, FlattenedVec};
 use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
 
-
-// template types later
 #[derive(Clone)]
 pub struct Triplet<IndexType: CustomIndex>{
     pub num_nodes: IndexType, 
@@ -77,16 +75,10 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
     }
 
     pub fn to_csc(self) -> CsMatI::<f64, IndexType> {
-
-        //I think i need to change this so that there's an empty row and column at the end. i should be able to do this by simply setting the number of rows and cols
-        // equal to self.num_nodes+1. since this is a triplet rep i think that's ok because neither the row indices or col indices rely on the number of rows or cols.
-        // (except for overflow purposes.)
         let trip_form: TriMatI<f64, IndexType>  = TriMatI::<f64, IndexType>::from_triplets((self.num_nodes.index(), self.num_nodes.index()), self.row_indices, self.col_indices, self.values);
         let csc_form: CsMatI<f64, IndexType> = trip_form.to_csc();
-
         csc_form
     }
-
 
     // converts triplet into signed edge-vertex incidence matrix to be JL sketched
     pub fn to_edge_vertex_incidence_matrix(&self) -> CsMatI<f64, IndexType> {
@@ -100,7 +92,6 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
             evim_triplets.row_indices.push(self.col_indices[index]);
             evim_triplets.values.push(-1.0 * self.values[index]);
 
-
             evim_triplets.col_indices.push(from_int(i));
             evim_triplets.row_indices.push(self.row_indices[index]);
             evim_triplets.values.push(self.values[index]);
@@ -111,14 +102,11 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
     }
 
     pub fn delete_state(&mut self) {
-
         self.col_indices = vec![];
         self.row_indices = vec![];
         self.diagonal = vec![0.0; self.num_nodes.index()];
         self.values = vec![];
-
     }
-
 
     #[allow(dead_code)]
     pub fn display(&self) {
@@ -141,10 +129,6 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
         println!("");
     }
 }
-
-// pub struct LapToSolve<IndexType: CustomIndex>{
-//     pub 
-// }
 
 pub struct Sparsifier<IndexType: CustomIndex>{
     pub num_nodes: IndexType,     // number of nodes in input graph. we need to know this at construction time.
@@ -212,15 +196,6 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         assert_eq!(num_nnz*2, (self.current_laplacian.nnz()-diag_nnz));
         num_nnz
     }
-
-    // returns total sum of diagonal values, used for correctness testing
-    // pub fn diagonal_weight(&self) -> f64 {
-    //     let diag = self.current_laplacian.diag();
-    //     let ones_indices = (0..self.num_nodes as usize).collect();
-    //     let ones_values = vec![1; self.num_nodes.try_into().unwrap()];
-    //     let ones = CsVecI::new(self.num_nodes.try_into().unwrap(), ones_indices, ones_values);
-    //     return diag.dot(&ones);
-    // }
 
     // inserts an edge into the sparsifier. if this makes the size of the sparsifier cross the threshold, trigger sparsification.
     pub fn insert(&mut self, v1: IndexType, v2: IndexType, value: f64) {
@@ -379,29 +354,16 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
                 nonzero_counter += 1;
             }
         }
-
-        //println!("{} {} {} {} {}", probs[0], probs[1], probs[2], probs[3], probs[4]);
-
-
         return probs;
-        
     }
 
     // returns probabilities for all off-diagonal nonzero entries in laplacian. placeholder for now
     pub fn get_probs(&mut self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
-        //create a trivial solution via forward multiplication. for testing purposes, will remove later
-        //NOTE: currently this call takes a LONG time. like 10-20 minutes. DIAGNOSE
-        //let trivial_right_hand_side = create_trivial_rhs(self.num_nodes as usize, &self.current_laplacian);   
-        //println!("done generating trivial rhs");
-
 
         let col_ptrs: Vec<IndexType> = self.current_laplacian.indptr().as_slice().unwrap().to_vec();
         let row_indices: Vec<IndexType> = self.current_laplacian.indices().to_vec();
         let values: Vec<f64> = self.current_laplacian.data().to_vec();
-        //println!("jl sketch col has {} entries. lap has {} cols and {} nzs", sketch_cols.vec.len(), col_ptrs.len()-1, row_indices.len());
-        //println!("there are {} nonzeros in the last column", col_ptrs[self.num_nodes as usize] - col_ptrs[(self.num_nodes-1) as usize]);
 
-        //let dummy = ffi::run_solve_lap(trivial_right_hand_side, col_ptrs, row_indices, values, self.num_nodes);
         let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, self.num_nodes.as_i32(), self.verbose);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
@@ -471,7 +433,23 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         reweightings
     }
 
-    pub fn sparsify(&mut self, end_early: bool, check: bool) {
+    pub fn form_laplacian(&mut self, check: bool) {
+
+        // apply diagonals to new triplet entries
+        self.new_entries.process_diagonal();
+        // get the new entries in csc format
+        // improve this later; currently it clones the triplet object which uses extra memory
+        let new_stuff = self.new_entries.clone().to_csc();
+        // clear the new entries from the triplet representation
+        self.new_entries.delete_state();
+        // add the new entries to the laplacian
+        self.current_laplacian = self.current_laplacian.add(&new_stuff);
+
+        if check {println!("checking diagonal after populating laplacian");
+        self.check_diagonal();}
+    }
+
+    pub fn sparsify(&mut self, check: bool) {
         // compute evim format of new triplet entries (no diagonal)
         if self.benchmarker.is_active(){
             self.benchmarker.start();
@@ -488,25 +466,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
         }
-        //let dummy_sketch_cols = ffi::FlattenedVec{vec: vec![0.0; sketch_cols.num_rows], num_cols: 1, num_rows: sketch_cols.num_rows};
-        //let sketch_cols = jl_sketch_sparse(&self.new_entries.to_edge_vertex_incidence_matrix(), self.jl_factor, self.seed);
-
-        // apply diagonals to new triplet entries
-        self.new_entries.process_diagonal();
-        // get the new entries in csc format
-        // improve this later; currently it clones the triplet object which uses extra memory
-        let new_stuff = self.new_entries.clone().to_csc();
-        // clear the new entries from the triplet representation
-        self.new_entries.delete_state();
-        // add the new entries to the laplacian
-        self.current_laplacian = self.current_laplacian.add(&new_stuff);
-
-        if check {println!("checking diagonal after populating laplacian");
-        self.check_diagonal();}
-
-        if end_early {
-            return;
-        }
+        
+        self.form_laplacian(check);
 
         let num_nnz = self.num_edges();
         // get probabilities for each edge
@@ -515,13 +476,6 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         probs = self.get_probs(num_nnz, sketch_cols);
         
         let mut reweightings: Triplet<IndexType> = self.sample_and_reweight(probs);
-
-        // let average = probs.iter().sum::<f64>()/(probs.len() as f64);
-        // println!("mean of probs: {}", average);
-        // //let min = probs.iter().min().unwrap();
-        // let min = probs.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-        // println!("minimum prob: {}", min);
-
         
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
@@ -541,25 +495,6 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             self.benchmarker.set_time(BenchmarkPoint::End);
             self.benchmarker.display_durations();
         }
-
-    }
-
-    // temporary function used for interop testing.
-    pub fn form_laplacian(&mut self) {
-
-        // apply diagonals to new triplet entries
-        self.new_entries.process_diagonal();
-        // get the new entries in csc format
-        // improve this later; currently it clones the triplet object which uses extra memory
-        let new_stuff = self.new_entries.clone().to_csc();
-        // clear the new entries from the triplet representation
-        self.new_entries.delete_state();
-        // add the new entries to the laplacian
-        self.current_laplacian = self.current_laplacian.add(&new_stuff);
-
-        println!("checking diagonal after populating laplacian");
-        self.check_diagonal();
-        println!("laplacian populated from stream. diagonal is correct.");
 
     }
 

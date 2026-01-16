@@ -52,7 +52,7 @@ impl InputStream {
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
-        sparsifier.sparsify(false, false);
+        sparsifier.sparsify(false);
 
         println!("checking diagonal final time");
         sparsifier.check_diagonal();
@@ -91,7 +91,7 @@ impl InputStream {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
 
-        sparsifier.form_laplacian();
+        sparsifier.form_laplacian(true);
 
         // now the sparsifier laplacian can be passed to c++ for interop testing.
         sparsifier.current_laplacian

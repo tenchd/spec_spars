@@ -10,10 +10,10 @@ extern crate ndarray;
 extern crate ndarray_csv;
 extern crate rand;
 
-mod utils;
-mod sparsifier;
-mod stream;
-mod tests;
+pub mod utils;
+pub mod sparsifier;
+pub mod stream;
+pub mod tests;
 
 use utils::read_mtx;
 use sparsifier::{Sparsifier};
@@ -95,20 +95,30 @@ fn lap_test(input_filename: &str) {
     stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 }
 
-fn main() {
-    let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-    //let input_filename = "data/virus_input.mtx";
-    //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
-    //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-    lap_test(input_filename);
 
-    // let mat = ndarray::array![[-7.0, 1.0, 2.0, 4.0], 
-    //                                                     [1.0, -8.0, 3.0, 5.0],
-    //                                                     [2.0, 3.0, -11.0, 6.0],
-    //                                                     [4.0, 5.0, 6.0, -15.0], ];   
-    // let sprsmat = sprs::CsMatBase::csc_from_dense(mat.view(), 0.1);
-    // utils::write_mtx("data/test.mtx", &sprsmat);
+#[inline]
+pub fn fibonacci(n: u64) -> u64 {
+    match n {
+        0 => 1,
+        1 => 1,
+        n => fibonacci(n-1) + fibonacci(n-2),
+    }
 }
+
+// fn main() {
+//     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+//     //let input_filename = "data/virus_input.mtx";
+//     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
+//     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
+//     lap_test(input_filename);
+
+//     // let mat = ndarray::array![[-7.0, 1.0, 2.0, 4.0], 
+//     //                                                     [1.0, -8.0, 3.0, 5.0],
+//     //                                                     [2.0, 3.0, -11.0, 6.0],
+//     //                                                     [4.0, 5.0, 6.0, -15.0], ];   
+//     // let sprsmat = sprs::CsMatBase::csc_from_dense(mat.view(), 0.1);
+//     // utils::write_mtx("data/test.mtx", &sprsmat);
+// }
 
 
     //jl_visualize();

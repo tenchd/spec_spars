@@ -1,17 +1,10 @@
-#[cfg(test)]
-mod tests {
-    use std::ops::Add;
-    use std::time::{Instant};
-    use sprs::{CsMat,TriMat,CsMatI};
-    use rand::Rng;
-    use rand::distributions::{Distribution, Uniform};
-    use ndarray::{Axis, Array1};
-    use ::approx::{AbsDiffEq};
-    use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
-    use crate::utils::Benchmarker;
-    use crate::ffi;
 
-    pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
+use sprs::{CsMat,TriMat,CsMatI};
+use rand::Rng;
+use rand::distributions::{Distribution, Uniform};
+use ndarray::{Axis, Array1};
+
+pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
         let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
         let mut rng = rand::thread_rng();
         let uniform = Uniform::new(-1.0, 1.0);
@@ -27,36 +20,50 @@ mod tests {
         trip.to_csr()
     }
 
-    pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> CsMat<f64> {
-        let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
-        let mut rng = rand::thread_rng();
-        let uniform = Uniform::new(0.0, 1.0);
-        for i in 0..num_cols {
-            let endpoint1 = rng.gen_range(0..num_rows-1);
-            let endpoint2 = rng.gen_range(endpoint1+1..num_rows);
-            let value = uniform.sample(&mut rng);
-            trip.add_triplet(endpoint1, i, value);
-            trip.add_triplet(endpoint2, i, -1.0*value);
-        }
-        if csc {
-            return trip.to_csc();
-        }
-        trip.to_csr()
+pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> CsMat<f64> {
+    let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
+    let mut rng = rand::thread_rng();
+    let uniform = Uniform::new(0.0, 1.0);
+    for i in 0..num_cols {
+        let endpoint1 = rng.gen_range(0..num_rows-1);
+        let endpoint2 = rng.gen_range(endpoint1+1..num_rows);
+        let value = uniform.sample(&mut rng);
+        trip.add_triplet(endpoint1, i, value);
+        trip.add_triplet(endpoint2, i, -1.0*value);
     }
+    if csc {
+        return trip.to_csc();
+    }
+    trip.to_csr()
+}
 
-    pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
-        let total = input.sum_axis(Axis(0));
-        let length = input.len() as f64;
-        let mean: f64 = total[()] / length;
-        let mut variance: f64 = 0.0;
-        for sum in input {
-            let sq_diff = (mean - sum).powi(2);
-            variance += sq_diff;
-        }
-        variance = variance / length;
-        let st_dev = variance.sqrt(); 
-        return (mean, st_dev);
+pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
+    let total = input.sum_axis(Axis(0));
+    let length = input.len() as f64;
+    let mean: f64 = total[()] / length;
+    let mut variance: f64 = 0.0;
+    for sum in input {
+        let sq_diff = (mean - sum).powi(2);
+        variance += sq_diff;
     }
+    variance = variance / length;
+    let st_dev = variance.sqrt(); 
+    return (mean, st_dev);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Add;
+    use std::time::{Instant};
+    use sprs::{CsMat,TriMat,CsMatI};
+    use rand::Rng;
+    use rand::distributions::{Distribution, Uniform};
+    use ndarray::{Axis, Array1};
+    use ::approx::{AbsDiffEq};
+    use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
+    use crate::utils::Benchmarker;
+    use crate::ffi;
+    use crate::tests::make_random_evim_matrix;
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian.
     #[test]
@@ -126,11 +133,7 @@ mod tests {
             before_diag_sum += value;
         }
 
-        // apply new entries to laplacian
-        sparsifier.new_entries.process_diagonal();
-        let new_stuff = sparsifier.new_entries.clone().to_csc();
-        sparsifier.new_entries.delete_state();
-        sparsifier.current_laplacian = sparsifier.current_laplacian.add(&new_stuff);
+        sparsifier.form_laplacian(true);
 
         // sample each edge with probability 0.5
         let probs = vec![0.5; before_num_edges];
@@ -196,14 +199,7 @@ mod tests {
             assert!(col_vec.nnz() == 2);
         }
 
-        // create diagonal values for new entries
-        sparsifier.new_entries.process_diagonal();
-        // get the new entries in csc format
-        let new_stuff = sparsifier.new_entries.clone().to_csc();
-        // clear the new entries from the triplet representation
-        sparsifier.new_entries.delete_state();
-        // add the new entries to the laplacian
-        sparsifier.current_laplacian = sparsifier.current_laplacian.add(&new_stuff);
+        sparsifier.form_laplacian(true);
 
         let lap_nnz = sparsifier.num_edges()*2;
 
@@ -304,28 +300,14 @@ mod tests {
         let nonblocked_time = nonblocked_timer.elapsed().as_millis();
         println!("library: ------------------- {} ms", nonblocked_time);
 
-        // let mut blocked_multi_timer = Instant::now();
-        // let mut sparse_blocked_multi:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        // jl_sketch_sparse_blocked_multi(&input_matrix, &mut sparse_blocked_multi, jl_dim, seed, block_rows, block_cols, display);
-        // let blocked_multi_time = blocked_multi_timer.elapsed().as_millis();
-        // println!("multithreaded blocked: ----- {} ms", blocked_multi_time);
-
         let new_timer = Instant::now();
         let mut new_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
         sparsifier.jl_sketch_colwise_batch(&input_matrix, &mut new_answer);
         let new_time = new_timer.elapsed().as_millis(); 
         println!("multithreaded simple: ------ {} ms", new_time);
 
-        // let mut colwise_slow_timer = Instant::now();
-        // let mut colwise_slow_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
-        // jl_sketch_colwise_slow(&input_matrix.view(), &mut colwise_slow_answer, jl_dim, seed, display);
-        // let colwise_slow_time = colwise_slow_timer.elapsed().as_millis(); 
-        // println!("colwise slow: -------------- {} ms", colwise_slow_time);
-
         let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
 
-        // assert!(sparse_blocked.abs_diff_eq(&sparse_nonblocked, 0.00001));
-        // println!("is colwise slow correct: {}", colwise_slow_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
         assert!(new_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
     }
 
@@ -362,12 +344,12 @@ mod tests {
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
         println!("now outputing results for xxhash");
-        let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_sparse_flat(&evim);
+        let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_colwise_flat(&evim);
         let sketch_array = sketch_cols.to_array2();
         
         let sums = sketch_array.sum_axis(Axis(0));
         //println!("{:?}", sums);
-        let result = mean_and_std_dev(&sums);
+        let result = crate::tests::mean_and_std_dev(&sums);
         println!("mean {}, std dev {}", result.0, result.1);
 
         let _total = sums.sum_axis(Axis(0));
@@ -419,7 +401,7 @@ mod tests {
     #[test]
     //#[ignore]
     fn flatvec_equiv() {
-        let mat = make_random_matrix(400, 1000, 100000, true).to_dense();
+        let mat = crate::tests::make_random_matrix(400, 1000, 100000, true).to_dense();
         // let mat = ndarray::array![[0.0, 1.0, 2.0, 3.0], 
         //                                                         [4.0, 5.0, 6.0, 7.0],
         //                                                         [8.0, 9.0, 10.0, 11.0],

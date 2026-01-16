@@ -5,7 +5,7 @@ use std::path::Path;
 fn main() {
     let fast_mtx_path = Path::new("/global/u1/d/dtench/cholesky/fast_matrix_market/include");
 
-    cxx_build::bridge("src/main.rs")  // returns a cc::Build
+    cxx_build::bridge("src/lib.rs")  // returns a cc::Build
         .compiler("g++")
         .file("src/example.cc")
         .include(fast_mtx_path)
@@ -27,7 +27,7 @@ fn main() {
     //println!("cargo::rustc-link-arg=-fopenmp");
 
 
-    println!("cargo:rerun-if-changed=src/main.rs");
+    println!("cargo:rerun-if-changed=src/lib.rs");
 //    println!("cargo:rerun-if-changed=src/driver_local.cpp");
     println!("cargo:rerun-if-changed=src/example.cc");
     println!("cargo:rerun-if-changed=include/example.h");
