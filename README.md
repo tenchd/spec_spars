@@ -18,7 +18,7 @@ To run a demo, you can `cargo run --release -- -p`. This sparsifies a pre-specif
 
 ## Command-line arguments
 
-You can pass optinal command-line arguments after `cargo run --release --` to control program behavior. 
+You can pass optional command-line arguments after `cargo run --release --` to control program behavior. 
 
 -i, --input_file: 
 Allows you to specify the path to an input .mtx file you want to sparsify.
