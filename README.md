@@ -4,6 +4,7 @@ Note that, currently, only running the code on NERSC is supported.
 
 ## Installation
 Clone the project and `cd` into the resulting directory.
+Run `mkdir data`
 
 ## Compiling and Running on NERSC
 1) Run `module load intel` to load the intel mkl code.
