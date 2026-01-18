@@ -326,7 +326,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let jl_dim = ((og_rows as f64).log2() *self.jl_factor).ceil() as usize;
         let mut result_matrix: CsMatI<f64, IndexType> = CsMatI::zero((og_rows, jl_dim)).into_csc();
         self.jl_sketch_colwise_batch(&og_matrix, &mut result_matrix);
-        println!("performed jl sketch multiplication");
+        if self.verbose{println!("performed jl sketch multiplication");}
         ffi::FlattenedVec::new(&result_matrix.to_dense())
     }
 
@@ -449,6 +449,17 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         self.check_diagonal();}
     }
 
+    pub fn report_sparsification(&self, before_edges: usize, after_edges: usize){
+        println!("");
+        println!("------------ Sparsification information:--------------------");
+        println!("number of edges before sparsification:  {:>12}", before_edges);
+        println!("number of edges after sparsification:   {:>12}", after_edges);
+        let percentage_edges_remaining = 100.0 * (after_edges as f64) / (before_edges as f64);
+        println!("percentage of original edges remaining:        {:.2}%", percentage_edges_remaining);
+        println!("------------------------------------------------------------");
+        println!("");
+    }
+
     pub fn sparsify(&mut self, check: bool) {
         // compute evim format of new triplet entries (no diagonal)
         if self.benchmarker.is_active(){
@@ -484,11 +495,10 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         reweightings.process_diagonal();
         let csc_reweightings = reweightings.to_csc();
 
-        println!("number of edges before sparsification: {}", self.num_edges());
-
+        let before_edges = self.num_edges();
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
-
-        println!("number of edges after sparsification: {}", self.num_edges());
+        let after_edges = self.num_edges();
+        self.report_sparsification(before_edges, after_edges);
 
         //println!("total number of deletions should be: {}", deletion_counter);
 

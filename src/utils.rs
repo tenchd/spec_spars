@@ -115,18 +115,20 @@ impl Benchmarker {
 
     pub fn display_durations(&self){
         if self.active{
-            println!("------------ Runtime information: --------------------------");
-            println!("time to compute EVIM: ======================== {:?}", 
-                self.compute_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize));
-            println!("time to JL sketch: --------------------------- {:?}", 
-                self.compute_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete));
-            println!("time to solve: =============================== {:?}", 
-                self.compute_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete));
-            println!("time to compute diff norms: ------------------ {:?}", 
-                self.compute_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete));
-            println!("time to reweight: ============================ {:?}", 
-                self.compute_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete));
+            println!("");
+            println!("--------------- Runtime information: -----------------------");
+            println!("time to compute EVIM: - - - - - - - - - - - -  {:.2} seconds", 
+                self.compute_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize).as_secs_f64());
+            println!("time to JL sketch: --------------------------- {:.2} seconds", 
+                self.compute_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete).as_secs_f64());
+            println!("time to solve: - - - - - - - - - - - - - - - - {:.2} seconds", 
+                self.compute_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete).as_secs_f64());
+            println!("time to compute diff norms: ------------------ {:.2} seconds", 
+                self.compute_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete).as_secs_f64());
+            println!("time to reweight: - - - - - - - - - - - - - -  {:.2} seconds", 
+                self.compute_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete).as_secs_f64());
             println!("------------------------------------------------------------");
+            println!("");
         }
     }
 
