@@ -59,23 +59,27 @@ impl InputStream {
         if test{println!("checking diagonal final time");
         sparsifier.check_diagonal();}
 
-        let output_prefix = "data/";
-        let output_name = &self.dataset_name;
-        let output_suffix_sparse = "_sparse";
-        let output_suffix_mtx = ".mtx";
-        let output_suffix_edgelist = ".edgelist";
-
         if (!test) {
-            let output_mtx_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_mtx;
-            let output_edgelist_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_edgelist;
-            println!("writing to file {}", output_mtx_full);
-            crate::utils::write_mtx(&output_mtx_full, &sparsifier.current_laplacian);
-            let conversion_command = "sed '1,3d' ".to_owned() + &output_mtx_full + " > " + &output_edgelist_full;
-            println!("converting mtx file to edgelist with the following command:");
-            println!("{}", conversion_command);
-            //Command::new("bash").arg("-c").arg("sed '1,3d' data/virus_sparse.mtx > data/virus_sparse.edgelist").output();
-            Command::new("bash").arg("-c").arg(conversion_command).output();
+            crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, &self.dataset_name, true);
         }
+
+        // let output_prefix = "data/";
+        // let output_name = &self.dataset_name;
+        // let output_suffix_sparse = "_sparse";
+        // let output_suffix_mtx = ".mtx";
+        // let output_suffix_edgelist = ".edgelist";
+
+        // if (!test) {
+        //     let output_mtx_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_mtx;
+        //     let output_edgelist_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_edgelist;
+        //     println!("writing to file {}", output_mtx_full);
+        //     crate::utils::write_mtx(&output_mtx_full, &sparsifier.current_laplacian);
+        //     let conversion_command = "sed '1,3d' ".to_owned() + &output_mtx_full + " > " + &output_edgelist_full;
+        //     println!("converting mtx file to edgelist with the following command:");
+        //     println!("{}", conversion_command);
+        //     //Command::new("bash").arg("-c").arg("sed '1,3d' data/virus_sparse.mtx > data/virus_sparse.edgelist").output();
+        //     Command::new("bash").arg("-c").arg(conversion_command).output();
+        // }
 
         sparsifier
     }

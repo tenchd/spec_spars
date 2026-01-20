@@ -7,10 +7,10 @@ use ndarray::{Axis, Array1};
 pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
         let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
         let mut rng = rand::thread_rng();
-        let uniform = Uniform::new(-1.0, 1.0);
+        let uniform = Uniform::new(0.0, 1.0);
         for _ in 0..nnz {
-            let row_pos = rng.gen_range(0..num_rows);
-            let col_pos = rng.gen_range(0..num_cols);
+            let row_pos = rng.gen_range(1..num_rows);
+            let col_pos = rng.gen_range(0..row_pos);
             let value = uniform.sample(&mut rng);
             trip.add_triplet(row_pos, col_pos, value);
         }
@@ -55,13 +55,14 @@ pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
 mod tests {
     use std::ops::Add;
     use std::time::{Instant};
+    use std::process::Command;
     use sprs::{CsMat,TriMat,CsMatI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
     use ndarray::{Axis, Array1};
     use ::approx::{AbsDiffEq};
     use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
-    use crate::utils::Benchmarker;
+    use crate::utils::{Benchmarker,CustomIndex};
     use crate::ffi;
     use crate::tests::make_random_evim_matrix;
 
@@ -505,7 +506,7 @@ mod tests {
 
     // this test produces a sparsifier and verifies that the edge set of the sparsifier is a subset of the edge set of the original graph.
     #[test]
-    #[ignore]
+    //#[ignore]
     fn check_for_additions() {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
         let seed: u64 = 1;
@@ -533,14 +534,16 @@ mod tests {
         let mut one_counter = 0;
         let mut yet = false;
         for (value, (row, col)) in difference.iter() {
-            if *value < 0 {
-                neg_counter += 1;
-                if *value == -1 {
-                    one_counter += 1;
-                }
-                if !yet {
-                    println!("uh oh. ({}, {}) = {}", row, col, *value);
-                    yet = true;
+            if row < col {
+                if *value < 0 {
+                    neg_counter += 1;
+                    if *value == -1 {
+                        one_counter += 1;
+                    }
+                    if !yet {
+                        println!("negative value found in difference matrix, indicating addition. ({}, {}) = {}", row, col, *value);
+                        yet = true;
+                    }
                 }
             }
         }
@@ -548,4 +551,76 @@ mod tests {
         assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
     }
 
+    #[test]
+    //#[ignore]
+    fn check_for_additions_mini() {
+        println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
+
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let benchmark = true;
+        let test = true;
+
+        // let mut random_matrix = crate::tests::make_random_matrix(20,20,40,true);
+        // random_matrix = random_matrix.add(&(random_matrix.transpose_view()));
+        // crate::utils::write_mtx_and_edgelist(&random_matrix, "small_input", false);
+        // crate::utils::write_mtx("data/small_input.mtx", &random_matrix);
+        // Command::new("bash").arg("-c").arg("sed '1,3d' data/small_input.mtx > data/small_input.edgelist").output();
+        //println!("{:?}", random_matrix.map(&map_to_pattern).to_dense());
+
+        let input_filename = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
+
+        let stream = InputStream::new(input_filename, "small_input");
+        let mut sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+        //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, "small_input",true);
+        sparsifier.insert(5, 2, 1.0);
+        sparsifier.insert(8, 5, 1.0);
+        sparsifier.insert(14, 12, 1.0);
+        sparsifier.insert(15, 2, 1.0);
+        sparsifier.form_laplacian(true);
+
+
+        //stream.input_matrix       // input matrix
+        //sparsifier.current_laplacian   //sparsifier matrix
+
+        let input_pattern = stream.input_matrix.map(&map_to_pattern);
+        // println!("input matrix:");
+        // println!("{:?}", input_pattern.to_dense());
+
+
+
+        let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
+        // println!("sparsified matrix:");
+        // println!("{:?}", sparsifier_pattern.to_dense());
+        let difference = &input_pattern - &sparsifier_pattern;
+        //println!("difference matrix:");
+        //println!("{:?}", difference.to_dense());
+        let mut neg_counter = 0;
+        let mut one_counter = 0;
+        let mut yet = false;
+        for (value, (row, col)) in difference.iter() {
+            if row < col {
+                if *value < 0 {
+                    neg_counter += 1;
+                    if *value == -1 {
+                        one_counter += 1;
+                    }
+                    if !yet {
+                        println!("negative value found in difference matrix, indicating addition. ({}, {}) = {}", row, col, *value);
+                        yet = true;
+                    }
+                }
+            }
+        }
+        assert_eq!(neg_counter, one_counter);
+        assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
+    }
+
+
+
 }
+
