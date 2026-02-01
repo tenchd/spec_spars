@@ -78,14 +78,3 @@ fn main() {
     
 }
 
-//     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-//     //let dataset_name = "virus";
-
-//     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
-//     let dataset_name = "mouse_gene";
-
-//     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
-//     let dataset_name = "human_gene1";
-
-//     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-//     let dataset_name = "human_gene2";

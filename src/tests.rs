@@ -552,6 +552,57 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    fn check_for_additions_long() {
+        println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph, for a lot of datasets.-----");
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
+
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let benchmark = true;
+        let test = true;
+
+        let input_filenames = ["/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
+                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
+                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"];
+
+        for input_filename in input_filenames {
+
+            let stream = InputStream::new(input_filename, "");
+            let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+
+            //stream.input_matrix       // input matrix
+            //sparsifier.current_laplacian   //sparsifier matrix
+
+            let input_pattern = stream.input_matrix.map(&map_to_pattern);
+            let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
+            let difference = &input_pattern - &sparsifier_pattern;
+            let mut neg_counter = 0;
+            let mut one_counter = 0;
+            let mut yet = false;
+            for (value, (row, col)) in difference.iter() {
+                if row < col {
+                    if *value < 0 {
+                        neg_counter += 1;
+                        if *value == -1 {
+                            one_counter += 1;
+                        }
+                        if !yet {
+                            println!("negative value found in difference matrix, indicating addition. ({}, {}) = {}", row, col, *value);
+                            yet = true;
+                        }
+                    }
+                }
+            }
+            assert_eq!(neg_counter, one_counter);
+            assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
+        }
+    }
+
+    #[test]
     //#[ignore]
     fn check_for_additions_mini() {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
@@ -577,28 +628,20 @@ mod tests {
         let stream = InputStream::new(input_filename, "small_input");
         let mut sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
         //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, "small_input",true);
-        sparsifier.insert(5, 2, 1.0);
-        sparsifier.insert(8, 5, 1.0);
-        sparsifier.insert(14, 12, 1.0);
-        sparsifier.insert(15, 2, 1.0);
-        sparsifier.form_laplacian(true);
 
+        // below commented code adds "bad" edges, if you uncomment this the test should fail. I included this to verify that erroneous edge 
+        // additions would be verified by this kind of test.
 
-        //stream.input_matrix       // input matrix
-        //sparsifier.current_laplacian   //sparsifier matrix
+        // sparsifier.insert(5, 2, 1.0);
+        // sparsifier.insert(8, 5, 1.0);
+        // sparsifier.insert(14, 12, 1.0);
+        // sparsifier.insert(15, 2, 1.0);
+        // sparsifier.form_laplacian(true);
 
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
-        // println!("input matrix:");
-        // println!("{:?}", input_pattern.to_dense());
-
-
 
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
-        // println!("sparsified matrix:");
-        // println!("{:?}", sparsifier_pattern.to_dense());
         let difference = &input_pattern - &sparsifier_pattern;
-        //println!("difference matrix:");
-        //println!("{:?}", difference.to_dense());
         let mut neg_counter = 0;
         let mut one_counter = 0;
         let mut yet = false;
@@ -620,7 +663,35 @@ mod tests {
         assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
     }
 
+    #[test]
+    //#[ignore]
+    fn verify_connectivity() {
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
+        let seed: u64 = 1;
+        let jl_factor: f64 = 1.5;
 
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let benchmark = true;
+        let test = true;
+
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+        let stream = InputStream::new(input_filename, "");
+        let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+
+        let mut original_edges: Vec<(i32, i32)> = Vec::new();
+        let sparsifier_edges: Vec<(i32, i32)> = Vec::new();
+        for (value, (row, col)) in stream.input_matrix.iter() {
+            if row < col {
+                original_edges.push((row, col));
+            }
+        }
+        
+
+    }
 
 }
 
