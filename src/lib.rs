@@ -9,6 +9,7 @@ extern crate csv;
 extern crate ndarray;
 extern crate ndarray_csv;
 extern crate rand;
+extern crate petgraph;
 
 pub mod utils;
 pub mod sparsifier;
@@ -20,6 +21,7 @@ use sparsifier::{Sparsifier};
 use stream::InputStream;
 use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
+
 
 #[cxx::bridge]
 mod ffi {

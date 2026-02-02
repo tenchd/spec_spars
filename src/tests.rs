@@ -61,6 +61,9 @@ mod tests {
     use rand::distributions::{Distribution, Uniform};
     use ndarray::{Axis, Array1};
     use ::approx::{AbsDiffEq};
+    use petgraph::Graph;
+    use petgraph::algo::connected_components;
+    use petgraph::prelude::*;
     use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
     use crate::utils::{Benchmarker,CustomIndex};
     use crate::ffi;
@@ -663,10 +666,36 @@ mod tests {
         assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
     }
 
-    #[test]
-    //#[ignore]
-    fn verify_connectivity() {
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
+    // #[test]
+    // //#[ignore]
+    // fn verify_connectivity() {
+    //     println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
+    //     let seed: u64 = 1;
+    //     let jl_factor: f64 = 1.5;
+
+    //     let epsilon = 0.5;
+    //     let beta_constant = 4;
+    //     let row_constant = 2;
+    //     let verbose = false;
+    //     let benchmark = true;
+    //     let test = true;
+
+    //     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+    //     let stream = InputStream::new(input_filename, "");
+    //     let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+
+    //     let mut original_edges: Vec<(i32, i32)> = Vec::new();
+    //     let sparsifier_edges: Vec<(i32, i32)> = Vec::new();
+    //     for (value, (row, col)) in stream.input_matrix.iter() {
+    //         if row < col {
+    //             original_edges.push((row, col));
+    //         }
+    //     }
+    // }
+
+    fn graphtest(input_filename: &str) {
+        //println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
 
@@ -677,21 +706,28 @@ mod tests {
         let benchmark = true;
         let test = true;
 
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-
         let stream = InputStream::new(input_filename, "");
         let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 
-        let mut original_edges: Vec<(i32, i32)> = Vec::new();
-        let sparsifier_edges: Vec<(i32, i32)> = Vec::new();
-        for (value, (row, col)) in stream.input_matrix.iter() {
-            if row < col {
-                original_edges.push((row, col));
-            }
-        }
-        
+        let original_graph = stream.get_input_graph();
+        let sparsified_graph = sparsifier.to_petgraph();
 
+        let original_ccs = connected_components(&original_graph);
+        let sparsified_ccs = connected_components(&sparsified_graph);
+        assert_eq!(original_ccs, sparsified_ccs);
     }
 
+    #[test]
+    fn petgraph_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for several datasets.-----");
+        let input_filenames = ["/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx",
+                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
+                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
+                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"];
+
+        for input_filename in input_filenames{
+            graphtest(input_filename);
+        }
+    }
 }
 

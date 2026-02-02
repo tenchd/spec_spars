@@ -2,6 +2,7 @@ use std::process::Command;
 use sprs::CsMatI;
 use crate::{read_mtx,Sparsifier};
 use crate::utils::Benchmarker;
+use petgraph::Graph;
 
 
 pub struct InputStream {
@@ -107,5 +108,18 @@ impl InputStream {
 
         // now the sparsifier laplacian can be passed to c++ for interop testing.
         sparsifier.current_laplacian
+    }
+
+    #[allow(dead_code)]
+    pub fn get_input_graph(&self) -> Graph<usize, f64, petgraph::Undirected, usize> {
+        let mut edges: Vec<(usize, usize, f64)> = vec![];
+
+        for (value, (row, col)) in self.input_matrix.iter() {
+            if row < col {
+                edges.push((row as usize, col as usize, *value))
+            }
+        }
+        let output_graph: Graph::<usize, f64, petgraph::Undirected, usize> = Graph::from_edges(&edges);
+        output_graph
     }
 }

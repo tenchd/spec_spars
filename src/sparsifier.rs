@@ -11,6 +11,7 @@ use fasthash::FastHasher;
 use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
 use ndarray::{Array1,Array2,s};
 use num_traits::cast;
+use petgraph::Graph;
 
 use crate::ffi::{self, FlattenedVec};
 use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
@@ -520,6 +521,28 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             print!("({}, {}) has value {} ", row, col, value);
         }
         println!("");
+    }
+
+    #[allow(dead_code)]
+    pub fn to_petgraph(&self) -> Graph<usize, f64, petgraph::Undirected, usize> {
+        let mut edges: Vec<(usize, usize, f64)> = vec![];
+
+        for i in 0..self.new_entries.row_indices.len() {
+            let row = self.new_entries.row_indices.get(i).unwrap();
+            let col = self.new_entries.col_indices.get(i).unwrap();
+            let value = self.new_entries.values.get(i).unwrap();
+            if row < col {
+                edges.push((row.index(), col.index(), *value))
+            }
+        }
+
+        for (value, (row, col)) in self.current_laplacian.iter() {
+            if row < col {
+                edges.push((row.index(), col.index(), *value))
+            }
+        }
+        let output_graph: Graph::<usize, f64, petgraph::Undirected, usize> = Graph::from_edges(&edges);
+        output_graph
     }
 
     // see if there's a library function to make summing cols more efficient later.
