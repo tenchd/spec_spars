@@ -7,6 +7,13 @@ use std::process::Command;
 use std::time::{Instant, Duration};
 use crate::ffi;
 use std::path::Path;
+use std::fs::File;
+use std::io::{prelude::*, BufReader};
+use csv::Writer;
+use ndarray::{Array2, Axis};
+use std::error::Error;
+
+use crate::tests::make_random_matrix;
 
 
 //Following traits are used for generic types for sparse matrix indices (implemented) and values (not yet implemented)
@@ -228,4 +235,79 @@ pub fn l2_norm(filename: &str) {
     }
     let norm = sum.sqrt();
     println!("l2 norm of matrix: {}", norm);
+}
+
+#[allow(dead_code)]
+// reads a jl_sketch vec of vecs from a file and returns it in flattened form.
+pub fn read_vecs_from_file_flat(filename: &str) -> ffi::FlattenedVec {
+    let file = File::open(filename).unwrap();
+    let reader = BufReader::new(file);
+
+    let mut jl_vec: Vec<f64> = vec![];
+    let mut line_length: usize = 0; 
+    let mut first: bool = true;
+    let mut line_counter: usize = 0;
+
+    for line in reader.lines() {
+        line_counter += 1;
+        let mut col: Vec<f64> = line.expect("uh oh").split(",")
+                                        .map(|x| x.trim().parse::<f64>().unwrap())
+                                        .collect();
+        if first {
+            line_length = col.len().try_into().unwrap();
+            first = false;
+        }
+        let current_line_length= col.len().try_into().unwrap();
+        assert_eq!(line_length, current_line_length);
+        jl_vec.append(&mut col);
+    }
+    //println!("line length = {}, num_lines = {}", line_length, line_counter);
+
+    //println!("dimensions of matrix: {} rows, {} cols", line_length, line_counter);
+    let jl_cols_flat = ffi::FlattenedVec{vec: jl_vec, num_rows: line_counter, num_cols: line_length};
+    jl_cols_flat
+}
+
+// writes dense array to csv for testing purposes. note: vibe coded.
+pub fn write_f64_ndarray_to_csv<P>(array: &Array2<f64>, path: P) -> Result<(), Box<dyn Error>>
+where
+    P: AsRef<Path>,
+{
+    // Open (or create) the CSV file.
+    let mut wtr = Writer::from_path(path)?;
+
+    // Iterate over the outer axis (rows).
+    for row in array.axis_iter(Axis(0)) {
+        // `write_record` accepts any iterator of items that can be turned into `&[u8]`.
+        // Mapping each `f64` to a `String` satisfies that bound.
+        wtr.write_record(row.iter().map(|v| v.to_string()))?;
+    }
+
+    wtr.flush()?; // Ensure everything is flushed to disk.
+    Ok(())
+}
+
+#[test]
+// verifies that the above functions that handle reading/writing dense matrices into csv files write out and read back in the matrix correctly.
+pub fn test_array_file(){
+    let rows = 103;
+    let cols = 91;
+    let nnz = 9000;
+    let csc = false;
+    let repetitions = 10;
+    for i in 0..repetitions {
+        let test_matrix_sparse = make_random_matrix(rows, cols, nnz, csc, false);
+        let test_matrix = test_matrix_sparse.to_dense();
+        let temp_filename = "test_data/temp.csv";
+
+        write_f64_ndarray_to_csv(&test_matrix, temp_filename);
+        let recovered_matrix_flat = read_vecs_from_file_flat(temp_filename);
+        let recovered_matrix = recovered_matrix_flat.to_array2();
+        // println!("{:?}", test_matrix);
+        // println!("-----------------------------------------------------------------------");
+        // println!("-----------------------------------------------------------------------");
+        // println!("-----------------------------------------------------------------------");
+        // println!("{:?}", recovered_matrix);
+        assert!(test_matrix.abs_diff_eq(&recovered_matrix, 0.0001));
+    }
 }

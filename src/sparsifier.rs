@@ -370,6 +370,10 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
         }
 
+        // below lines were used once to write out state for testing purposes.
+        // crate::utils::write_mtx("test_data/virus_lap.mtx", &self.current_laplacian);
+        // crate::utils::write_f64_ndarray_to_csv(&solution.to_array2(), "test_data/solution.csv");
+
         let probs = self.compute_diff_norms(length, &solution);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);

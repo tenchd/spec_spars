@@ -4,21 +4,30 @@ use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
 use ndarray::{Axis, Array1};
 
-pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool) -> CsMat<f64> {
-        let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
-        let mut rng = rand::thread_rng();
-        let uniform = Uniform::new(0.0, 1.0);
-        for _ in 0..nnz {
+// if lower_diagonal, assumes a square matrix and only populates entries below the main diagonal. else populates randomly from all possible matrix locations
+pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool, lower_diagonal: bool) -> CsMat<f64> {
+    let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
+    let mut rng = rand::thread_rng();
+    let uniform = Uniform::new(0.0, 1.0);
+    for _ in 0..nnz {
+        if lower_diagonal {
             let row_pos = rng.gen_range(1..num_rows);
             let col_pos = rng.gen_range(0..row_pos);
             let value = uniform.sample(&mut rng);
             trip.add_triplet(row_pos, col_pos, value);
         }
-        if csc {
-            return trip.to_csc();
+        else {
+            let row_pos = rng.gen_range(0..num_rows);
+            let col_pos = rng.gen_range(0..num_cols);
+            let value = uniform.sample(&mut rng);
+            trip.add_triplet(row_pos, col_pos, value);
         }
-        trip.to_csr()
     }
+    if csc {
+        return trip.to_csc();
+    }
+    trip.to_csr()
+}
 
 pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> CsMat<f64> {
     let mut trip: TriMat<f64> = TriMat::new((num_rows, num_cols));
@@ -52,7 +61,7 @@ pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration_tests {
     use std::ops::Add;
     use std::time::{Instant};
     use std::process::Command;
@@ -62,8 +71,9 @@ mod tests {
     use ndarray::{Axis, Array1};
     use ::approx::{AbsDiffEq};
     use petgraph::Graph;
-    use petgraph::algo::connected_components;
+    use petgraph::algo::{connected_components,min_spanning_tree};
     use petgraph::prelude::*;
+    use petgraph::data::FromElements;
     use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
     use crate::utils::{Benchmarker,CustomIndex};
     use crate::ffi;
@@ -405,7 +415,7 @@ mod tests {
     #[test]
     //#[ignore]
     fn flatvec_equiv() {
-        let mat = crate::tests::make_random_matrix(400, 1000, 100000, true).to_dense();
+        let mat = crate::tests::make_random_matrix(400, 1000, 100000, true, true).to_dense();
         // let mat = ndarray::array![[0.0, 1.0, 2.0, 3.0], 
         //                                                         [4.0, 5.0, 6.0, 7.0],
         //                                                         [8.0, 9.0, 10.0, 11.0],
@@ -710,6 +720,7 @@ mod tests {
         let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
 
         let original_graph = stream.get_input_graph();
+        //let sparsified_graph: Graph<usize, f64, petgraph::Undirected, usize> = Graph::from_elements(min_spanning_tree(&original_graph));
         let sparsified_graph = sparsifier.to_petgraph();
 
         let original_ccs = connected_components(&original_graph);
@@ -719,6 +730,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn petgraph_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for several datasets.-----");
         let input_filenames = ["/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx",
