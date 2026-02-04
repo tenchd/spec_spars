@@ -143,10 +143,10 @@ impl Benchmarker {
 
 }
 
-pub fn read_mtx(filename: &str) -> CsMatI<f64, i32>{
+pub fn read_mtx<IndexType: CustomIndex>(filename: &str) -> CsMatI<f64, IndexType>{
     println!("reading file {}", filename);
-    let trip = read_matrix_market::<f64, i32, &str>(filename).unwrap();    
-    let col_format = trip.to_csc::<i32>();
+    let trip = read_matrix_market::<f64, IndexType, &str>(filename).unwrap();    
+    let col_format = trip.to_csc::<IndexType>();
     return col_format;
 }
 
@@ -227,8 +227,8 @@ pub fn write_mtx_and_edgelist<IndexType: CustomIndex>(matrix: &CsMatI<f64, Index
 }
 
 #[allow(dead_code)]
-pub fn l2_norm(filename: &str) {
-    let matrix = read_mtx(filename);
+pub fn l2_norm<IndexType: CustomIndex> (filename: &str) {
+    let matrix: CsMatI<f64, IndexType> = read_mtx(filename);
     let mut sum = 0.0;
     for (value, (_row, _col)) in matrix.iter() {
         sum += value.powi(2);
@@ -310,4 +310,33 @@ pub fn test_array_file(){
         // println!("{:?}", recovered_matrix);
         assert!(test_matrix.abs_diff_eq(&recovered_matrix, 0.0001));
     }
+}
+
+pub fn read_csv_as_vec<P: AsRef<Path>>(path: P) -> Result<Vec<f64>, Box<dyn Error>> {
+    // Open the file and wrap it in a buffered reader.
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut line = String::new();
+
+    // Read the first (and only) line.
+    let bytes = reader.read_line(&mut line)?;
+    if bytes == 0 {
+        return Err("CSV file is empty".into());
+    }
+
+    // Ensure there is no second non‑empty line.
+    let mut extra = String::new();
+    if reader.read_line(&mut extra)? != 0 && !extra.trim().is_empty() {
+        return Err("CSV file contains more than one line".into());
+    }
+
+    // Convert the comma‑separated fields into f64 values.
+    let values = line
+        .trim_end()               // Remove trailing newline / CRLF.
+        .split(',')               // Split on commas.
+        .map(str::trim)           // Trim whitespace around each field.
+        .map(|s| s.parse::<f64>()) // Parse as f64.
+        .collect::<Result<Vec<f64>, _>>()?; // Propagate parse errors.
+
+    Ok(values)
 }

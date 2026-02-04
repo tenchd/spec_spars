@@ -178,6 +178,34 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         }
     }
 
+    pub fn from_matrix(filename: &str, epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, seed: u64, benchmarker: Benchmarker) -> Sparsifier<IndexType> {
+        let current_laplacian: CsMatI<f64, IndexType> = crate::utils::read_mtx(filename);
+        let num_nodes: IndexType = CustomIndex::from_int(current_laplacian.rows());  
+        // as per line 1
+        let beta = from_int((epsilon.powf(-2.0) * (beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
+        // as per 3(b) condition
+        let threshold = num_nodes * beta * row_constant;
+        // initialize empty new elements triplet vectors
+        let new_entries: Triplet<IndexType> = Triplet::new(num_nodes);   
+        let jl_dim = from_int(((num_nodes.index() as f64).log2() *jl_factor).ceil() as usize);
+
+        Sparsifier{
+            num_nodes: num_nodes,
+            new_entries: new_entries,
+            current_laplacian: current_laplacian,
+            threshold: threshold,
+            epsilon: epsilon,
+            beta_constant: beta_constant,
+            row_constant: row_constant,
+            beta: beta,
+            verbose: verbose,
+            jl_factor: jl_factor,
+            jl_dim: jl_dim,
+            seed: seed,
+            benchmarker: benchmarker,
+        }
+    }
+
     // returns # of edges in the entire sparsifier (including the new edges in triplet form and old edges in sparse matrix form)
     // note that currently it overcounts for laplacian since it also counts diagonals. maybe change this later?
     #[allow(dead_code)]
@@ -331,13 +359,27 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         ffi::FlattenedVec::new(&result_matrix.to_dense())
     }
 
+    fn compute_probs(&self, length: usize, diff_norms: &Vec<f64>) -> Vec<f64> {
+        let mut probs: Vec<f64> = vec![1.0; length];
+        let mut nonzero_counter = 0;
+        for (value, (row, col)) in self.current_laplacian.iter() {
+            if row < col {
+                //compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
+                probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter]/(self.jl_dim.index() as f64)).min(1.0);
+                //prs[h] = av[h] * (prs[h]^2 / k) * matrixConcConst *log(n) / ep^2
+                assert!(probs[nonzero_counter] >= 0.0, "negative prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
+                assert!(probs[nonzero_counter] <= 1.0, "prob greater than 1. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
+                nonzero_counter += 1;
+            }
+        }
+        probs
+    }
 
     // takes the solution matrix and computes an approximate effective resistance for each edge in the laplacian.
-    fn compute_diff_norms(&self, length: usize, solution: &ffi::FlattenedVec) -> Vec<f64>{
+    pub fn compute_diff_norms(&self, length: usize, solution: &ffi::FlattenedVec) -> Vec<f64>{
         let solution_cols = solution.num_cols;
         let mut diff_norms = vec![0.0; length];
         let solution_array = solution.to_array2();
-        let mut probs: Vec<f64> = vec![1.0; length];
         //loop through lower diagonal entries
         let mut nonzero_counter = 0;
         for (value, (row, col)) in self.current_laplacian.iter() {
@@ -348,19 +390,16 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
                     assert!(diff_norms[nonzero_counter] >= 0.0);
                 }
                 diff_norms[nonzero_counter] = diff_norms[nonzero_counter].sqrt();
-                //compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-                probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter]/(solution_cols as f64)).min(1.0);
-                assert!(probs[nonzero_counter] >= 0.0, "negative prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
-                assert!(probs[nonzero_counter] <= 1.0, "prob greater than 1. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 nonzero_counter += 1;
             }
         }
-        return probs;
+        diff_norms
     }
 
     // returns probabilities for all off-diagonal nonzero entries in laplacian. placeholder for now
     pub fn get_probs(&mut self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
 
+        println!("length: {}", length);
         let col_ptrs: Vec<IndexType> = self.current_laplacian.indptr().as_slice().unwrap().to_vec();
         let row_indices: Vec<IndexType> = self.current_laplacian.indices().to_vec();
         let values: Vec<f64> = self.current_laplacian.data().to_vec();
@@ -372,9 +411,12 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
         // below lines were used once to write out state for testing purposes.
         // crate::utils::write_mtx("test_data/virus_lap.mtx", &self.current_laplacian);
-        // crate::utils::write_f64_ndarray_to_csv(&solution.to_array2(), "test_data/solution.csv");
+        // let dense_solution = &solution.to_array2();
+        // let sparse_solution: CsMatI<f64, IndexType> = sprs::CsMatBase::csc_from_dense(dense_solution.view(), 0.0);
+        // crate::utils::write_mtx("test_data/solution.mtx", &sparse_solution);
 
-        let probs = self.compute_diff_norms(length, &solution);
+        let diff_norms = self.compute_diff_norms(length, &solution);
+        let probs = self.compute_probs(length, &diff_norms);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);
         }
