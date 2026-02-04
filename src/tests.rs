@@ -761,7 +761,8 @@ mod integration_tests {
         let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
 
         let sparsifier = Sparsifier::from_matrix(laplacian_filepath, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
-        let new_diff_norms = sparsifier.compute_diff_norms(sparsifier.num_edges(), &file_solution_flat);
+        let num_edges = sparsifier.num_edges();
+        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &file_solution_flat);
         let file_diff_norms = crate::utils::read_csv_as_vec("test_data/diff_norms.csv").unwrap();
         assert!(new_diff_norms.len() == file_diff_norms.len(), 
                 "diff norm length mismatch. julia has length {}, rust has length {}", file_diff_norms.len(), new_diff_norms.len());
@@ -770,6 +771,17 @@ mod integration_tests {
             let file_diff_norm = file_diff_norms.get(i).unwrap();
             assert!(new_diff_norm.abs_diff_eq(file_diff_norm, 0.0001), 
                     "diff norms differ at position {}. julia says {}, rust says {}", i, file_diff_norm, new_diff_norm);
+        }
+
+        let new_probs = sparsifier.compute_probs(num_edges, &new_diff_norms);
+        let file_probs = crate::utils::read_csv_as_vec("test_data/probs.csv").unwrap();
+        assert!(new_probs.len() == file_probs.len(), 
+                "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), new_probs.len());
+        for i in 0..new_probs.len() {
+            let new_prob = new_probs.get(i).unwrap();
+            let file_prob = file_probs.get(i).unwrap();
+            assert!(new_prob.abs_diff_eq(file_prob, 0.0001), 
+                    "probs differ at position {}. julia says {}, rust says {}. diff norm is {}, {}", i, file_prob, new_prob, new_diff_norms[i], file_diff_norms[i]);
         }
     }
 }

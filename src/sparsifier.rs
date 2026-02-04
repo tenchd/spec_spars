@@ -359,7 +359,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         ffi::FlattenedVec::new(&result_matrix.to_dense())
     }
 
-    fn compute_probs(&self, length: usize, diff_norms: &Vec<f64>) -> Vec<f64> {
+    pub fn compute_probs(&self, length: usize, diff_norms: &Vec<f64>) -> Vec<f64> {
         let mut probs: Vec<f64> = vec![1.0; length];
         let mut nonzero_counter = 0;
         for (value, (row, col)) in self.current_laplacian.iter() {
