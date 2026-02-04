@@ -744,8 +744,8 @@ mod integration_tests {
     }
 
     #[test]
-    fn verify_diff_norm() {
-        println!("TEST:-----Verifying that diff norm calculation matches that of the julia implementation.-----");
+    fn verify_diff_norm_and_probs() {
+        println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
         // note that this is brittle; relies on the below parameters matching the values used when the solution in the file was originally computed.
         // figure out how to fix later.
         let seed: u64 = 1;
@@ -757,16 +757,19 @@ mod integration_tests {
         let benchmarker = Benchmarker::new(false);
 
         let laplacian_filepath = "test_data/virus_lap.mtx";
-        let file_solution = crate::utils::read_vecs_from_file_flat("test_data/solution.mtx");
+        let file_solution_dense = crate::utils::read_mtx::<i32>("test_data/solution.mtx").to_dense();
+        let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
 
         let sparsifier = Sparsifier::from_matrix(laplacian_filepath, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
-        let new_diff_norms = sparsifier.compute_diff_norms(sparsifier.num_edges(), &file_solution);
+        let new_diff_norms = sparsifier.compute_diff_norms(sparsifier.num_edges(), &file_solution_flat);
         let file_diff_norms = crate::utils::read_csv_as_vec("test_data/diff_norms.csv").unwrap();
-        assert!(new_diff_norms.len() == file_diff_norms.len());
+        assert!(new_diff_norms.len() == file_diff_norms.len(), 
+                "diff norm length mismatch. julia has length {}, rust has length {}", file_diff_norms.len(), new_diff_norms.len());
         for i in 0..new_diff_norms.len() {
             let new_diff_norm = new_diff_norms.get(i).unwrap();
             let file_diff_norm = file_diff_norms.get(i).unwrap();
-            assert!(new_diff_norm.abs_diff_eq(file_diff_norm, 0.0001));
+            assert!(new_diff_norm.abs_diff_eq(file_diff_norm, 0.0001), 
+                    "diff norms differ at position {}. julia says {}, rust says {}", i, file_diff_norm, new_diff_norm);
         }
     }
 }
