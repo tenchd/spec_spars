@@ -53,6 +53,9 @@ mod ffi {
 
         #[allow(dead_code)]
         fn test_stager(interop_jl_cols: FlattenedVec, lap_col_ptrs: Vec<i32>, lap_row_indices: Vec<i32>, lap_values: Vec<f64>, num_nodes:i32, test_selector:i32, verbose: bool) -> bool;
+
+        #[allow(dead_code)]
+        fn test_diff_norm() -> FlattenedVec;
     }
 }
 
@@ -85,7 +88,7 @@ impl FlattenedVec {
 pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose: bool, seed: u64, benchmark: bool) {
     
     // for now, users can't set these parameters
-    let jl_factor: f64 = 1.5;
+    let jl_factor: f64 = 4.0;
     let beta_constant = 4;
     let row_constant = 2;
 

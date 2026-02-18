@@ -183,6 +183,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let num_nodes: IndexType = CustomIndex::from_int(current_laplacian.rows());  
         // as per line 1
         let beta = from_int((epsilon.powf(-2.0) * (beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
+        //println!("beta is {}, result of multiplying ep^-2 = {} * beta_constant = {} * log(n) = {}", 
+        //    beta, epsilon.powf(-2.0), beta_constant.index(), (num_nodes.index() as f64).log(2.0));
         // as per 3(b) condition
         let threshold = num_nodes * beta * row_constant;
         // initialize empty new elements triplet vectors
@@ -276,10 +278,12 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     // by populate_matrix() above
     pub fn populate_row<ValueType: CustomValue>(&self, input: &mut Array1<ValueType>, row: IndexType, col_start: IndexType, col_end: IndexType){
         let num_cols = (col_end - col_start).index();
-        let scaling_factor = (self.jl_dim.index() as f64).sqrt();
+        //let scaling_factor = (self.jl_dim.index() as f64).sqrt();
+        let scaling_factor = (3.0_f64).sqrt();
         for col in 0..num_cols {
             let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
-            input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap(); 
+            //input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap();
+            input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) * scaling_factor).unwrap();
         }
     }
 
@@ -362,11 +366,16 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     pub fn compute_probs(&self, length: usize, diff_norms: &Vec<f64>) -> Vec<f64> {
         let mut probs: Vec<f64> = vec![1.0; length];
         let mut nonzero_counter = 0;
+        // println!("beta = bigterm = {}", self.beta.index());
+        // println!("jldim = {}", self.jl_dim.index());
         for (value, (row, col)) in self.current_laplacian.iter() {
             if row < col {
+                // if nonzero_counter == 1 {println!("second value = {}", value);}
                 //compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
-                probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter]/(self.jl_dim.index() as f64)).min(1.0);
-                //prs[h] = av[h] * (prs[h]^2 / k) * matrixConcConst *log(n) / ep^2
+                //if nonzero_counter == 0 {println!("value from rust: {}", value);}
+                probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter].powi(2)/(self.jl_dim.index() as f64)).min(1.0);
+                //probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter]/(self.jl_dim.index() as f64)).min(1.0);
+                //julia code does: prs[h] = av[h] * (prs[h]^2 / k) * matrixConcConst *log(n) / ep^2
                 assert!(probs[nonzero_counter] >= 0.0, "negative prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 assert!(probs[nonzero_counter] <= 1.0, "prob greater than 1. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 nonzero_counter += 1;
@@ -399,12 +408,16 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     // returns probabilities for all off-diagonal nonzero entries in laplacian. placeholder for now
     pub fn get_probs(&mut self, length: usize, sketch_cols: FlattenedVec) -> Vec<f64> {
 
-        println!("length: {}", length);
+        //println!("length: {}", length);
         let col_ptrs: Vec<IndexType> = self.current_laplacian.indptr().as_slice().unwrap().to_vec();
         let row_indices: Vec<IndexType> = self.current_laplacian.indices().to_vec();
         let values: Vec<f64> = self.current_laplacian.data().to_vec();
 
         let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, self.num_nodes.as_i32(), self.verbose);
+        
+        // getting the solution using the below line (using julia-produced jl sketch) will produce a correct sparsifier, as far as i can tell.
+        //let solution: ffi::FlattenedVec = ffi::test_diff_norm();
+
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::SolvesComplete);
         }
@@ -416,7 +429,15 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // crate::utils::write_mtx("test_data/solution.mtx", &sparse_solution);
 
         let diff_norms = self.compute_diff_norms(length, &solution);
+        let diff_norms_array = Array1::from_vec(diff_norms.clone());
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norms_array);
+        println!("diff norm mean = {}, diff norm std dev = {}", mean, std_dev);
+
         let probs = self.compute_probs(length, &diff_norms);
+        let probs_array = Array1::from_vec(probs.clone());
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&probs_array);
+        println!("prob mean = {}, prob std dev = {}", mean, std_dev);
+
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);
         }
@@ -530,6 +551,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let num_nnz = self.num_edges();
         // get probabilities for each edge
         let mut probs = vec![];
+
+        crate::utils::write_mtx("new_lap_rust.mtx", &self.current_laplacian);
         
         probs = self.get_probs(num_nnz, sketch_cols);
         

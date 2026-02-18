@@ -79,7 +79,8 @@ mod integration_tests {
     use crate::ffi;
     use crate::tests::make_random_evim_matrix;
 
-    //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian.
+    //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. ensures that we always have a valid laplacian, i.e., that
+    // the row and column sums are 0.
     #[test]
     //#[ignore]
     fn lap_valid_random() {
@@ -128,7 +129,6 @@ mod integration_tests {
         let beta_constant = 4;
         let row_constant = 2;
         let verbose = false;
-
 
         let stream = InputStream::new(input_filename, "");
 
@@ -331,8 +331,9 @@ mod integration_tests {
     pub fn jl_sketch_zero() {
         println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
+        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/bcsstk30/bcsstk30.mtx";
         let seed: u64 = 2;
         let jl_factor: f64 = 1.5;
 
@@ -357,7 +358,7 @@ mod integration_tests {
         // create EVIM representation
         let evim: CsMatI<f64, i32> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
-        println!("now outputing results for xxhash");
+        //println!("now outputing results for xxhash");
         let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_colwise_flat(&evim);
         let sketch_array = sketch_cols.to_array2();
         
@@ -366,16 +367,18 @@ mod integration_tests {
         let result = crate::tests::mean_and_std_dev(&sums);
         println!("mean {}, std dev {}", result.0, result.1);
 
-        let _total = sums.sum_axis(Axis(0));
-        //println!("TOTAL: {:?}", total);
-        //assert!(total[0].abs_diff_eq(&0.0, 0.05));
+        let total = sums.sum_axis(Axis(0));
+        println!("TOTAL: {:?}", total);
+        for i in 0..sums.len() {
+            assert!(sums[i].abs_diff_eq(&0.0, 0.05));
+        }
 
     }
 
     #[test]
     //#[ignore]
     pub fn flatten_interop() {
-        println!("TEST:-----Verifying that interop doesn't corrupt jl sketch columns.-----");
+        println!("TEST:-----Verifying that flattening doesn't corrupt jl sketch columns.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         let seed: u64 = 1;
         let jl_factor: f64 = 1.5;
@@ -707,7 +710,7 @@ mod integration_tests {
     fn graphtest(input_filename: &str) {
         //println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
         let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
+        let jl_factor: f64 = 4.0;
 
         let epsilon = 0.5;
         let beta_constant = 4;
@@ -734,9 +737,10 @@ mod integration_tests {
     fn petgraph_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for several datasets.-----");
         let input_filenames = ["/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx",
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"];
+                                    //    "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
+                                    //    "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
+                                    //    "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"
+                                    ];
 
         for input_filename in input_filenames{
             graphtest(input_filename);
@@ -761,7 +765,11 @@ mod integration_tests {
         let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
 
         let sparsifier = Sparsifier::from_matrix(laplacian_filepath, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
+        println!("num nodes = {}, num edges = {}, beta = {}, epsilon = {}, jl_factor = {}, jl dim = {}", 
+            sparsifier.num_nodes, num_edges, sparsifier.beta_constant, sparsifier.epsilon, sparsifier.jl_factor, sparsifier.jl_dim);
+
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &file_solution_flat);
         let file_diff_norms = crate::utils::read_csv_as_vec("test_data/diff_norms.csv").unwrap();
         assert!(new_diff_norms.len() == file_diff_norms.len(), 
@@ -769,19 +777,69 @@ mod integration_tests {
         for i in 0..new_diff_norms.len() {
             let new_diff_norm = new_diff_norms.get(i).unwrap();
             let file_diff_norm = file_diff_norms.get(i).unwrap();
+            assert!(*new_diff_norm != 0.0_f64);
             assert!(new_diff_norm.abs_diff_eq(file_diff_norm, 0.0001), 
                     "diff norms differ at position {}. julia says {}, rust says {}", i, file_diff_norm, new_diff_norm);
         }
 
+        let norm_array = Array1::from_vec(new_diff_norms.clone());
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&norm_array);
+        println!("norm mean = {}, norm std dev = {}", mean, std_dev);
+
         let new_probs = sparsifier.compute_probs(num_edges, &new_diff_norms);
         let file_probs = crate::utils::read_csv_as_vec("test_data/probs.csv").unwrap();
+        //println!("first element in new probs is {}, first in file_probs is {}", new_probs.get(0).unwrap(), file_probs.get(0).unwrap());
         assert!(new_probs.len() == file_probs.len(), 
                 "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), new_probs.len());
+
         for i in 0..new_probs.len() {
             let new_prob = new_probs.get(i).unwrap();
             let file_prob = file_probs.get(i).unwrap();
             assert!(new_prob.abs_diff_eq(file_prob, 0.0001), 
                     "probs differ at position {}. julia says {}, rust says {}. diff norm is {}, {}", i, file_prob, new_prob, new_diff_norms[i], file_diff_norms[i]);
+        }
+
+        let probs_array = Array1::from_vec(new_probs);
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&probs_array);
+        println!("prob mean = {}, prob std dev = {}", mean, std_dev);
+    }
+
+    #[test]
+    //#[ignore]
+    fn diff_norm_interop(){
+        let seed: u64 = 1;
+        let jl_factor: f64 = 4.0;
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let benchmarker = Benchmarker::new(false);
+
+        let laplacian_filepath = "test_data/virus_lap.mtx";
+        let sparsifier = Sparsifier::from_matrix(laplacian_filepath, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        sparsifier.check_diagonal();
+        let num_edges = sparsifier.num_edges();
+        let solution: ffi::FlattenedVec = ffi::test_diff_norm();
+        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
+        
+        let diff_norm_array = Array1::from_vec(new_diff_norms);
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
+        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
+    }
+
+
+    #[test]
+    //#[ignore]
+    fn lap_compare(){
+        let first: CsMatI<f64, i32> = utils::read_mtx("test_data/virus_lap.mtx");
+        let second: CsMatI<f64, i32> = utils::read_mtx("test_data/julia_lap.mtx");
+        assert_eq!(first.nnz(), second.nnz());
+        let first_values = first.data();
+        let second_values = second.data();
+        for i in 0..first_values.len() {
+            let first_current_value = first_values[i];
+            let second_current_value = second_values[i];
+            assert_eq!(first_current_value, second_current_value);
         }
     }
 }

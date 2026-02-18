@@ -1052,3 +1052,44 @@ bool test_stager(FlattenedVec interop_jl_cols, rust::Vec<int> rust_col_ptrs, rus
   }
   return result;
 }
+
+FlattenedVec test_diff_norm_sub(std::vector<std::vector<double>> jl_cols, bool verbose) {
+  if (verbose) {
+    printf("-------------------------------------\n");
+    printf("performing diff norm c++ test\n");
+    printf("-------------------------------------\n");
+  }
+  constexpr const char *input_filename = "test_data/new_lap_rust.mtx";
+  int num_threads = 32; 
+  constexpr char *output_filename = "output/file_only.txt";
+  bool is_graph = 1;
+
+  custom_idx num_cols = jl_cols.size();
+  custom_idx num_rows = jl_cols.at(0).size();
+  std::vector<std::vector<double>> solution(num_cols, std::vector<double>(num_rows, 0.0));
+
+  if (verbose) {printf("problem: %s\n", input_filename);}
+  sparse_matrix_processor<custom_idx, double> processor(input_filename);
+    
+  bool result = factorization_driver<custom_idx, double>(processor, num_threads, output_filename, is_graph, jl_cols, solution);
+  //if (verbose) {printf("file_only_solver_test done. if the solves converged, the test passed.\n");}
+  FlattenedVec flat_solution = flatten_vector(solution);
+  return flat_solution;
+}
+
+FlattenedVec test_diff_norm() {
+  //constexpr const char *input_filename = "test_data/julia_lap.mtx";
+  std::string sketch_filename = "test_data/julia_sketch.csv";
+
+  // stage jl cols from file
+  std::vector<std::vector<double>> file_jl_cols;
+  try {
+    file_jl_cols = load_csv_columns(sketch_filename);
+  }
+  catch (const std::exception& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+  }
+
+  FlattenedVec solution = test_diff_norm_sub(file_jl_cols, true);
+  return solution;
+}
