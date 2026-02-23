@@ -621,6 +621,38 @@ FlattenedVec test_roll(FlattenedVec jl_cols) {
     return rerolled;
 }
 
+// vibe-coded function that write out jl sketch product as a csv, for debugging purposes.
+bool writeMatrixToCSV(const std::vector<std::vector<double>>& matrix,
+                      const std::string& filename)
+{
+    std::ofstream out(filename, std::ios::out | std::ios::trunc);
+    if (!out.is_open())
+        return false;                     // Could not open file.
+
+    // Use enough precision to round‑trip a double losslessly.
+    out << std::setprecision(std::numeric_limits<double>::max_digits10);
+
+    // Determine the maximal column count (the width of the transpose).
+    std::size_t maxCols = 0;
+    for (const auto& row : matrix)
+        maxCols = std::max(maxCols, row.size());
+
+    // Write each column of the original matrix as a row of the CSV.
+    for (std::size_t col = 0; col < maxCols; ++col) {
+        bool firstField = true;
+        for (std::size_t row = 0; row < matrix.size(); ++row) {
+            if (!firstField) out << ',';
+            firstField = false;
+
+            if (col < matrix[row].size())
+                out << matrix[row][col];   // Existing element.
+            // else: missing element ⇒ leave the field empty.
+        }
+        if (col + 1 < maxCols) out << '\n';   // No extra newline after the last line.
+    }
+    return out.good();
+}
+
 // function that runs the solver code on rust-provided laplacian and jl sketch.
 FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \
     rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, int num_nodes, bool verbose) {
@@ -647,6 +679,7 @@ FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> ru
     custom_idx n = shared_jl_cols.num_cols;
     custom_idx m = shared_jl_cols.num_rows;
     std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
+    assert(writeMatrixToCSV(jl_cols, "interop_test/cpp_sketch_product.csv"));
     std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
 
     if (verbose) {printf("problem: %s\n", input_filename.c_str());}
