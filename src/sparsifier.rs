@@ -9,7 +9,9 @@ use rand::Rng;
 use approx::AbsDiffEq;
 use fasthash::FastHasher;
 use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
-use ndarray::{Array1,Array2,s};
+use fasthash::city::Hasher64 as CityHasher;
+use fasthash::metro::crc::Hasher64_1 as MetroHasher;
+use ndarray::{Array1,Array2,s, Axis};
 use num_traits::cast;
 use petgraph::Graph;
 
@@ -89,13 +91,19 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
         let end: usize = self.col_indices.len()/2;
         for i in 0..end {
             let index = 2*i as usize;
+            let new_value = (-1.0*self.values[index]).sqrt() * -1.0;
+            if i == 0 {
+                println!("value originally {} and after sqrt {}", self.values[index], new_value);
+            }
             evim_triplets.col_indices.push(from_int(i));
             evim_triplets.row_indices.push(self.col_indices[index]);
-            evim_triplets.values.push(-1.0 * self.values[index]);
+            //evim_triplets.values.push(-1.0 * self.values[index]);
+            evim_triplets.values.push(-1.0 * new_value);
 
             evim_triplets.col_indices.push(from_int(i));
             evim_triplets.row_indices.push(self.row_indices[index]);
-            evim_triplets.values.push(self.values[index]);
+            //evim_triplets.values.push(self.values[index]);
+            evim_triplets.values.push(new_value);
         }
         let evim_trip_form: TriMatBase<Vec<IndexType>, Vec<f64>>  = TriMatI::<f64, IndexType>::from_triplets((evim_triplets.num_nodes.index(), end), evim_triplets.row_indices, evim_triplets.col_indices, evim_triplets.values);
         let evim_csc_form: CsMatBase<f64, IndexType, Vec<IndexType>, Vec<IndexType>, Vec<f64>, _> = evim_trip_form.to_csc();
@@ -254,7 +262,10 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     }
 
     pub fn hash_with_inputs(&self, input1: u64, input2: u64) -> i64 {
-    let mut checkhash = Murmur2Hasher::with_seed(self.seed);
+        //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
+        let mut checkhash = CityHasher::with_seed(self.seed);
+        // let mut checkhash = MetroHasher::with_seed(self.seed.try_into().unwrap());
+
         input1.hash(&mut checkhash);
         input2.hash(&mut checkhash);
         let result = checkhash.finish() as u32;
@@ -266,12 +277,15 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     pub fn populate_matrix(&self, input: &mut Array2<f64>) {
         let rows = input.dim().0;
         let cols = input.dim().1;
-        let scaling_factor = (self.jl_dim.index() as f64).sqrt();
+        //let scaling_factor = (self.jl_dim.index() as f64).sqrt();
+        let scaling_factor = (3.0_f64).sqrt();
         for i in 0..rows {
             for j in 0..cols {
-                input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) / scaling_factor;
+                //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) / scaling_factor;
+                input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) * scaling_factor;
             }
         }
+        //let col_means = input.mean_axis(Axis(0));
     }
 
     // used to compute a single row of a jl sketch matrix. entries should match that of the corresponding row in the matrix returned
@@ -308,6 +322,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     #[allow(dead_code)]
     pub fn jl_sketch_sparse_flat(&self, og_matrix: &CsMatI<f64, IndexType>) -> ffi::FlattenedVec {
         let result = self.jl_sketch_sparse(og_matrix);
+        crate::utils::write_f64_ndarray_to_csv(&result, "interop_test/rust_sketch_product.csv");
         ffi::FlattenedVec::new(&result)
     }
 
@@ -541,7 +556,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         }
         // then compute JL sketch of it
         let sketch_cols: ffi::FlattenedVec = self.jl_sketch_colwise_flat(&evim);
-        //let sketch_cols: ffi::FlattenedVec = jl_sketch_sparse_flat(evim, self.jl_factor, self.seed, display);
+        //let sketch_cols: ffi::FlattenedVec = self.jl_sketch_sparse_flat(&evim);
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::JlSketchComplete);
         }
@@ -552,7 +567,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // get probabilities for each edge
         let mut probs = vec![];
 
-        crate::utils::write_mtx("new_lap_rust.mtx", &self.current_laplacian);
+        //crate::utils::write_mtx("new_lap_rust.mtx", &self.current_laplacian);
         
         probs = self.get_probs(num_nnz, sketch_cols);
         

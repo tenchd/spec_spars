@@ -219,6 +219,7 @@ mod integration_tests {
 
         assert_eq!(evim_nnz, lap_nnz);
 
+        println!("rust evim has dimensions {} x {}", evim.rows(), evim.cols());
         for (_edge_number, edge_vec) in evim.outer_iterator().enumerate() {
             //println!("{}", edge_number);
             let mut indices: Vec<i32> = vec![];
@@ -233,11 +234,34 @@ mod integration_tests {
             let row: usize = indices[0].try_into().unwrap();
             let col: usize = indices[1].try_into().unwrap();
             let value = values[1];
-            let lap_value = *sparsifier.current_laplacian.get(row, col).unwrap();
-            assert!(lap_value == value);
+            //NOTE: changed this to compare the sqrt of lap value with evim value, because that's how evim is defined.
+            let lap_value = (-1.0*sparsifier.current_laplacian.get(row, col).unwrap()).sqrt() * -1.0;
+            assert!(lap_value == value, "rust evim edge {},{} with value {} mismatch with lap entry {}", row, col, value, lap_value);
         }
-        println!("evim and lap equivalent");
+        println!("rust evim and lap equivalent");
         sparsifier.check_diagonal();
+
+        let julia_evim = utils::read_mtx_csr::<i32>("interop_test/julia_evim.mtx").transpose_into();
+        println!("julia evim has dimensions {} x {}", julia_evim.rows(), julia_evim.cols());
+        for (_edge_number, edge_vec) in julia_evim.outer_iterator().enumerate() {
+            //println!("{}", edge_number);
+            let mut indices: Vec<i32> = vec![];
+            let mut values: Vec<f64> = vec![];
+            for (endpoint, value) in edge_vec.iter() {
+                indices.push(endpoint.try_into().unwrap());
+                values.push(*value);
+            }
+            assert!(indices.len() == 2, "col {} has {} nonzeros. col: {:?}", _edge_number, indices.len(), edge_vec);
+            assert!(values.len() == 2);
+            assert!(values[0] == -1.0*values[1]);
+            let row: usize = indices[0].try_into().unwrap();
+            let col: usize = indices[1].try_into().unwrap();
+            let value = values[1];
+            //NOTE: changed this to compare the sqrt of lap value with evim value, because that's how evim is defined.
+            let lap_value = (-1.0*sparsifier.current_laplacian.get(row, col).unwrap()).sqrt() * -1.0;
+            assert!(lap_value.abs_diff_eq(&value, 0.00001), "julia evim edge {},{} with value {} mismatch with lap entry {}", row, col, value, lap_value);
+        }
+        println!("julia evim and lap equivalent");
     }
 
     //verifies that blocked jl sketching matrix multiplication gives the same output as library mat mult implementations.
@@ -729,7 +753,7 @@ mod integration_tests {
         let original_ccs = connected_components(&original_graph);
         let sparsified_ccs = connected_components(&sparsified_graph);
         println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", input_filename, original_ccs, sparsified_ccs);
-        //assert_eq!(original_ccs, sparsified_ccs);
+        assert_eq!(original_ccs, sparsified_ccs);
     }
 
     #[test]
@@ -737,9 +761,9 @@ mod integration_tests {
     fn petgraph_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for several datasets.-----");
         let input_filenames = ["/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx",
-                                    //    "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
-                                    //    "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
-                                    //    "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"
+                                       "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
+                                       "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
+                                       "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"
                                     ];
 
         for input_filename in input_filenames{
@@ -804,6 +828,7 @@ mod integration_tests {
         println!("prob mean = {}, prob std dev = {}", mean, std_dev);
     }
 
+    // passes
     #[test]
     //#[ignore]
     fn diff_norm_interop(){
@@ -825,22 +850,109 @@ mod integration_tests {
         let diff_norm_array = Array1::from_vec(new_diff_norms);
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
         println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
+        let target_diff_norm_mean = 2.6971700905959435_f64;  // value obtained from tianyu's julia code
+        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.00001))
     }
 
-
+    //passes
     #[test]
     //#[ignore]
-    fn lap_compare(){
-        let first: CsMatI<f64, i32> = utils::read_mtx("test_data/virus_lap.mtx");
-        let second: CsMatI<f64, i32> = utils::read_mtx("test_data/julia_lap.mtx");
-        assert_eq!(first.nnz(), second.nnz());
-        let first_values = first.data();
-        let second_values = second.data();
-        for i in 0..first_values.len() {
-            let first_current_value = first_values[i];
-            let second_current_value = second_values[i];
-            assert_eq!(first_current_value, second_current_value);
+    fn diff_norm_interop2(){
+        let seed: u64 = 1;
+        let jl_factor: f64 = 4.0;
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = true;
+        let benchmarker = Benchmarker::new(false);
+
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+        let stream = InputStream::new(input_filename, "");
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+
+        for (value, (row, col)) in stream.input_matrix.iter() {
+            //assert!(*value >= 0.0);
+            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
+
+        sparsifier.form_laplacian(true);
+
+        let num_edges = sparsifier.num_edges();
+        let solution: ffi::FlattenedVec = ffi::test_diff_norm();
+
+        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
+        let diff_norm_array = Array1::from_vec(new_diff_norms);
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
+        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
+        let target_diff_norm_mean = 2.6971700905959435_f64; // value obtained from tianyu's julia code
+        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
     }
+
+    fn sum_abs_evim(evim: &CsMatI<f64,i32>) -> f64 {
+        let values = evim.data();
+        let mut sum = 0.0;
+        for i in values {
+            sum += i.abs();
+        }
+        sum
+    }
+
+    // fails
+    #[test]
+    //#[ignore]
+    fn diff_norm_interop3(){
+        let seed: u64 = 1;
+        let jl_factor: f64 = 4.0;
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = true;
+        let benchmarker = Benchmarker::new(false);
+
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+        let stream = InputStream::new(input_filename, "");
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+
+        for (value, (row, col)) in stream.input_matrix.iter() {
+            //assert!(*value >= 0.0);
+            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+        }
+
+        let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
+        println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
+        let julia_evim = utils::read_mtx_csr::<i32>("interop_test/julia_evim.mtx").transpose_into();
+        println!("sum of abs value of julia evim entries: {}", sum_abs_evim(&julia_evim));
+        //assert!(evim.abs_diff_eq(&julia_evim, 0.01));
+        // then compute JL sketch of it
+        let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_sparse_flat(&evim);
+        sparsifier.form_laplacian(true);
+        let num_edges = sparsifier.num_edges();
+
+        let col_ptrs: Vec<i32> = sparsifier.current_laplacian.indptr().as_slice().unwrap().to_vec();
+        let row_indices: Vec<i32> = sparsifier.current_laplacian.indices().to_vec();
+        let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
+
+        let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, sparsifier.num_nodes.as_i32(), false);
+        
+        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
+        let diff_norm_array = Array1::from_vec(new_diff_norms);
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
+        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
+        let target_diff_norm_mean = 2.6971700905959435_f64; // value obtained from tianyu's julia code
+        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
+    }
+
+    // passes
+    #[test]
+    #[ignore]
+    fn verify_csvs(){
+        let rust_csv = "interop_test/rust_sketch_product.csv";
+        let cpp_csv = "interop_test/cpp_sketch_product.csv";
+        let result = crate::utils::csvs_equivalent(rust_csv, cpp_csv, 0.01);
+        assert!(result.unwrap());
+    }
+    
 }
 

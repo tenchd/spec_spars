@@ -13,6 +13,8 @@ use csv::Writer;
 use ndarray::{Array2, Axis};
 use std::error::Error;
 
+use csv::ReaderBuilder;
+
 use crate::tests::make_random_matrix;
 
 
@@ -148,6 +150,13 @@ pub fn read_mtx<IndexType: CustomIndex>(filename: &str) -> CsMatI<f64, IndexType
     let trip = read_matrix_market::<f64, IndexType, &str>(filename).unwrap();    
     let col_format = trip.to_csc::<IndexType>();
     return col_format;
+}
+
+pub fn read_mtx_csr<IndexType: CustomIndex>(filename: &str) -> CsMatI<f64, IndexType>{
+    println!("reading file {}", filename);
+    let trip = read_matrix_market::<f64, IndexType, &str>(filename).unwrap();    
+    let row_format = trip.to_csr::<IndexType>();
+    return row_format;
 }
 
 #[allow(dead_code)]
@@ -339,4 +348,73 @@ pub fn read_csv_as_vec<P: AsRef<Path>>(path: P) -> Result<Vec<f64>, Box<dyn Erro
         .collect::<Result<Vec<f64>, _>>()?; // Propagate parse errors.
 
     Ok(values)
+}
+
+pub fn csvs_equivalent<P: AsRef<Path>>(path_a: P, path_b: P, epsilon: f64) -> Result<bool, Box<dyn Error>> {
+    // Open the files
+    let f_a = File::open(path_a)?;
+    let f_b = File::open(path_b)?;
+
+    // CSV readers – no header row
+    let mut rdr_a = ReaderBuilder::new().has_headers(false).from_reader(f_a);
+    let mut rdr_b = ReaderBuilder::new().has_headers(false).from_reader(f_b);
+
+    let mut row_idx = 0usize;
+    let mut iter_a = rdr_a.records();
+    let mut iter_b = rdr_b.records();
+
+    loop {
+        let rec_a_opt = iter_a.next();
+        let rec_b_opt = iter_b.next();
+
+        match (rec_a_opt, rec_b_opt) {
+            (None, None) => break, // both files exhausted → equivalent
+            (None, Some(_)) => {
+                return Err(format!("File A ended early at row {}", row_idx).into())
+            }
+            (Some(_), None) => {
+                return Err(format!("File B ended early at row {}", row_idx).into())
+            }
+            (Some(Ok(rec_a)), Some(Ok(rec_b))) => {
+                // column count must match
+                if rec_a.len() != rec_b.len() {
+                    return Err(format!(
+                        "Column count mismatch at row {}: {} vs {}",
+                        row_idx,
+                        rec_a.len(),
+                        rec_b.len()
+                    )
+                    .into());
+                }
+
+                // compare every field
+                for (col_idx, (s_a, s_b)) in rec_a.iter().zip(rec_b.iter()).enumerate() {
+                    let a: f64 = s_a.parse()?;
+                    let b: f64 = s_b.parse()?;
+
+                    // NaN handling: only NaN‑NaN is considered equal
+                    if a.is_nan() && b.is_nan() {
+                        continue;
+                    }
+                    if a.is_nan() || b.is_nan() {
+                        return Ok(false);
+                    }
+
+                    if (a - b).abs() > epsilon {
+                        return Ok(false);
+                    }
+                }
+
+                row_idx += 1;
+            }
+            (Some(Err(e)), _) => {
+                return Err(format!("CSV read error in file A at row {}: {}", row_idx, e).into())
+            }
+            (_, Some(Err(e))) => {
+                return Err(format!("CSV read error in file B at row {}: {}", row_idx, e).into())
+            }
+        }
+    }
+
+    Ok(true)
 }
