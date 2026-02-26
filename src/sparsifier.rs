@@ -92,9 +92,9 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
         for i in 0..end {
             let index = 2*i as usize;
             let new_value = (-1.0*self.values[index]).sqrt() * -1.0;
-            if i == 0 {
-                println!("value originally {} and after sqrt {}", self.values[index], new_value);
-            }
+            // if i == 0 {
+            //     println!("value originally {} and after sqrt {}", self.values[index], new_value);
+            // }
             evim_triplets.col_indices.push(from_int(i));
             evim_triplets.row_indices.push(self.col_indices[index]);
             //evim_triplets.values.push(-1.0 * self.values[index]);
@@ -307,9 +307,13 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     pub fn jl_sketch_sparse(&self, og_matrix: &CsMatI<f64, IndexType>) -> Array2<f64> {
         let og_rows = og_matrix.rows();
         let og_cols = og_matrix.cols();
-        let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,self.jl_dim.index()));
+        //let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,self.jl_dim.index()));
         if self.verbose {println!("EVIM has {} rows and {} cols, jl sketch matrix has {} rows and {} cols", og_rows, og_cols, og_cols, self.jl_dim);}
-        self.populate_matrix(&mut sketch_matrix);
+        //self.populate_matrix(&mut sketch_matrix);
+        let mut sketch_matrix = crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_factor.mtx").to_dense();
+        sketch_matrix = sketch_matrix * 3.0_f64.sqrt();
+        println!("mean of sketch matrix is {}, std dev of sketch matrix is {}", sketch_matrix.mean().unwrap() ,sketch_matrix.std(0.0));
+        //println!("first and second entries of sketch matrix: {}, {}", sketch_matrix[[0,0]], sketch_matrix[[0,1]]);
         if self.verbose {println!("populated sketch matrix");}
         let result = og_matrix.mul(&sketch_matrix);
         if self.verbose {println!("performed multiplication");}
@@ -322,7 +326,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     #[allow(dead_code)]
     pub fn jl_sketch_sparse_flat(&self, og_matrix: &CsMatI<f64, IndexType>) -> ffi::FlattenedVec {
         let result = self.jl_sketch_sparse(og_matrix);
-        crate::utils::write_f64_ndarray_to_csv(&result, "interop_test/rust_sketch_product.csv");
+        //crate::utils::write_f64_ndarray_to_csv(&result, "interop_test/rust_sketch_product.csv");
         ffi::FlattenedVec::new(&result)
     }
 

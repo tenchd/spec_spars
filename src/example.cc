@@ -559,10 +559,11 @@ bool factorization_driver(sparse_matrix_processor<type_int, type_data> &processo
 
         //printf("trying to write to solution column %d\n", num_solve-1);
         solution.at(num_solve-1) = solution_col;
-        num_solve++;
         if (!converged) {
             all_succeeded = false;
+            throw std::runtime_error("In example.cc function factorization_driver(): solver did not converge");
         }
+        num_solve++;
     }
     return all_succeeded;
 }
@@ -679,7 +680,7 @@ FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> ru
     custom_idx n = shared_jl_cols.num_cols;
     custom_idx m = shared_jl_cols.num_rows;
     std::vector<std::vector<double>> jl_cols = unroll_vector(shared_jl_cols);
-    assert(writeMatrixToCSV(jl_cols, "interop_test/cpp_sketch_product.csv"));
+    //assert(writeMatrixToCSV(jl_cols, "interop_test/cpp_sketch_product.csv"));
     std::vector<std::vector<double>> solution(n, std::vector<double>(m, 0.0));
 
     if (verbose) {printf("problem: %s\n", input_filename.c_str());}
@@ -1113,6 +1114,7 @@ FlattenedVec test_diff_norm_sub(std::vector<std::vector<double>> jl_cols, bool v
 FlattenedVec test_diff_norm() {
   //constexpr const char *input_filename = "test_data/julia_lap.mtx";
   std::string sketch_filename = "test_data/julia_sketch.csv";
+  //std::string sketch_filename = "interop_test/julia_sketch_product.csv";
 
   // stage jl cols from file
   std::vector<std::vector<double>> file_jl_cols;

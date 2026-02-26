@@ -68,7 +68,7 @@ mod integration_tests {
     use sprs::{CsMat,TriMat,CsMatI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
-    use ndarray::{Axis, Array1};
+    use ndarray::{Axis, Array1, Array2};
     use ::approx::{AbsDiffEq};
     use petgraph::Graph;
     use petgraph::algo::{connected_components,min_spanning_tree};
@@ -222,6 +222,9 @@ mod integration_tests {
         println!("rust evim has dimensions {} x {}", evim.rows(), evim.cols());
         for (_edge_number, edge_vec) in evim.outer_iterator().enumerate() {
             //println!("{}", edge_number);
+            // if _edge_number <= 10 {
+            //     println!("column {} is {:?}", _edge_number, edge_vec);
+            // }
             let mut indices: Vec<i32> = vec![];
             let mut values: Vec<f64> = vec![];
             for (endpoint, value) in edge_vec.iter() {
@@ -242,9 +245,16 @@ mod integration_tests {
         sparsifier.check_diagonal();
 
         let julia_evim = utils::read_mtx_csr::<i32>("interop_test/julia_evim.mtx").transpose_into();
+        let julia_nnz = julia_evim.nnz();
+        assert_eq!(julia_nnz, lap_nnz);
         println!("julia evim has dimensions {} x {}", julia_evim.rows(), julia_evim.cols());
+        assert_eq!(evim.rows(), julia_evim.rows());
+        assert_eq!(evim.cols(), julia_evim.cols());
         for (_edge_number, edge_vec) in julia_evim.outer_iterator().enumerate() {
             //println!("{}", edge_number);
+            // if _edge_number <= 10 {
+            //     println!("column {} is {:?}", _edge_number, edge_vec);
+            // }
             let mut indices: Vec<i32> = vec![];
             let mut values: Vec<f64> = vec![];
             for (endpoint, value) in edge_vec.iter() {
@@ -850,7 +860,7 @@ mod integration_tests {
         let diff_norm_array = Array1::from_vec(new_diff_norms);
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
         println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
-        let target_diff_norm_mean = 2.6971700905959435_f64;  // value obtained from tianyu's julia code
+        let target_diff_norm_mean = 2.6968945977169607_f64;  // value obtained from tianyu's julia code
         assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.00001))
     }
 
@@ -885,7 +895,7 @@ mod integration_tests {
         let diff_norm_array = Array1::from_vec(new_diff_norms);
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
         println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
-        let target_diff_norm_mean = 2.6971700905959435_f64; // value obtained from tianyu's julia code
+        let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
         assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
     }
 
@@ -898,10 +908,20 @@ mod integration_tests {
         sum
     }
 
+    // vibe coded function to find max entry of sketch product difference matrix for debugging purposes
+    fn max_value<T>(a: &Array2<T>) -> Option<T>
+    where
+        T: Copy + PartialOrd,
+    {
+        a.iter().cloned().max_by(|x, y| x.partial_cmp(y).unwrap())
+    }
+
+
     // fails
     #[test]
-    //#[ignore]
+    // #[ignore]
     fn diff_norm_interop3(){
+        evim_csc_equiv();
         let seed: u64 = 1;
         let jl_factor: f64 = 4.0;
         let epsilon = 0.5;
@@ -921,12 +941,51 @@ mod integration_tests {
         }
 
         let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
-        println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
+        //println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
+        
         let julia_evim = utils::read_mtx_csr::<i32>("interop_test/julia_evim.mtx").transpose_into();
-        println!("sum of abs value of julia evim entries: {}", sum_abs_evim(&julia_evim));
-        //assert!(evim.abs_diff_eq(&julia_evim, 0.01));
+        //println!("sum of abs value of julia evim entries: {}", sum_abs_evim(&julia_evim));
+        let julia_evim_clone = julia_evim.clone();
+        let (indptr, indices, data) = julia_evim_clone.into_raw_storage();
+        //println!("first entry in julia evim: row {}, col {}, value {}", indptr[0], indices[0], data[0]);
+        for (value, (row, col)) in evim.iter() {
+            let julia_value = julia_evim.get(row.try_into().unwrap(),col.try_into().unwrap()).unwrap_or_else(|| panic!("no julia entry in row {}, col {}. value is {}", row, col, value));
+            assert!(value.abs_diff_eq(&julia_value, 0.01));
+        }
         // then compute JL sketch of it
-        let sketch_cols: ffi::FlattenedVec = sparsifier.jl_sketch_sparse_flat(&evim);
+        let sketch_cols = sparsifier.jl_sketch_sparse(&evim);
+        //let julia_sketch_cols = &crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_product.mtx").to_dense();
+        let julia_sketch_cols = utils::read_vecs_from_file_flat("interop_test/julia_sketch_product.csv");
+
+        let num_rows = sketch_cols.dim().0;
+        let num_cols = sketch_cols.dim().1;
+        //println!("rust shape: {:?}, julia shape: {:?}", sketch_cols.dim(), julia_sketch_cols.dim());
+        // let mut mismatch = false;
+        // for i in 0..num_rows {
+        //     for j in 0..num_cols {
+        //         if !mismatch && sketch_cols[[i,j]].abs_diff_eq(&julia_sketch_cols[[i,j]], 0.1) {
+        //             println!("mismatch in position {},{}. rust = {}, julia = {}",
+        //             i, j, sketch_cols[[i,j]], julia_sketch_cols[[i,j]]);
+        //             mismatch = true;
+        //         }
+        //         // assert!(sketch_cols[[i,j]].abs_diff_eq(&julia_sketch_cols[[i,j]], 0.001), 
+        //         // "mismatch in position {},{}. rust = {}, julia = {}",
+        //         // i, j, sketch_cols[[i,j]], julia_sketch_cols[[i,j]]);
+        //     }
+        // }
+        let mut flat_sketch_cols = ffi::FlattenedVec::new(&sketch_cols);
+        
+        // for i in 0..flat_julia_sketch_cols_mtx.vec.len() {
+        //     let mtx = flat_julia_sketch_cols_mtx.vec[i];
+        //     let csv = flat_julia_sketch_cols_csv.vec[i];
+        //     assert!(mtx.abs_diff_eq(&csv, 0.01), "difference at position {}, mtx says {} but csv says {}", i, mtx, csv);
+        // }
+        let difference = Array1::from_vec(flat_sketch_cols.vec.clone()) - Array1::from_vec(julia_sketch_cols.vec.clone());
+        println!("the mean difference between rust and julia products is {} and the std dev of the difference is {}.",
+             &difference.mean().unwrap(), &difference.std(0.0)
+             //, max_value(&difference).unwrap()
+        );
+        
         sparsifier.form_laplacian(true);
         let num_edges = sparsifier.num_edges();
 
@@ -934,13 +993,64 @@ mod integration_tests {
         let row_indices: Vec<i32> = sparsifier.current_laplacian.indices().to_vec();
         let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
 
-        let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, sparsifier.num_nodes.as_i32(), false);
+        //let julia_sketch_from_csv = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
+        let solution = ffi::run_solve_lap(flat_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, sparsifier.num_nodes.as_i32(), false);
         
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
         let diff_norm_array = Array1::from_vec(new_diff_norms);
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
         println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
-        let target_diff_norm_mean = 2.6971700905959435_f64; // value obtained from tianyu's julia code
+        let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
+        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
+    }
+
+    // fails
+    #[test]
+    // #[ignore]
+    fn diff_norm_interop4(){
+        evim_csc_equiv();
+        let seed: u64 = 1;
+        let jl_factor: f64 = 4.0;
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = true;
+        let benchmarker = Benchmarker::new(false);
+
+        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+
+        let stream = InputStream::new(input_filename, "");
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+
+        for (value, (row, col)) in stream.input_matrix.iter() {
+            //assert!(*value >= 0.0);
+            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+        }
+
+        let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
+        //println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
+        
+        // then compute JL sketch of it
+        let sketch_cols = sparsifier.jl_sketch_sparse(&evim);
+
+        let mut flat_sketch_cols = ffi::FlattenedVec::new(&sketch_cols);
+        let flat_julia_sketch_cols = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
+
+        sparsifier.form_laplacian(true);
+        let num_edges = sparsifier.num_edges();
+
+        let col_ptrs: Vec<i32> = sparsifier.current_laplacian.indptr().as_slice().unwrap().to_vec();
+        let row_indices: Vec<i32> = sparsifier.current_laplacian.indices().to_vec();
+        let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
+
+        //let julia_sketch_from_csv = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
+        let solution = ffi::run_solve_lap(flat_julia_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, sparsifier.num_nodes.as_i32(), false);
+        
+        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
+        let diff_norm_array = Array1::from_vec(new_diff_norms);
+        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
+        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
+        let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
         assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
     }
 
