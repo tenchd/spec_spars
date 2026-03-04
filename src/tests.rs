@@ -789,12 +789,12 @@ mod integration_tests {
         println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
         // note that this is brittle; relies on the below parameters matching the values used when the solution in the file was originally computed.
         // figure out how to fix later.
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
         let epsilon = 0.5;
         let beta_constant = 4;
         let row_constant = 2;
         let verbose = false;
+        let jl_factor: f64 = 1.5;
+        let seed: u64 = 1;
         let benchmarker = Benchmarker::new(false);
 
         let laplacian_filepath = "test_data/virus_lap.mtx";

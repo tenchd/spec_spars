@@ -139,6 +139,54 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
     }
 }
 
+pub struct SparsifierParameters<IndexType: CustomIndex> {
+    pub epsilon: f64,
+    pub beta_constant: IndexType,
+    pub row_constant: IndexType,
+    pub verbose: bool,
+    pub jl_factor: f64,
+    pub sketch_seed: u64,
+    pub sampling_seed: u64, 
+    pub benchmarker: Benchmarker,
+}
+
+impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
+    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, sketch_seed: u64, sampling_seed: u64, benchmarker: Benchmarker) -> SparsifierParameters<IndexType> {
+        SparsifierParameters{
+            epsilon: epsilon,
+            beta_constant: beta_constant,
+            row_constant: row_constant,
+            verbose: verbose,
+            jl_factor: jl_factor,
+            sketch_seed: sketch_seed,
+            sampling_seed: sampling_seed, 
+            benchmarker: benchmarker,
+        }
+    }
+
+    pub fn new_default() -> SparsifierParameters<IndexType> {
+        let epsilon = 0.5;
+        let beta_constant = 4;
+        let row_constant = 2;
+        let verbose = false;
+        let jl_factor: f64 = 1.5;
+        let sketch_seed = 1;
+        let sampling_seed = 1;
+        let benchmarker = Benchmarker::new(false);
+
+        SparsifierParameters{
+            epsilon: epsilon,
+            beta_constant: CustomIndex::from_int(beta_constant),
+            row_constant: CustomIndex::from_int(row_constant),
+            verbose: verbose,
+            jl_factor: jl_factor,
+            sketch_seed: sketch_seed,
+            sampling_seed: sampling_seed, 
+            benchmarker: benchmarker,
+        }
+    }
+}
+
 pub struct Sparsifier<IndexType: CustomIndex>{
     pub num_nodes: IndexType,     // number of nodes in input graph. we need to know this at construction time.
     pub new_entries: Triplet<IndexType>,  //stores values that haven't been sparsified yet
