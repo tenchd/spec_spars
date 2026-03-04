@@ -33,11 +33,11 @@ impl<T> CustomValue for T where T: num_traits::float::Float + std::ops::AddAssig
     }
 }
 
-pub trait CustomIndex: SpIndex + std::range::Step + std::fmt::Display {
+pub trait CustomIndex: SpIndex + std::iter::Step + std::fmt::Display {
     fn from_int<U: num_traits::int::PrimInt>(value: U) -> Self;
     fn as_i32(&self) -> i32;
 }
-impl<T> CustomIndex for T where T: SpIndex + std::range::Step + std::fmt::Display {
+impl<T> CustomIndex for T where T: SpIndex + std::iter::Step + std::fmt::Display {
     fn from_int<U: num_traits::int::PrimInt>(value: U) -> Self {
         T::from(value).unwrap()
     }

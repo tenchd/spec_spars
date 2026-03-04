@@ -1093,7 +1093,7 @@ FlattenedVec test_diff_norm_sub(std::vector<std::vector<double>> jl_cols, bool v
     printf("performing diff norm c++ test\n");
     printf("-------------------------------------\n");
   }
-  constexpr const char *input_filename = "test_data/new_lap_rust.mtx";
+  constexpr const char *input_filename = "test_data/virus_lap.mtx";
   int num_threads = 32; 
   constexpr char *output_filename = "output/file_only.txt";
   bool is_graph = 1;

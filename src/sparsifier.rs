@@ -261,6 +261,18 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         result
     }
 
+    //vibe coded function to test whether uniform (-1, 1) jl sketch fixes the problem
+    pub fn u32_to_f64_minus_one_to_one(&self, x: u32) -> f64 {
+        // 2³² as a floating‑point constant – exact (mantissa = 53 bits ≥ 32).
+        const SCALE: f64 = (1u64 << 32) as f64;      // = 4 294 967 296.0
+
+        // (x + 0.5) / 2³²  ∈ (0, 1)   – open interval, uniformly spaced.
+        let u = (x as f64 + 0.5) / SCALE;
+
+        // Stretch to (-1, 1).  Linear map: y = 2·u – 1.
+        2.0 * u - 1.0
+    }
+
     pub fn hash_with_inputs(&self, input1: u64, input2: u64) -> i64 {
         //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
         let mut checkhash = CityHasher::with_seed(self.seed);
@@ -273,6 +285,18 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         self.transform(result as i64)
     }
 
+    pub fn hash_with_inputs_alt(&self, input1: u64, input2: u64) -> f64 {
+        //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
+        let mut checkhash = CityHasher::with_seed(self.seed);
+        // let mut checkhash = MetroHasher::with_seed(self.seed.try_into().unwrap());
+
+        input1.hash(&mut checkhash);
+        input2.hash(&mut checkhash);
+        let result = checkhash.finish() as u32;
+        //println!("{}",result);
+        self.u32_to_f64_minus_one_to_one(result)
+    }
+
     // used to completely fill a jl sketch matrix with random values from a hash function. only used for correctness testing
     pub fn populate_matrix(&self, input: &mut Array2<f64>) {
         let rows = input.dim().0;
@@ -282,7 +306,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         for i in 0..rows {
             for j in 0..cols {
                 //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) / scaling_factor;
-                input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) * scaling_factor;
+                //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) * scaling_factor;
+                input[[i,j]] += self.hash_with_inputs_alt(i as u64, j as u64) * scaling_factor;
             }
         }
         //let col_means = input.mean_axis(Axis(0));
@@ -296,8 +321,9 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let scaling_factor = (3.0_f64).sqrt();
         for col in 0..num_cols {
             let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
-            //input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap();
-            input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) * scaling_factor).unwrap();
+            // input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap();
+            // input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) * scaling_factor).unwrap();
+            input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs_alt(row.index() as u64, actual_col as u64) * scaling_factor).unwrap();
         }
     }
 
@@ -307,11 +333,11 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     pub fn jl_sketch_sparse(&self, og_matrix: &CsMatI<f64, IndexType>) -> Array2<f64> {
         let og_rows = og_matrix.rows();
         let og_cols = og_matrix.cols();
-        //let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,self.jl_dim.index()));
+        let mut sketch_matrix: Array2<f64> = Array2::zeros((og_cols,self.jl_dim.index()));
         if self.verbose {println!("EVIM has {} rows and {} cols, jl sketch matrix has {} rows and {} cols", og_rows, og_cols, og_cols, self.jl_dim);}
-        //self.populate_matrix(&mut sketch_matrix);
-        let mut sketch_matrix = crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_factor.mtx").to_dense();
-        sketch_matrix = sketch_matrix * 3.0_f64.sqrt();
+        self.populate_matrix(&mut sketch_matrix);
+        //let mut sketch_matrix = crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_factor.mtx").to_dense();
+        //sketch_matrix = sketch_matrix * 3.0_f64.sqrt();
         println!("mean of sketch matrix is {}, std dev of sketch matrix is {}", sketch_matrix.mean().unwrap() ,sketch_matrix.std(0.0));
         //println!("first and second entries of sketch matrix: {}, {}", sketch_matrix[[0,0]], sketch_matrix[[0,1]]);
         if self.verbose {println!("populated sketch matrix");}
