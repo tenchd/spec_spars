@@ -5,7 +5,8 @@ use std::thread;
 use std::hash::{Hash,Hasher};
 use std::ops::Mul;
 
-use rand::Rng;
+use rand::{Rng,SeedableRng};
+use rand::rngs::StdRng;
 use approx::AbsDiffEq;
 use fasthash::FastHasher;
 use fasthash::murmur2::Hasher64_x64 as Murmur2Hasher;
@@ -147,11 +148,13 @@ pub struct SparsifierParameters<IndexType: CustomIndex> {
     pub jl_factor: f64,
     pub sketch_seed: u64,
     pub sampling_seed: u64, 
-    pub benchmarker: Benchmarker,
+    pub bench: bool,
 }
 
 impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
-    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, sketch_seed: u64, sampling_seed: u64, benchmarker: Benchmarker) -> SparsifierParameters<IndexType> {
+    // standard constructor
+    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool) -> SparsifierParameters<IndexType> {
+
         SparsifierParameters{
             epsilon: epsilon,
             beta_constant: beta_constant,
@@ -160,11 +163,12 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             jl_factor: jl_factor,
             sketch_seed: sketch_seed,
             sampling_seed: sampling_seed, 
-            benchmarker: benchmarker,
+            bench: bench,
         }
     }
 
-    pub fn new_default() -> SparsifierParameters<IndexType> {
+    // constructor that provides default values for parameters; used to sync behavior with reference Julia implementation.
+    pub fn new_default(bench: bool) -> SparsifierParameters<IndexType> {
         let epsilon = 0.5;
         let beta_constant = 4;
         let row_constant = 2;
@@ -172,7 +176,6 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
         let jl_factor: f64 = 1.5;
         let sketch_seed = 1;
         let sampling_seed = 1;
-        let benchmarker = Benchmarker::new(false);
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -182,7 +185,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             jl_factor: jl_factor,
             sketch_seed: sketch_seed,
             sampling_seed: sampling_seed, 
-            benchmarker: benchmarker,
+            bench: bench,
         }
     }
 }
@@ -200,66 +203,77 @@ pub struct Sparsifier<IndexType: CustomIndex>{
     pub verbose: bool,    //when true, prints a bunch of debugging info
     pub jl_factor: f64, //constant factor for jl sketch matrix
     pub jl_dim: IndexType, 
-    pub seed: u64,   //random seed for hashed jl sketch matrix
+    pub sketch_seed: u64,   //random seed for hashed jl sketch matrix
+    pub sampling_seed: u64,    // seed for sampling edges during sparsification
     pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
 }
 
 impl<IndexType: CustomIndex> Sparsifier<IndexType> {
-    pub fn new(num_nodes: IndexType, epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, seed: u64, benchmarker: Benchmarker) -> Sparsifier<IndexType> {
+    pub fn new(num_nodes: IndexType, parameters: &SparsifierParameters<IndexType>) -> Sparsifier<IndexType> {
         // as per line 1
-        let beta = from_int((epsilon.powf(-2.0) * (beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
+        let beta = from_int((parameters.epsilon.powf(-2.0) * (parameters.beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
         // as per 3(b) condition
-        let threshold = num_nodes * beta * row_constant;
+        let threshold = num_nodes * beta * parameters.row_constant;
         // initialize empty new elements triplet vectors
         let new_entries: Triplet<IndexType> = Triplet::new(num_nodes);
         // initialize empty sparse matrix for the laplacian
         // it needs to have num_nodes+1 rows and cols actually
         let current_laplacian: CsMatI<f64, IndexType> = CsMatI::<f64, IndexType>::zero((num_nodes.index(), num_nodes.index()));     
-        let jl_dim = from_int(((num_nodes.index() as f64).log2() *jl_factor).ceil() as usize);
+        let jl_dim = from_int(((num_nodes.index() as f64).log2() *parameters.jl_factor).ceil() as usize);        
+        let mut benchmarker = Benchmarker::new(false);
+        if parameters.bench {
+            benchmarker = Benchmarker::new(true);
+        }
 
         Sparsifier{
             num_nodes: num_nodes,
             new_entries: new_entries,
             current_laplacian: current_laplacian,
             threshold: threshold,
-            epsilon: epsilon,
-            beta_constant: beta_constant,
-            row_constant: row_constant,
+            epsilon: parameters.epsilon,
+            beta_constant: parameters.beta_constant,
+            row_constant: parameters.row_constant,
             beta: beta,
-            verbose: verbose,
-            jl_factor: jl_factor,
+            verbose: parameters.verbose,
+            jl_factor: parameters.jl_factor,
             jl_dim: jl_dim,
-            seed: seed,
+            sketch_seed: parameters.sketch_seed,
+            sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
         }
     }
 
-    pub fn from_matrix(filename: &str, epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, seed: u64, benchmarker: Benchmarker) -> Sparsifier<IndexType> {
+    pub fn from_matrix(filename: &str, parameters: &SparsifierParameters<IndexType>) -> Sparsifier<IndexType> {
         let current_laplacian: CsMatI<f64, IndexType> = crate::utils::read_mtx(filename);
         let num_nodes: IndexType = CustomIndex::from_int(current_laplacian.rows());  
         // as per line 1
-        let beta = from_int((epsilon.powf(-2.0) * (beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
+        let beta = from_int((parameters.epsilon.powf(-2.0) * (parameters.beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
         //println!("beta is {}, result of multiplying ep^-2 = {} * beta_constant = {} * log(n) = {}", 
         //    beta, epsilon.powf(-2.0), beta_constant.index(), (num_nodes.index() as f64).log(2.0));
         // as per 3(b) condition
-        let threshold = num_nodes * beta * row_constant;
+        let threshold = num_nodes * beta * parameters.row_constant;
         // initialize empty new elements triplet vectors
         let new_entries: Triplet<IndexType> = Triplet::new(num_nodes);   
-        let jl_dim = from_int(((num_nodes.index() as f64).log2() *jl_factor).ceil() as usize);
+        let jl_dim = from_int(((num_nodes.index() as f64).log2() *parameters.jl_factor).ceil() as usize);
+        let mut benchmarker = Benchmarker::new(false);
+        if parameters.bench {
+            benchmarker = Benchmarker::new(true);
+        }
 
         Sparsifier{
             num_nodes: num_nodes,
             new_entries: new_entries,
             current_laplacian: current_laplacian,
             threshold: threshold,
-            epsilon: epsilon,
-            beta_constant: beta_constant,
-            row_constant: row_constant,
+            epsilon: parameters.epsilon,
+            beta_constant: parameters.beta_constant,
+            row_constant: parameters.row_constant,
             beta: beta,
-            verbose: verbose,
-            jl_factor: jl_factor,
+            verbose: parameters.verbose,
+            jl_factor: parameters.jl_factor,
             jl_dim: jl_dim,
-            seed: seed,
+            sketch_seed: parameters.sketch_seed,
+            sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
         }
     }
@@ -323,7 +337,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
     pub fn hash_with_inputs(&self, input1: u64, input2: u64) -> i64 {
         //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
-        let mut checkhash = CityHasher::with_seed(self.seed);
+        let mut checkhash = CityHasher::with_seed(self.sketch_seed);
         // let mut checkhash = MetroHasher::with_seed(self.seed.try_into().unwrap());
 
         input1.hash(&mut checkhash);
@@ -335,7 +349,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
     pub fn hash_with_inputs_alt(&self, input1: u64, input2: u64) -> f64 {
         //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
-        let mut checkhash = CityHasher::with_seed(self.seed);
+        let mut checkhash = CityHasher::with_seed(self.sketch_seed);
         // let mut checkhash = MetroHasher::with_seed(self.seed.try_into().unwrap());
 
         input1.hash(&mut checkhash);
@@ -537,9 +551,9 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         return probs;
     }
 
-    pub fn flip_coins(length: usize) -> Vec<f64> {
-        let mut rng = rand::thread_rng();
-        //let coins = vec![rng.gen_range(0.0..1.0); length];
+    pub fn flip_coins(&self, length: usize) -> Vec<f64> {
+        //let mut rng = rand::thread_rng();
+        let mut rng = StdRng::seed_from_u64(self.sampling_seed);
         let mut coins = vec![0.0; length];
         for i in 0..length {
             coins[i] += rng.gen_range(0.0..1.0);
@@ -548,7 +562,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     }
     //TODO: move sampling and reweighting logic into this function
     pub fn sample_and_reweight(&mut self, probs: Vec<f64>) -> Triplet<IndexType> {
-        let coins = Self::flip_coins(probs.len());
+        let coins = self.flip_coins(probs.len());
 
         //encodes whether each edge survives sampling or not. True means it is sampled, False means it's not sampled
         let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();

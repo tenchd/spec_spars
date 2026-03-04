@@ -78,7 +78,7 @@ mod integration_tests {
     use crate::utils::{Benchmarker,CustomIndex};
     use crate::ffi;
     use crate::tests::make_random_evim_matrix;
-    use crate::sparsifier::{Triplet};
+    use crate::sparsifier::{Triplet, SparsifierParameters};
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. 
     // ensures that we always have a valid laplacian, i.e., that the row and column sums are 0.
@@ -86,18 +86,10 @@ mod integration_tests {
     //#[ignore]
     fn lap_valid_random() {
         println!("TEST:----Running lap validity test: insert many random updates and periodically check laplacian for validity.-----");
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
         let num_nodes = 10000;
+        let parameters = SparsifierParameters::new_default(false);
 
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(num_nodes, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let mut sparsifier = Sparsifier::new(num_nodes, &parameters);
 
         //generate random stream of updates
         let mut rng = rand::thread_rng();
@@ -123,18 +115,11 @@ mod integration_tests {
         println!("TEST:-----Testing that, given edge probabilities all 0.5, laplacian is appropriately sparsified.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         //let input_filename = "data/test.mtx";
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-
+        
         let stream = InputStream::new(input_filename, "");
 
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         // insert edges into new_entries
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -188,18 +173,13 @@ mod integration_tests {
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
+        
 
         let stream = InputStream::new(input_filename, "");
 
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+    
+        let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -284,17 +264,11 @@ mod integration_tests {
         let num_cols = 60000;
         let csc = true;
             
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
 
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
+        let parameters = SparsifierParameters::new_default(false);
+        let jl_dim = ((num_rows as f64).log2() *parameters.jl_factor).ceil() as usize;
 
-        let benchmarker = Benchmarker::new(false);
-        let sparsifier = Sparsifier::new(num_rows, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let sparsifier = Sparsifier::new(num_rows, &parameters);
 
 
         let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
@@ -322,20 +296,15 @@ mod integration_tests {
     fn jl_sketch_equiv_virus(){
         println!("TEST:-----Testing that simplified jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
 
         let stream = InputStream::new(input_filename, "");
         let num_rows = stream.num_nodes;
-        let jl_dim = ((num_rows as f64).log2() *jl_factor).ceil() as usize;
 
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+
+        let parameters = SparsifierParameters::new_default(false);
+        let jl_dim = ((num_rows as f64).log2() *parameters.jl_factor).ceil() as usize;
+
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -370,22 +339,11 @@ mod integration_tests {
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-        let seed: u64 = 2;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-
-
-        // let test = utils::load_pattern_as_csr(input_filename);
-        // println!("made it");
 
         let stream = InputStream::new(input_filename, "");
 
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -416,18 +374,11 @@ mod integration_tests {
     pub fn flatten_interop() {
         println!("TEST:-----Verifying that flattening doesn't corrupt jl sketch columns.-----");
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
 
         let stream = InputStream::new(input_filename, "");
 
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let parameters= SparsifierParameters::new_default(false);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
@@ -561,20 +512,13 @@ mod integration_tests {
     //#[ignore]
     fn check_for_additions() {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let benchmark = true;
+        let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
         let stream = InputStream::new(input_filename, "");
-        let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
         //stream.input_matrix       // input matrix
         //sparsifier.current_laplacian   //sparsifier matrix
@@ -607,14 +551,7 @@ mod integration_tests {
     #[ignore]
     fn check_for_additions_long() {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph, for a lot of datasets.-----");
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let benchmark = true;
+        let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
         let input_filenames = ["/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
@@ -624,7 +561,7 @@ mod integration_tests {
         for input_filename in input_filenames {
 
             let stream = InputStream::new(input_filename, "");
-            let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+            let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
             //stream.input_matrix       // input matrix
             //sparsifier.current_laplacian   //sparsifier matrix
@@ -658,14 +595,7 @@ mod integration_tests {
     //#[ignore]
     fn check_for_additions_mini() {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let benchmark = true;
+        let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
         // let mut random_matrix = crate::tests::make_random_matrix(20,20,40,true);
@@ -678,7 +608,7 @@ mod integration_tests {
         let input_filename = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
 
         let stream = InputStream::new(input_filename, "small_input");
-        let mut sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+        let mut sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
         //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, "small_input",true);
 
         // below commented code adds "bad" edges, if you uncomment this the test should fail. I included this to verify that erroneous edge 
@@ -745,18 +675,12 @@ mod integration_tests {
 
     fn graphtest(input_filename: &str) {
         //println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
-        let seed: u64 = 1;
-        let jl_factor: f64 = 4.0;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let benchmark = true;
+        let mut parameters = SparsifierParameters::new_default(true);
+        parameters.jl_factor = 4.0;
         let test = true;
 
         let stream = InputStream::new(input_filename, "");
-        let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
         let original_graph = stream.get_input_graph();
         //let sparsified_graph: Graph<usize, f64, petgraph::Undirected, usize> = Graph::from_elements(min_spanning_tree(&original_graph));
@@ -789,19 +713,13 @@ mod integration_tests {
         println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
         // note that this is brittle; relies on the below parameters matching the values used when the solution in the file was originally computed.
         // figure out how to fix later.
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let jl_factor: f64 = 1.5;
-        let seed: u64 = 1;
-        let benchmarker = Benchmarker::new(false);
+        let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
 
         let laplacian_filepath = "test_data/virus_lap.mtx";
         let file_solution_dense = crate::utils::read_mtx::<i32>("test_data/solution.mtx").to_dense();
         let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
 
-        let sparsifier = Sparsifier::from_matrix(laplacian_filepath, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let sparsifier = Sparsifier::from_matrix(laplacian_filepath, &parameters);
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
         println!("num nodes = {}, num edges = {}, beta = {}, epsilon = {}, jl_factor = {}, jl dim = {}", 
@@ -846,16 +764,11 @@ mod integration_tests {
     #[test]
     //#[ignore]
     fn diff_norm_interop1(){
-        let seed: u64 = 2;
-        let jl_factor: f64 = 4.0;
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let benchmarker = Benchmarker::new(false);
+        let mut parameters = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
 
         let laplacian_filepath = "test_data/virus_lap.mtx";
-        let mut sparsifier = Sparsifier::from_matrix(laplacian_filepath, epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let mut sparsifier = Sparsifier::from_matrix(laplacian_filepath, &parameters);
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
         let solution: ffi::FlattenedVec = ffi::test_diff_norm();
@@ -902,18 +815,14 @@ mod integration_tests {
     #[test]
     //#[ignore]
     fn diff_norm_interop2(){
-        let seed: u64 = 1;
-        let jl_factor: f64 = 4.0;
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = true;
-        let benchmarker = Benchmarker::new(false);
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+        parameters.verbose = true;
 
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
         let stream = InputStream::new(input_filename, "");
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             //assert!(*value >= 0.0);
@@ -956,18 +865,14 @@ mod integration_tests {
     // #[ignore]
     fn diff_norm_interop3(){
         evim_csc_equiv();
-        let seed: u64 = 1;
-        let jl_factor: f64 = 4.0;
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = true;
-        let benchmarker = Benchmarker::new(false);
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+        parameters.verbose = true;
 
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
         let stream = InputStream::new(input_filename, "");
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             //assert!(*value >= 0.0);
@@ -1049,18 +954,14 @@ mod integration_tests {
     // #[ignore]
     fn diff_norm_interop4(){
         evim_csc_equiv();
-        let seed: u64 = 1;
-        let jl_factor: f64 = 4.0;
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = true;
-        let benchmarker = Benchmarker::new(false);
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+        parameters.verbose = true;
 
         let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
         let stream = InputStream::new(input_filename, "");
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             //assert!(*value >= 0.0);

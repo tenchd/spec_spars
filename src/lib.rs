@@ -17,7 +17,7 @@ pub mod stream;
 pub mod tests;
 
 use utils::read_mtx;
-use sparsifier::{Sparsifier};
+use sparsifier::{Sparsifier,SparsifierParameters};
 use stream::InputStream;
 use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
@@ -85,18 +85,19 @@ impl FlattenedVec {
     }
 }
 
-pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose: bool, seed: u64, benchmark: bool) {
+pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose: bool, sketch_seed: u64, sampling_seed: u64, benchmark: bool) {
     
     // for now, users can't set these parameters
     let jl_factor: f64 = 4.0;
     let beta_constant = 4;
     let row_constant = 2;
+    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, sketch_seed, sampling_seed, benchmark);
 
     // not a test
     let test = false;
 
     let stream = InputStream::new(input_filename, dataset_name);
-    stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
+    stream.run_stream(&parameters, test);
 }
 
 

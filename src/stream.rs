@@ -1,6 +1,6 @@
 use std::process::Command;
 use sprs::CsMatI;
-use crate::{read_mtx,Sparsifier};
+use crate::{read_mtx,Sparsifier, sparsifier::SparsifierParameters};
 use crate::utils::Benchmarker;
 use petgraph::Graph;
 
@@ -45,9 +45,9 @@ impl InputStream {
         }
     }
 
-    pub fn run_stream(&self, epsilon: f64, beta_constant: i32, row_constant: i32, verbose: bool, jl_factor: f64, seed: u64, benchmark: bool, test: bool) -> Sparsifier<i32> {
-        let benchmarker = Benchmarker::new(benchmark);
-        let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+    pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool) -> Sparsifier<i32> {
+        //let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), parameters);
 
         for (value, (row, col)) in self.input_matrix.iter() {
             //assert!(*value >= 0.0);
@@ -89,15 +89,8 @@ impl InputStream {
 
     #[allow(dead_code)]
     pub fn produce_laplacian(&self) -> CsMatI<f64, i32>{
-        let seed: u64 = 1;
-        let jl_factor: f64 = 1.5;
-
-        let epsilon = 0.5;
-        let beta_constant = 4;
-        let row_constant = 2;
-        let verbose = false;
-        let benchmarker = Benchmarker::new(false);
-        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
+        let parameters = SparsifierParameters::new_default(false);
+        let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in self.input_matrix.iter() {
             //assert!(*value >= 0.0);

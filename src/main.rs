@@ -22,9 +22,13 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
-    // allows the user to specify a seed for reproducibility.
+    // allows the user to specify a seed for jl sketching, for reproducibility.
     #[arg(short, long, default_value_t = 0)]
-    seed: u64,
+    sketch_seed: u64,    
+    
+    // allows the user to specify a seed for sampling, for reproducibility.
+    #[arg(short, long, default_value_t = 0)]
+    sampling_seed: u64,
 
     // default: benchmark the run. if flag is set, skips benchmarking.
     #[arg(short, long, default_value_t = false)]
@@ -55,7 +59,7 @@ fn process_standard_datasets(args: Args) {
         println!("============================================================");
         println!("            Processing {} dataset", current_dataset_name);
         println!("============================================================");
-        lap_test(current_input_file, current_dataset_name, args.epsilon, args.verbose, args.seed, !args.benchmark_skip);
+        lap_test(current_input_file, current_dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
         println!("============================================================");
         println!("             Finished {} dataset", current_dataset_name);
         println!("============================================================");
@@ -67,13 +71,13 @@ fn process_standard_datasets(args: Args) {
 fn main() {
     let args = Args::parse();
 
-    println!("Arguments are input file = {}, dataset name = {}, epsilon = {}, verbose = {}, seed = {}, benchmark skip = {}, process all = {}",
-        args.input_file, args.dataset_name, args.epsilon, args.verbose, args.seed, args.benchmark_skip, args.process_all);
+    println!("Arguments are input file = {}, dataset name = {}, epsilon = {}, verbose = {}, sketch seed = {}, sampling seed = {}, benchmark skip = {}, process all = {}",
+        args.input_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, args.benchmark_skip, args.process_all);
     if args.process_all {
         process_standard_datasets(args);
     }
     else {
-        lap_test(&args.input_file, &args.dataset_name, args.epsilon, args.verbose, args.seed, !args.benchmark_skip);
+        lap_test(&args.input_file, &args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
     }
     
 }
