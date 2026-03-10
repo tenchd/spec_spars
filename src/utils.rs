@@ -307,7 +307,7 @@ pub fn test_array_file(){
     for i in 0..repetitions {
         let test_matrix_sparse = make_random_matrix(rows, cols, nnz, csc, false);
         let test_matrix = test_matrix_sparse.to_dense();
-        let temp_filename = "test_data/temp.csv";
+        let temp_filename = "temp.csv";
 
         write_f64_ndarray_to_csv(&test_matrix, temp_filename);
         let recovered_matrix_flat = read_vecs_from_file_flat(temp_filename);
@@ -319,6 +319,7 @@ pub fn test_array_file(){
         // println!("{:?}", recovered_matrix);
         assert!(test_matrix.abs_diff_eq(&recovered_matrix, 0.0001));
     }
+    std::fs::remove_file("temp.csv");
 }
 
 pub fn read_csv_as_vec<P: AsRef<Path>>(path: P) -> Result<Vec<f64>, Box<dyn Error>> {

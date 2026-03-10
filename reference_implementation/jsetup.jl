@@ -1,0 +1,2 @@
+import Pkg
+Pkg.add(["Laplacians", "MatrixMarket", "LinearAlgebra", "SparseArrays", "DelimitedFiles", "LoopVectorization", "Plots", "Random", "Metis", "Statistics", "Graphs", "GraphsFlows", "KrylovKit", "Distributions", "RandomNumbers", "Random123", "MAT", "IterativeSolvers", "Printf"])

@@ -79,6 +79,49 @@ mod integration_tests {
     use crate::ffi;
     use crate::tests::make_random_evim_matrix;
     use crate::sparsifier::{Triplet, SparsifierParameters};
+    //-----static variables used to standardize location of files used in correctness tests.-----
+    // filenames for original file inputs
+    static INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
+    static INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
+    static INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
+    static INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
+    static INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
+
+    // filename for solver output file; empty string means it writes no output
+    static SOLVER_OUTPUT_FILENAME: &str= "";
+
+    // filename for laplacian file written out by rust
+    //static RUST_LAP_FILENAME: &str = "test_data/virus_lap.mtx";
+    static RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
+
+
+    // filename for laplacian written out by julia file
+    //static JULIA_LAP_FILENAME: &str = "../tianyu-stream/data/virus_lap_tianyu.mtx";
+    static JULIA_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_lap.mtx";
+    // evim from julia run
+    //static JULIA_EVIM_FILENAME: &str = "interop_test/julia_evim.mtx";
+    static JULIA_EVIM_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_evim.mtx";
+    // fill this in when i get to a test that uses it
+    //static JULIA_SKETCH_FACTOR_FILENAME: &str = "";
+    static JULIA_SKETCH_FACTOR_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv";
+    //static JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "interop_test/julia_sketch_product.csv";
+    static JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv";
+    static JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx";
+    //static JULIA_SOLUTION_FILENAME: &str = "test_data/solution.mtx";
+    static JULIA_SOLUTION_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_solution.mtx";
+
+    // diff norms written out from julia run
+    //static JULIA_DIFF_NORMS_FILENAME: &str = "interop_test/julia_diff_norms.csv";
+    static JULIA_DIFF_NORMS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv";
+    static JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
+    //static ALT_JULIA_DIFF_NORMS_FILENAME: &str = "test_data/diff_norms.csv";
+    //static ALT_JULIA_PROBS_FILENAME: &str = "test_data/probs.csv";
+
+    // filename for julia sketch product matrix. both loaded on the rust side and on the c++ side, usage depends on specific test
+    //static LEGACY_JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
+    //static LEGACY_JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "../tianyu-stream/data/virus_sketch_tianyu.csv";
+
+    
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. 
     // ensures that we always have a valid laplacian, i.e., that the row and column sums are 0.
@@ -113,10 +156,8 @@ mod integration_tests {
     //#[ignore]
     fn sampling_verify(){
         println!("TEST:-----Testing that, given edge probabilities all 0.5, laplacian is appropriately sparsified.-----");
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-        //let input_filename = "data/test.mtx";
         
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
 
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
@@ -171,11 +212,9 @@ mod integration_tests {
     #[test]
     //#[ignore]
     fn evim_csc_equiv(){
-        println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-        
+        println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");        
 
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
 
     
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
@@ -225,7 +264,7 @@ mod integration_tests {
         println!("rust evim and lap equivalent");
         sparsifier.check_diagonal();
 
-        let julia_evim = utils::read_mtx_csr::<i32>("interop_test/julia_evim.mtx").transpose_into();
+        let julia_evim = utils::read_mtx_csr::<i32>(JULIA_EVIM_FILENAME).transpose_into();
         let julia_nnz = julia_evim.nnz();
         assert_eq!(julia_nnz, lap_nnz);
         println!("julia evim has dimensions {} x {}", julia_evim.rows(), julia_evim.cols());
@@ -295,9 +334,8 @@ mod integration_tests {
     //#[ignore]
     fn jl_sketch_equiv_virus(){
         println!("TEST:-----Testing that simplified jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let num_rows = stream.num_nodes;
 
 
@@ -335,12 +373,12 @@ mod integration_tests {
     //#[ignore]
     pub fn jl_sketch_zero() {
         println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
+        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
         //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
 
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
 
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
@@ -369,13 +407,13 @@ mod integration_tests {
 
     }
 
+    // sends a sketch matrix via interop from rust to C++, unpacks it, then repacks it and sends it back. verifies that it recieves the same thing it sent.
     #[test]
     //#[ignore]
     pub fn flatten_interop() {
         println!("TEST:-----Verifying that flattening doesn't corrupt jl sketch columns.-----");
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
 
         let parameters= SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
@@ -437,13 +475,11 @@ mod integration_tests {
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
     // to really understand these tests you need to look at the functions with the same names in example.cc
     fn run_interop_test(test_selector: i32, verbose: bool) {
-        let sketch_filename = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
-        let lap_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
 
-        let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(sketch_filename);
+        let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(JULIA_SKETCH_PRODUCT_MTX_FILENAME);
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
         
-        let lap_stream: InputStream = InputStream::new(lap_filename, "");
+        let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
         let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
         let n = lap.cols();
@@ -457,7 +493,8 @@ mod integration_tests {
         println!("input values size in rust: {:?}. first value: {}", lap_values.len(), lap_values[0]);
         println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
 
-        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, n.try_into().unwrap(), test_selector, verbose);
+        // need to pass original input mtx, julia lap, julia sketch, output. 
+        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, INPUT_FILENAME_VIRUS, JULIA_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
         assert!(result);
     }
 
@@ -515,9 +552,7 @@ mod integration_tests {
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
         //stream.input_matrix       // input matrix
@@ -554,9 +589,7 @@ mod integration_tests {
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
-        let input_filenames = ["/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"];
+        let input_filenames = [INPUT_FILENAME_MOUSE, INPUT_FILENAME_HUMAN1, INPUT_FILENAME_HUMAN2];
 
         for input_filename in input_filenames {
 
@@ -605,9 +638,7 @@ mod integration_tests {
         // Command::new("bash").arg("-c").arg("sed '1,3d' data/small_input.mtx > data/small_input.edgelist").output();
         //println!("{:?}", random_matrix.map(&map_to_pattern).to_dense());
 
-        let input_filename = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
-
-        let stream = InputStream::new(input_filename, "small_input");
+        let stream = InputStream::new(INPUT_FILENAME_SMALL, "small_input");
         let mut sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
         //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, "small_input",true);
 
@@ -673,10 +704,12 @@ mod integration_tests {
     //     }
     // }
 
-    fn graphtest(input_filename: &str) {
+    fn graphtest(input_filename: &str, seed: u64) {
         //println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
         let mut parameters = SparsifierParameters::new_default(true);
         parameters.jl_factor = 4.0;
+        parameters.sketch_seed = seed;
+        parameters.sampling_seed = seed;
         let test = true;
 
         let stream = InputStream::new(input_filename, "");
@@ -689,21 +722,22 @@ mod integration_tests {
         let original_ccs = connected_components(&original_graph);
         let sparsified_ccs = connected_components(&sparsified_graph);
         println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", input_filename, original_ccs, sparsified_ccs);
-        //assert_eq!(original_ccs, sparsified_ccs);
+        assert_eq!(original_ccs, sparsified_ccs);
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn petgraph_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for several datasets.-----");
-        let input_filenames = ["/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx",
-                                       "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
-                                       "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
-                                       "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx"
-                                    ];
+        let input_filenames = [INPUT_FILENAME_VIRUS, 
+            //INPUT_FILENAME_MOUSE, INPUT_FILENAME_HUMAN1, INPUT_FILENAME_HUMAN2
+        ];
 
         for input_filename in input_filenames{
-            graphtest(input_filename);
+            for seed in 0..5 {
+                println!("running connectivity test for file {} with seed {}", input_filename, seed);
+                graphtest(input_filename, seed);
+            }
         }
     }
 
@@ -713,20 +747,21 @@ mod integration_tests {
         println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
         // note that this is brittle; relies on the below parameters matching the values used when the solution in the file was originally computed.
         // figure out how to fix later.
-        let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
-
-        let laplacian_filepath = "test_data/virus_lap.mtx";
-        let file_solution_dense = crate::utils::read_mtx::<i32>("test_data/solution.mtx").to_dense();
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+;
+        let file_solution_dense = crate::utils::read_mtx::<i32>(JULIA_SOLUTION_FILENAME).to_dense();
         let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
+        println!("file solution is {}x{}", file_solution_dense.dim().0, file_solution_dense.dim().1);
 
-        let sparsifier = Sparsifier::from_matrix(laplacian_filepath, &parameters);
+        let sparsifier = Sparsifier::from_matrix(RUST_LAP_FILENAME, &parameters);
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
         println!("num nodes = {}, num edges = {}, beta = {}, epsilon = {}, jl_factor = {}, jl dim = {}", 
             sparsifier.num_nodes, num_edges, sparsifier.beta_constant, sparsifier.epsilon, sparsifier.jl_factor, sparsifier.jl_dim);
 
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &file_solution_flat);
-        let file_diff_norms = crate::utils::read_csv_as_vec("test_data/diff_norms.csv").unwrap();
+        let file_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
         assert!(new_diff_norms.len() == file_diff_norms.len(), 
                 "diff norm length mismatch. julia has length {}, rust has length {}", file_diff_norms.len(), new_diff_norms.len());
         for i in 0..new_diff_norms.len() {
@@ -742,7 +777,7 @@ mod integration_tests {
         println!("norm mean = {}, norm std dev = {}", mean, std_dev);
 
         let new_probs = sparsifier.compute_probs(num_edges, &new_diff_norms);
-        let file_probs = crate::utils::read_csv_as_vec("test_data/probs.csv").unwrap();
+        let file_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
         //println!("first element in new probs is {}, first in file_probs is {}", new_probs.get(0).unwrap(), file_probs.get(0).unwrap());
         assert!(new_probs.len() == file_probs.len(), 
                 "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), new_probs.len());
@@ -767,15 +802,14 @@ mod integration_tests {
         let mut parameters = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
 
-        let laplacian_filepath = "test_data/virus_lap.mtx";
-        let mut sparsifier = Sparsifier::from_matrix(laplacian_filepath, &parameters);
+        let mut sparsifier = Sparsifier::from_matrix(RUST_LAP_FILENAME, &parameters);
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
-        let solution: ffi::FlattenedVec = ffi::test_diff_norm();
+        let solution: ffi::FlattenedVec = ffi::test_diff_norm(RUST_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME);
 
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
         let diff_norm_array = Array1::from_vec(new_diff_norms.clone());
-        let julia_diff_norms = crate::utils::read_csv_as_vec("interop_test/julia_diff_norms.csv").unwrap();
+        let julia_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
         let julia_diff_norm_array = Array1::from_vec(julia_diff_norms.clone());
         let difference = &diff_norm_array - &julia_diff_norm_array;
         println!("the mean difference between rust and julia diff norms is {} and the std dev of the difference is {}.",
@@ -801,13 +835,13 @@ mod integration_tests {
         println!("checking diagonal after sampling");
         sparsifier.check_diagonal();
 
-        let stream = InputStream::new(laplacian_filepath, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let original_graph = stream.get_input_graph();
         //let sparsified_graph: Graph<usize, f64, petgraph::Undirected, usize> = Graph::from_elements(min_spanning_tree(&original_graph));
         let sparsified_graph = sparsifier.to_petgraph();
         let original_ccs = connected_components(&original_graph);
         let sparsified_ccs = connected_components(&sparsified_graph);
-        println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", laplacian_filepath, original_ccs, sparsified_ccs);
+        println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", INPUT_FILENAME_VIRUS, original_ccs, sparsified_ccs);
         assert_eq!(original_ccs, sparsified_ccs);
     }
 
@@ -819,9 +853,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         parameters.verbose = true;
 
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -832,7 +864,9 @@ mod integration_tests {
         sparsifier.form_laplacian(true);
 
         let num_edges = sparsifier.num_edges();
-        let solution: ffi::FlattenedVec = ffi::test_diff_norm();
+        //let solution: ffi::FlattenedVec = ffi::test_diff_norm(RUST_LAP_FILENAME, "test_data/julia_sketch.csv", SOLVER_OUTPUT_FILENAME);
+
+        let solution: ffi::FlattenedVec = ffi::test_diff_norm(INPUT_FILENAME_VIRUS, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME);
 
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
         let diff_norm_array = Array1::from_vec(new_diff_norms);
@@ -869,9 +903,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         parameters.verbose = true;
 
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -882,7 +914,7 @@ mod integration_tests {
         let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
         //println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
         
-        let julia_evim = utils::read_mtx_csr::<i32>("interop_test/julia_evim.mtx").transpose_into();
+        let julia_evim = utils::read_mtx_csr::<i32>(JULIA_EVIM_FILENAME).transpose_into();
         //println!("sum of abs value of julia evim entries: {}", sum_abs_evim(&julia_evim));
         let julia_evim_clone = julia_evim.clone();
         let (indptr, indices, data) = julia_evim_clone.into_raw_storage();
@@ -894,7 +926,7 @@ mod integration_tests {
         // then compute JL sketch of it
         let sketch_cols = sparsifier.jl_sketch_sparse(&evim);
         //let julia_sketch_cols = &crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_product.mtx").to_dense();
-        let julia_sketch_cols = utils::read_vecs_from_file_flat("interop_test/julia_sketch_product.csv");
+        let julia_sketch_cols = utils::read_vecs_from_file_flat(JULIA_SKETCH_PRODUCT_CSV_FILENAME);
 
         let num_rows = sketch_cols.dim().0;
         let num_cols = sketch_cols.dim().1;
@@ -933,10 +965,10 @@ mod integration_tests {
         let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
 
         //let julia_sketch_from_csv = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
-        let solution = ffi::run_solve_lap(flat_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, sparsifier.num_nodes.as_i32(), false);
+        let solution = ffi::run_solve_lap(flat_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, SOLVER_OUTPUT_FILENAME, sparsifier.num_nodes.as_i32(), false);
         
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
-        let julia_diff_norms = crate::utils::read_csv_as_vec("interop_test/julia_diff_norms.csv").unwrap();
+        let julia_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
         
         let diff_norm_array = Array1::from_vec(new_diff_norms);
         let julia_diff_norm_array = Array1::from_vec(julia_diff_norms);
@@ -958,9 +990,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         parameters.verbose = true;
 
-        let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-
-        let stream = InputStream::new(input_filename, "");
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -975,7 +1005,8 @@ mod integration_tests {
         let sketch_cols = sparsifier.jl_sketch_sparse(&evim);
 
         let mut flat_sketch_cols = ffi::FlattenedVec::new(&sketch_cols);
-        let flat_julia_sketch_cols = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
+        //let flat_julia_sketch_cols = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
+        let flat_julia_sketch_cols = utils::read_vecs_from_file_flat(JULIA_SKETCH_PRODUCT_CSV_FILENAME);
 
         sparsifier.form_laplacian(true);
         let num_edges = sparsifier.num_edges();
@@ -985,7 +1016,7 @@ mod integration_tests {
         let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
 
         //let julia_sketch_from_csv = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
-        let solution = ffi::run_solve_lap(flat_julia_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, sparsifier.num_nodes.as_i32(), false);
+        let solution = ffi::run_solve_lap(flat_julia_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, SOLVER_OUTPUT_FILENAME, sparsifier.num_nodes.as_i32(), false);
         
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
         let diff_norm_array = Array1::from_vec(new_diff_norms);
@@ -1003,6 +1034,18 @@ mod integration_tests {
         let cpp_csv = "interop_test/cpp_sketch_product.csv";
         let result = crate::utils::csvs_equivalent(rust_csv, cpp_csv, 0.01);
         assert!(result.unwrap());
+    }
+
+
+    #[test]
+    fn write_lap(){
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+        parameters.verbose = true;
+
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let lap = stream.produce_laplacian();
+        crate::utils::write_mtx(RUST_LAP_FILENAME, &lap);
     }
     
 }

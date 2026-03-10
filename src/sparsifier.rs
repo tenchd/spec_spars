@@ -199,7 +199,7 @@ pub struct Sparsifier<IndexType: CustomIndex>{
     pub epsilon: f64,     //epsilon controls space (aggressivenes of sampling) and approximation factor guarantee.
     pub beta_constant: IndexType,    // set to be 200 in line 1 of alg pseudocode, probably can be far smaller
     pub row_constant: IndexType,    // set to be 20 in line 3(b) of alg pseudocode, probably can be far smaller
-    pub beta: IndexType,     // parameter defined in line 1 of alg pseudocode
+    pub beta: f64,     // parameter defined in line 1 of alg pseudocode
     pub verbose: bool,    //when true, prints a bunch of debugging info
     pub jl_factor: f64, //constant factor for jl sketch matrix
     pub jl_dim: IndexType, 
@@ -211,9 +211,9 @@ pub struct Sparsifier<IndexType: CustomIndex>{
 impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     pub fn new(num_nodes: IndexType, parameters: &SparsifierParameters<IndexType>) -> Sparsifier<IndexType> {
         // as per line 1
-        let beta = from_int((parameters.epsilon.powf(-2.0) * (parameters.beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
+        let beta = (parameters.epsilon.powf(-2.0) * (parameters.beta_constant.index() as f64) * (num_nodes.index() as f64).ln());
         // as per 3(b) condition
-        let threshold = num_nodes * beta * parameters.row_constant;
+        let threshold = num_nodes * from_int(beta.round() as usize) * parameters.row_constant;
         // initialize empty new elements triplet vectors
         let new_entries: Triplet<IndexType> = Triplet::new(num_nodes);
         // initialize empty sparse matrix for the laplacian
@@ -247,11 +247,9 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let current_laplacian: CsMatI<f64, IndexType> = crate::utils::read_mtx(filename);
         let num_nodes: IndexType = CustomIndex::from_int(current_laplacian.rows());  
         // as per line 1
-        let beta = from_int((parameters.epsilon.powf(-2.0) * (parameters.beta_constant.index() as f64) * (num_nodes.index() as f64).log(2.0)).round() as usize);
-        //println!("beta is {}, result of multiplying ep^-2 = {} * beta_constant = {} * log(n) = {}", 
-        //    beta, epsilon.powf(-2.0), beta_constant.index(), (num_nodes.index() as f64).log(2.0));
+        let beta = (parameters.epsilon.powf(-2.0) * (parameters.beta_constant.index() as f64) * (num_nodes.index() as f64).ln());
         // as per 3(b) condition
-        let threshold = num_nodes * beta * parameters.row_constant;
+        let threshold = num_nodes * from_int(beta.round() as usize) * parameters.row_constant;
         // initialize empty new elements triplet vectors
         let new_entries: Triplet<IndexType> = Triplet::new(num_nodes);   
         let jl_dim = from_int(((num_nodes.index() as f64).log2() *parameters.jl_factor).ceil() as usize);
@@ -400,7 +398,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         self.populate_matrix(&mut sketch_matrix);
         //let mut sketch_matrix = crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_factor.mtx").to_dense();
         //sketch_matrix = sketch_matrix * 3.0_f64.sqrt();
-        println!("mean of sketch matrix is {}, std dev of sketch matrix is {}", sketch_matrix.mean().unwrap() ,sketch_matrix.std(0.0));
+        //println!("mean of sketch matrix is {}, std dev of sketch matrix is {}", sketch_matrix.mean().unwrap() ,sketch_matrix.std(0.0));
         //println!("first and second entries of sketch matrix: {}, {}", sketch_matrix[[0,0]], sketch_matrix[[0,1]]);
         if self.verbose {println!("populated sketch matrix");}
         let result = og_matrix.mul(&sketch_matrix);
@@ -480,9 +478,10 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
                 // if nonzero_counter == 1 {println!("second value = {}", value);}
                 //compute probs from diff norm: multiply by value to get lev score, then multiply by beta, then bound at 1
                 //if nonzero_counter == 0 {println!("value from rust: {}", value);}
-                probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter].powi(2)/(self.jl_dim.index() as f64)).min(1.0);
-                //probs[nonzero_counter] *=  (self.beta.index() as f64 * -1.0 * value * diff_norms[nonzero_counter]/(self.jl_dim.index() as f64)).min(1.0);
+                //probs[nonzero_counter] *=  (196.8 as f64 * -1.0 * value * diff_norms[nonzero_counter].powi(2)/(self.jl_dim.index() as f64)).min(1.0);
+                probs[nonzero_counter] *=  (self.beta * -1.0 * value * diff_norms[nonzero_counter].powi(2)/(self.jl_dim.index() as f64)).min(1.0);
                 //julia code does: prs[h] = av[h] * (prs[h]^2 / k) * matrixConcConst *log(n) / ep^2
+
                 assert!(probs[nonzero_counter] >= 0.0, "negative prob. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 assert!(probs[nonzero_counter] <= 1.0, "prob greater than 1. nonzero_counter = {}, prob = {}, diff norm = {}, value = {}", nonzero_counter, probs[nonzero_counter], diff_norms[nonzero_counter], value);
                 nonzero_counter += 1;
@@ -520,7 +519,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let row_indices: Vec<IndexType> = self.current_laplacian.indices().to_vec();
         let values: Vec<f64> = self.current_laplacian.data().to_vec();
 
-        let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, self.num_nodes.as_i32(), self.verbose);
+        let solution = ffi::run_solve_lap(sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, "", self.num_nodes.as_i32(), self.verbose);
         
         // getting the solution using the below line (using julia-produced jl sketch) will produce a correct sparsifier, as far as i can tell.
         //let solution: ffi::FlattenedVec = ffi::test_diff_norm();
