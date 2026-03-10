@@ -91,37 +91,23 @@ mod integration_tests {
     static SOLVER_OUTPUT_FILENAME: &str= "";
 
     // filename for laplacian file written out by rust
-    //static RUST_LAP_FILENAME: &str = "test_data/virus_lap.mtx";
     static RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
 
-
     // filename for laplacian written out by julia file
-    //static JULIA_LAP_FILENAME: &str = "../tianyu-stream/data/virus_lap_tianyu.mtx";
     static JULIA_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_lap.mtx";
     // evim from julia run
-    //static JULIA_EVIM_FILENAME: &str = "interop_test/julia_evim.mtx";
     static JULIA_EVIM_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_evim.mtx";
-    // fill this in when i get to a test that uses it
-    //static JULIA_SKETCH_FACTOR_FILENAME: &str = "";
+    // sketch factor matrix from julia 
     static JULIA_SKETCH_FACTOR_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv";
-    //static JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "interop_test/julia_sketch_product.csv";
+    // sketch product matrix from julia, in both csv and mtx formats
     static JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv";
     static JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx";
-    //static JULIA_SOLUTION_FILENAME: &str = "test_data/solution.mtx";
+    // solution matrix from julia
     static JULIA_SOLUTION_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_solution.mtx";
-
     // diff norms written out from julia run
-    //static JULIA_DIFF_NORMS_FILENAME: &str = "interop_test/julia_diff_norms.csv";
     static JULIA_DIFF_NORMS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv";
+    // probabilities written out from julia run
     static JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
-    //static ALT_JULIA_DIFF_NORMS_FILENAME: &str = "test_data/diff_norms.csv";
-    //static ALT_JULIA_PROBS_FILENAME: &str = "test_data/probs.csv";
-
-    // filename for julia sketch product matrix. both loaded on the rust side and on the c++ side, usage depends on specific test
-    //static LEGACY_JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "../tianyu-stream/data/virus_sketch_tianyu.mtx";
-    //static LEGACY_JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "../tianyu-stream/data/virus_sketch_tianyu.csv";
-
-    
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. 
     // ensures that we always have a valid laplacian, i.e., that the row and column sums are 0.
