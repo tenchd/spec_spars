@@ -345,6 +345,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         self.transform(result as i64)
     }
 
+    // hash method that maps uniformly over the region (-1,1) instead of uniformly among {-1,1}.
     pub fn hash_with_inputs_alt(&self, input1: u64, input2: u64) -> f64 {
         //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
         let mut checkhash = CityHasher::with_seed(self.sketch_seed);
@@ -367,7 +368,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             for j in 0..cols {
                 //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) / scaling_factor;
                 //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) * scaling_factor;
-                input[[i,j]] += self.hash_with_inputs_alt(i as u64, j as u64) * scaling_factor;
+                input[[i,j]] += self.hash_with_inputs(i as u64, j as u64) as f64* scaling_factor;
             }
         }
         //let col_means = input.mean_axis(Axis(0));
@@ -383,7 +384,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
             // input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap();
             // input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) * scaling_factor).unwrap();
-            input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs_alt(row.index() as u64, actual_col as u64) * scaling_factor).unwrap();
+            input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64 * scaling_factor).unwrap();
         }
     }
 
@@ -574,7 +575,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         //let mut deletion_counter = 0;
 //        let mut first_deletion = true;
         for (value, (row, col)) in self.current_laplacian.iter() {
-            if row > col {
+            if row < col {
                 // actual value is the negative of what's in the off-diagonal. flip the sign so the following code is easier to read.
                 // actually this turned out to be more confusing. it's correct currently, but I should go back and carefully undo this.
                 let true_value = *value* -1.0;

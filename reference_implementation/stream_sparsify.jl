@@ -52,7 +52,7 @@ end
 
 
 
-function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=1)
+function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=1, writeout = false)
     # read in the matrix and stream it
     G = MatrixMarket.mmread(mat)
     G = SparseMatrixCSC{Float64, Int64}(G)
@@ -114,12 +114,18 @@ function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=
             as = as + as'
 
             t1 = time()
-            prs_blocked, partial_time_list = l_sparsify_blocked(as, matrixConcConst=matrixConcConst, ep=eps, first = true)
+
+            prs_blocked, partial_time_list = l_sparsify_blocked(as, matrixConcConst=matrixConcConst, ep=eps, first = writeout)
             overall_time += (time() - t1)
             total_time_list .= total_time_list .+ partial_time_list
             rand!(decision_vec)
             println("min of prs: ", minimum(abs.(prs_blocked)))
             ind = decision_vec .< prs_blocked
+            if writeout
+                println("writing edge decisions to file.")
+                writedlm("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/decisions.csv", ind', ',')
+                println("done writing edge decisions.")
+            end
 
             left_edge_list = left_edge_list[ind]
             right_edge_list = right_edge_list[ind]
@@ -314,7 +320,7 @@ function compute_eccentricity(G, samples, G_weight=weights(G))
 
 end
 println("-------------------------------------------------------------------")
-Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx", eps=5e-1)
+Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx", eps=5e-1, writeout = true)
 println("-------------------------------------------------------------------")
 #Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", eps=5e-1)
 println("-------------------------------------------------------------------")

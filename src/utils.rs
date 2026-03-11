@@ -351,6 +351,40 @@ pub fn read_csv_as_vec<P: AsRef<Path>>(path: P) -> Result<Vec<f64>, Box<dyn Erro
     Ok(values)
 }
 
+/// Reads a CSV file that contains only a single line of `true`/`false` values
+/// (case‑sensitive) and returns them as a `Vec<bool>`.
+pub fn read_csv_as_bool_vec<P: AsRef<Path>>(
+    path: P,
+) -> Result<Vec<bool>, Box<dyn Error>> {
+    // Open the file and wrap it in a buffered reader.
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut line = String::new();
+
+    // Read the first (and only) line.
+    let bytes = reader.read_line(&mut line)?;
+    if bytes == 0 {
+        return Err("CSV file is empty".into());
+    }
+
+    // Ensure there is no second non‑empty line.
+    let mut extra = String::new();
+    if reader.read_line(&mut extra)? != 0 && !extra.trim().is_empty() {
+        return Err("CSV file contains more than one line".into());
+    }
+
+    // Convert the comma‑separated fields into bool values.
+    // `bool::from_str` (`parse::<bool>()`) accepts only "true" or "false".
+    let values = line
+        .trim_end()               // Remove trailing newline / CRLF.
+        .split(',')               // Split on commas.
+        .map(str::trim)           // Trim whitespace around each field.
+        .map(|s| s.parse::<bool>()) // Parse as bool.
+        .collect::<Result<Vec<bool>, _>>()?; // Propagate parse errors.
+
+    Ok(values)
+}
+
 pub fn csvs_equivalent<P: AsRef<Path>>(path_a: P, path_b: P, epsilon: f64) -> Result<bool, Box<dyn Error>> {
     // Open the files
     let f_a = File::open(path_a)?;
