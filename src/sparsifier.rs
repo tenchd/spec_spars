@@ -608,6 +608,16 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         reweightings
     }
 
+    pub fn apply_reweightings(&mut self, mut reweightings: Triplet<IndexType>, report: bool) {
+        reweightings.process_diagonal();
+        let csc_reweightings = reweightings.to_csc();
+
+        let before_edges = self.num_edges();
+        self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
+        let after_edges = self.num_edges();
+        if report {self.report_sparsification(before_edges, after_edges);}
+    }
+
     pub fn form_laplacian(&mut self, check: bool) {
 
         // apply diagonals to new triplet entries
@@ -669,13 +679,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
         }
         // make sure diagonal is correct after reweightings
-        reweightings.process_diagonal();
-        let csc_reweightings = reweightings.to_csc();
-
-        let before_edges = self.num_edges();
-        self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
-        let after_edges = self.num_edges();
-        self.report_sparsification(before_edges, after_edges);
+        self.apply_reweightings(reweightings, true);
 
         //println!("total number of deletions should be: {}", deletion_counter);
 

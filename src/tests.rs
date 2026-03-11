@@ -79,6 +79,7 @@ mod integration_tests {
     use crate::ffi;
     use crate::tests::make_random_evim_matrix;
     use crate::sparsifier::{Triplet, SparsifierParameters};
+
     //-----static variables used to standardize location of files used in correctness tests.-----
     // filenames for original file inputs
     static INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
@@ -110,6 +111,18 @@ mod integration_tests {
     static JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
     // 
     static JULIA_OUTCOMES_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/decisions.csv";
+
+    // this eventually needs to be moved to somewhere else. but we need the rust lap file for later tests, and running it here ensures later tests will have it.
+    #[test]
+    fn write_lap(){
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+        parameters.verbose = true;
+
+        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let lap = stream.produce_laplacian();
+        crate::utils::write_mtx(RUST_LAP_FILENAME, &lap);
+    }
 
     //test that takes in random entries, pushes triplet entries to laplacian, and never sparsifies. 
     // ensures that we always have a valid laplacian, i.e., that the row and column sums are 0.
@@ -146,18 +159,13 @@ mod integration_tests {
     #[test]
     //#[ignore]
     fn lap_equiv_julia_rust(){
+        println!("TEST:----Running lap equivalence test: compare rust laplacian with known good example from julia reference implementation.-----");
         let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let rust_lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
         let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(JULIA_LAP_FILENAME);
         let difference_lap = &rust_lap + &julia_lap; //this is a subtraction because the rust values are negative.
+
         let mut iteration_counter = 0;
-        //assert!(rust_lap.nnz() == julia_lap.nnz(), "rust lap nnz {} julia lap nnz {}, difference {}", rust_lap.nnz(), julia_lap.nnz(), rust_lap.nnz() - julia_lap.nnz());
-        // for ((rust_value, (rust_row, rust_col)), (julia_value, (julia_row, julia_col))) in rust_lap.iter().zip(julia_lap.iter()) {
-        //     assert!(rust_row == julia_row, "iteration {} finds rust {},{} value {}, but julia {},{} value {}", iteration_counter, rust_row, rust_col, rust_value, julia_row, julia_col, julia_value);
-        //     assert!(rust_col == julia_col);
-        //     assert!(rust_value.abs_diff_eq(julia_value, 0.00001));
-        //     iteration_counter += 1;
-        // }
         for (diff_value, (diff_row, diff_col)) in difference_lap.iter() {
             if diff_row != diff_col {
                 assert!(diff_value.abs_diff_eq(&0.0, 0.00001), "iteration {} finds position {},{} with difference {}", iteration_counter, diff_row, diff_col, diff_value);
@@ -175,7 +183,6 @@ mod integration_tests {
         
         for seed in 0..5 {
             let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-
             let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
             parameters.sketch_seed = seed;
             parameters.sampling_seed = seed;
@@ -198,9 +205,7 @@ mod integration_tests {
             // sample each edge with probability 0.5
             let probs = vec![0.5; before_num_edges];
             let mut reweightings = sparsifier.sample_and_reweight(probs);
-            reweightings.process_diagonal();
-            let csc_reweightings = reweightings.to_csc();
-            sparsifier.current_laplacian = sparsifier.current_laplacian.add(&csc_reweightings);
+            sparsifier.apply_reweightings(reweightings, false);
 
             // record number of edges after sampling
             let after_num_edges = sparsifier.num_edges();
@@ -209,23 +214,70 @@ mod integration_tests {
                 after_diag_sum += value;
             }
 
-            //println!("{:?}", sparsifier.current_laplacian.to_dense());
             println!("original had {} edges and sparsifier had {} edges", before_num_edges, after_num_edges);
             let edge_ratio = (before_num_edges as f64)/(after_num_edges as f64);
             let weight_ratio = before_diag_sum/after_diag_sum;
-
-
-            //println!("Before sparsification, {} edges and {} diag weight. After, {} edges and {} diag weight. ratios {} and {}", 
-            //    before_num_edges, before_diag_sum, after_num_edges, after_diag_sum, edge_ratio, weight_ratio);
-
             let weight_ratio_target = 2.0/(2.0_f64).sqrt();
-
             println!("edge ratio: {}", edge_ratio);
             assert!(edge_ratio.abs_diff_eq(&2.0, 0.05));
             assert!(weight_ratio.abs_diff_eq(&weight_ratio_target, 0.05));
+        }
+    }
 
+        // currently this test doesn't fail if the row<col logic in reweight is flipped incorrectly.
+    // need to design the test so it fails under those conditions.
+    #[test]
+    //#[ignore]
+    fn sampling_test() {
+        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
+        parameters.jl_factor = 4.0;
+        parameters.verbose = true;
+        let mut sparsifier: Sparsifier<i32> = Sparsifier::new(100, &parameters);
+
+        // add edges from each node to the next one, making a path
+        for i in 0..99 {
+            let row = i+1;
+            let col = i;
+            sparsifier.insert(row, col, 1.0);
         }
 
+        // add "shortcut" edges from each 0 mod 10 node to the next 9 mod 10 node
+        for i in 0..10 {
+            let col = i*10;
+            let row = col+9;
+            sparsifier.insert(row, col, 1.0);
+        }
+
+        sparsifier.form_laplacian(true);
+        let original_graph = sparsifier.to_petgraph();
+
+        // set probabilities so that every 2nd edge in the path is deleted, and no shortcut edges are deleted.
+        // this results in 40 ccs if the deletions work properly.
+        let mut probs = vec![1.0; sparsifier.num_edges()];
+        for i in 0..10 {
+            let ten_starting_index = i*11;
+            let first_delete_index = ten_starting_index + 2;
+            for j in 0..5 {
+                let current_delete_index = first_delete_index + j*2;
+                if current_delete_index == sparsifier.num_edges() {
+                    break;
+                }
+                probs[current_delete_index] = 0.0;
+            }
+        }
+
+        // sample according to the probabilites and make sure we end up with the right number of connected components in the sparsified graph.
+        let mut reweightings = sparsifier.sample_and_reweight(probs);
+        reweightings.process_diagonal();
+        let csc_reweightings = reweightings.to_csc();
+        sparsifier.current_laplacian = sparsifier.current_laplacian.add(&csc_reweightings);
+        let sparsified_graph = sparsifier.to_petgraph();
+
+        let original_ccs = connected_components(&original_graph);
+        let sparsified_ccs = connected_components(&sparsified_graph);
+        println!("original # of ccs is {} and sparsified # of ccs is {}", original_ccs, sparsified_ccs);
+        assert_eq!(original_ccs, 1);
+        assert_eq!(sparsified_ccs, 40);
     }
 
     // Test that takes in an input file, reads it into the sparsifier, converts the triplet representation to both evim and csc, 
@@ -235,11 +287,7 @@ mod integration_tests {
     //#[ignore]
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");        
-
-    
-
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-    
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -257,17 +305,14 @@ mod integration_tests {
         }
 
         sparsifier.form_laplacian(true);
-
         let lap_nnz = sparsifier.num_edges()*2;
-
         assert_eq!(evim_nnz, lap_nnz);
 
+        // make sure rust evim and rust laplacian are equivalent, i.e., that for each edge, 
+        // the two nonzeros in the corresponding evim column have the same value as the negative of the 
+        // sqrt of the corresponding off-diagonal entry in the laplacian.
         println!("rust evim has dimensions {} x {}", evim.rows(), evim.cols());
         for (_edge_number, edge_vec) in evim.outer_iterator().enumerate() {
-            //println!("{}", edge_number);
-            // if _edge_number <= 10 {
-            //     println!("column {} is {:?}", _edge_number, edge_vec);
-            // }
             let mut indices: Vec<i32> = vec![];
             let mut values: Vec<f64> = vec![];
             for (endpoint, value) in edge_vec.iter() {
@@ -287,6 +332,7 @@ mod integration_tests {
         println!("rust evim and lap equivalent");
         sparsifier.check_diagonal();
 
+        // now make sure that rust evim matches the julia evim (read in from file)
         let julia_evim = utils::read_mtx_csr::<i32>(JULIA_EVIM_FILENAME).transpose_into();
         let julia_nnz = julia_evim.nnz();
         assert_eq!(julia_nnz, lap_nnz);
@@ -294,10 +340,6 @@ mod integration_tests {
         assert_eq!(evim.rows(), julia_evim.rows());
         assert_eq!(evim.cols(), julia_evim.cols());
         for (_edge_number, edge_vec) in julia_evim.outer_iterator().enumerate() {
-            //println!("{}", edge_number);
-            // if _edge_number <= 10 {
-            //     println!("column {} is {:?}", _edge_number, edge_vec);
-            // }
             let mut indices: Vec<i32> = vec![];
             let mut values: Vec<f64> = vec![];
             for (endpoint, value) in edge_vec.iter() {
@@ -325,36 +367,38 @@ mod integration_tests {
         let num_rows = 5005;
         let num_cols = 60000;
         let csc = true;
+        let iterations = 5;
+
+        let mut library_times = Array1::zeros(iterations);
+        let mut multithread_times = Array1::zeros(iterations);
         
-        for seed in 0..5 {
+        for seed in 0..iterations {
             let mut parameters = SparsifierParameters::new_default(false);
-            parameters.sketch_seed = seed;
-            parameters.sampling_seed = seed;
-            let jl_dim = ((num_rows as f64).log2() *parameters.jl_factor).ceil() as usize;
-
+            parameters.sketch_seed = seed as u64;
+            parameters.sampling_seed = seed as u64;
             let sparsifier = Sparsifier::new(num_rows, &parameters);
-
+            let jl_dim = sparsifier.jl_dim;
 
             let input_matrix = make_random_evim_matrix(num_rows, num_cols, csc);
-
-            println!("---- Time for jl sketch multiplication methods: ----");
 
             let nonblocked_timer = Instant::now();
             let sparse_nonblocked = sparsifier.jl_sketch_sparse(&input_matrix);
             let nonblocked_time = nonblocked_timer.elapsed().as_millis();
-            println!("library: ------------------- {} ms", nonblocked_time);
+            library_times[seed] = nonblocked_time;
 
             let colwise_batch_timer = Instant::now();
             let mut colwise_batch_answer:CsMat<f64> = CsMat::zero((num_rows, jl_dim)).into_csc();
             sparsifier.jl_sketch_colwise_batch(&input_matrix, &mut colwise_batch_answer);
             let colwise_batch_time = colwise_batch_timer.elapsed().as_millis(); 
-            println!("multithreaded simple: ------ {} ms", colwise_batch_time);
+            multithread_times[seed] = colwise_batch_time;
 
             let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
             assert!(colwise_batch_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
         }
 
-        
+        println!("---- Time for jl sketch multiplication methods: ----");
+        println!("library: ------------------- {} ms", library_times.mean().unwrap());
+        println!("multithreaded simple: ------ {} ms", multithread_times.mean().unwrap());    
     }
 
     // verifies that blocked jl sketching matrix multiplication gives the same output as library mat mult implementations, for a handful of real-world datasets.
@@ -362,20 +406,15 @@ mod integration_tests {
     //#[ignore]
     fn jl_sketch_equiv_virus(){
         println!("TEST:-----Testing that simplified jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
-
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let num_rows = stream.num_nodes;
-
-
         let parameters = SparsifierParameters::new_default(false);
-        let jl_dim = ((num_rows as f64).log2() *parameters.jl_factor).ceil() as usize;
-
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
+        let jl_dim = sparsifier.jl_dim;
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
-
         let input_matrix: CsMat<f64> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
         println!("---- Time for jl sketch multiplication methods: ----");
@@ -392,7 +431,6 @@ mod integration_tests {
         println!("multithreaded simple: ------ {} ms", new_time);
 
         let sparse_nonblocked: CsMat<f64> = CsMat::csc_from_dense(sparse_nonblocked.view(),0.0);
-
         assert!(new_answer.abs_diff_eq(&sparse_nonblocked, 0.00001));
     }
 
@@ -401,13 +439,8 @@ mod integration_tests {
     //#[ignore]
     pub fn jl_sketch_zero() {
         println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
-        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
-        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
-        //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
 
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -423,7 +456,6 @@ mod integration_tests {
         let sketch_array = sketch_cols.to_array2();
         
         let sums = sketch_array.sum_axis(Axis(0));
-        //println!("{:?}", sums);
         let result = crate::tests::mean_and_std_dev(&sums);
         println!("mean {}, std dev {}", result.0, result.1);
 
@@ -440,9 +472,7 @@ mod integration_tests {
     //#[ignore]
     pub fn flatten_interop() {
         println!("TEST:-----Verifying that flattening doesn't corrupt jl sketch columns.-----");
-
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-
         let parameters= SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -472,25 +502,12 @@ mod integration_tests {
     //#[ignore]
     fn flatvec_equiv() {
         let mat = crate::tests::make_random_matrix(400, 1000, 100000, true, true).to_dense();
-        // let mat = ndarray::array![[0.0, 1.0, 2.0, 3.0], 
-        //                                                         [4.0, 5.0, 6.0, 7.0],
-        //                                                         [8.0, 9.0, 10.0, 11.0],
-        //                                                         [12.0, 13.0, 14.0, 15.0],
-        //                                                         [16.0, 17.0, 18.0, 19.0],
-        //                                                         [20.0, 21.0, 22.0, 23.0]];        
-        // let mat = ndarray::array![[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 
-        //                                                         [6.0, 7.0, 8.0, 9.0, 10.0, 11.0], 
-        //                                                         [12.0, 13.0, 14.0, 15.0, 16.0, 17.0], 
-        //                                                         [18.0, 19.0, 20.0, 21.0, 22.0, 23.0]];
         let flat = ffi::FlattenedVec::new(&mat);
         let new_mat = flat.to_array2();
         let num_rows = mat.dim().0;
         let num_cols = mat.dim().1;
         assert!(num_rows == new_mat.dim().0);
         assert!(num_cols == new_mat.dim().1);
-        // println!("{:?}", mat);
-        // println!("{:?}", flat.vec);
-        // println!("{:?}", new_mat);
         for row in 0..num_rows {
             for col in 0..num_cols {
                 let value = mat[[row,col]];
@@ -503,12 +520,9 @@ mod integration_tests {
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
     // to really understand these tests you need to look at the functions with the same names in example.cc
     fn run_interop_test(test_selector: i32, verbose: bool) {
-
         let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(JULIA_SKETCH_PRODUCT_MTX_FILENAME);
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
-        
         let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        //let lap: CsMatI<f64, i32> = read_mtx(lap_filename);
         let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
         let n = lap.cols();
         let m = lap.rows();
@@ -579,12 +593,8 @@ mod integration_tests {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
-
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
-
-        //stream.input_matrix       // input matrix
-        //sparsifier.current_laplacian   //sparsifier matrix
 
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -624,9 +634,6 @@ mod integration_tests {
             let stream = InputStream::new(input_filename, "");
             let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
-            //stream.input_matrix       // input matrix
-            //sparsifier.current_laplacian   //sparsifier matrix
-
             let input_pattern = stream.input_matrix.map(&map_to_pattern);
             let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
             let difference = &input_pattern - &sparsifier_pattern;
@@ -659,26 +666,8 @@ mod integration_tests {
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
-        // let mut random_matrix = crate::tests::make_random_matrix(20,20,40,true);
-        // random_matrix = random_matrix.add(&(random_matrix.transpose_view()));
-        // crate::utils::write_mtx_and_edgelist(&random_matrix, "small_input", false);
-        // crate::utils::write_mtx("data/small_input.mtx", &random_matrix);
-        // Command::new("bash").arg("-c").arg("sed '1,3d' data/small_input.mtx > data/small_input.edgelist").output();
-        //println!("{:?}", random_matrix.map(&map_to_pattern).to_dense());
-
         let stream = InputStream::new(INPUT_FILENAME_SMALL, "small_input");
         let mut sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
-        //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, "small_input",true);
-
-        // below commented code adds "bad" edges, if you uncomment this the test should fail. I included this to verify that erroneous edge 
-        // additions would be verified by this kind of test.
-
-        // sparsifier.insert(5, 2, 1.0);
-        // sparsifier.insert(8, 5, 1.0);
-        // sparsifier.insert(14, 12, 1.0);
-        // sparsifier.insert(15, 2, 1.0);
-        // sparsifier.form_laplacian(true);
-
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
 
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -704,34 +693,6 @@ mod integration_tests {
         assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
     }
 
-    // #[test]
-    // //#[ignore]
-    // fn verify_connectivity() {
-    //     println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
-    //     let seed: u64 = 1;
-    //     let jl_factor: f64 = 1.5;
-
-    //     let epsilon = 0.5;
-    //     let beta_constant = 4;
-    //     let row_constant = 2;
-    //     let verbose = false;
-    //     let benchmark = true;
-    //     let test = true;
-
-    //     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-
-    //     let stream = InputStream::new(input_filename, "");
-    //     let sparsifier: Sparsifier<i32> = stream.run_stream(epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmark, test);
-
-    //     let mut original_edges: Vec<(i32, i32)> = Vec::new();
-    //     let sparsifier_edges: Vec<(i32, i32)> = Vec::new();
-    //     for (value, (row, col)) in stream.input_matrix.iter() {
-    //         if row < col {
-    //             original_edges.push((row, col));
-    //         }
-    //     }
-    // }
-
     fn graphtest(input_filename: &str, seed: u64) {
         //println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
         let mut parameters = SparsifierParameters::new_default(true);
@@ -739,12 +700,10 @@ mod integration_tests {
         parameters.sketch_seed = seed;
         parameters.sampling_seed = seed;
         let test = true;
-
         let stream = InputStream::new(input_filename, "");
         let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
         let original_graph = stream.get_input_graph();
-        //let sparsified_graph: Graph<usize, f64, petgraph::Undirected, usize> = Graph::from_elements(min_spanning_tree(&original_graph));
         let sparsified_graph = sparsifier.to_petgraph();
 
         let original_ccs = connected_components(&original_graph);
@@ -763,20 +722,20 @@ mod integration_tests {
             INPUT_FILENAME_HUMAN2
         ];
 
+        let iterations = 5;
         for input_filename in input_filenames{
-            for seed in 0..5 {
+            for seed in 0..iterations {
                 println!("_-_-_-_-_ running connectivity test for file {} with seed {} _-_-_-_-_", input_filename, seed);
                 graphtest(input_filename, seed);
             }
         }
     }
 
-    // 
+    // loads the solution from the julia implementation from file, computes the diff norms and probabilities in rust, 
+    // and verifies that they match the julia diff norms/probs from file.
     #[test]
     fn verify_diff_norm_and_probs() {
         println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
-        // note that this is brittle; relies on the below parameters matching the values used when the solution in the file was originally computed.
-        // figure out how to fix later.
         let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
 ;
@@ -790,6 +749,7 @@ mod integration_tests {
         println!("num nodes = {}, num edges = {}, beta = {}, epsilon = {}, jl_factor = {}, jl dim = {}", 
             sparsifier.num_nodes, num_edges, sparsifier.beta_constant, sparsifier.epsilon, sparsifier.jl_factor, sparsifier.jl_dim);
 
+        // computing and verifying diff norms
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &file_solution_flat);
         let file_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
         assert!(new_diff_norms.len() == file_diff_norms.len(), 
@@ -801,24 +761,22 @@ mod integration_tests {
             assert!(new_diff_norm.abs_diff_eq(file_diff_norm, 0.0001), 
                     "diff norms differ at position {}. julia says {}, rust says {}", i, file_diff_norm, new_diff_norm);
         }
-
         let norm_array = Array1::from_vec(new_diff_norms.clone());
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&norm_array);
         println!("norm mean = {}, norm std dev = {}", mean, std_dev);
 
+        // computing and verifying probabilities
         let new_probs = sparsifier.compute_probs(num_edges, &new_diff_norms);
         let file_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
         //println!("first element in new probs is {}, first in file_probs is {}", new_probs.get(0).unwrap(), file_probs.get(0).unwrap());
         assert!(new_probs.len() == file_probs.len(), 
                 "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), new_probs.len());
-
         for i in 0..new_probs.len() {
             let new_prob = new_probs.get(i).unwrap();
             let file_prob = file_probs.get(i).unwrap();
             assert!(new_prob.abs_diff_eq(file_prob, 0.0001), 
                     "probs differ at position {}. julia says {}, rust says {}. diff norm is {}, {}", i, file_prob, new_prob, new_diff_norms[i], file_diff_norms[i]);
         }
-
         let probs_array = Array1::from_vec(new_probs);
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&probs_array);
         println!("prob mean = {}, prob std dev = {}", mean, std_dev);
@@ -1094,28 +1052,5 @@ mod integration_tests {
         let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
         assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
     }
-
-    // passes
-    #[test]
-    #[ignore]
-    fn verify_csvs(){
-        let rust_csv = "interop_test/rust_sketch_product.csv";
-        let cpp_csv = "interop_test/cpp_sketch_product.csv";
-        let result = crate::utils::csvs_equivalent(rust_csv, cpp_csv, 0.01);
-        assert!(result.unwrap());
-    }
-
-
-    #[test]
-    fn write_lap(){
-        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
-        parameters.jl_factor = 4.0;
-        parameters.verbose = true;
-
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let lap = stream.produce_laplacian();
-        crate::utils::write_mtx(RUST_LAP_FILENAME, &lap);
-    }
-    
 }
 
