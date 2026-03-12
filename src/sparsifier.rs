@@ -552,12 +552,12 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let diff_norms = self.compute_diff_norms(length, &solution);
         let diff_norms_array = Array1::from_vec(diff_norms.clone());
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norms_array);
-        println!("diff norm mean = {}, diff norm std dev = {}", mean, std_dev);
+        //println!("diff norm mean = {}, diff norm std dev = {}", mean, std_dev);
 
         let probs = self.compute_probs(length, &diff_norms);
         let probs_array = Array1::from_vec(probs.clone());
         let (mean, std_dev) = crate::tests::mean_and_std_dev(&probs_array);
-        println!("prob mean = {}, prob std dev = {}", mean, std_dev);
+        //println!("prob mean = {}, prob std dev = {}", mean, std_dev);
 
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::DiffNormsComplete);

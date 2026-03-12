@@ -851,6 +851,68 @@ mod integration_tests {
         graphtest(INPUT_FILENAME_HUMAN2);
     }
 
+    fn sketch_sparsification_rate_test(input_filename: &str) {
+        let mut parameters = SparsifierParameters::new_default(true);
+        parameters.jl_factor = 4.0;
+        let test = true;
+        let stream = InputStream::new(input_filename, "");
+        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+
+        let original_graph = stream.get_input_graph();
+        let sparsified_graph = sparsifier.to_petgraph();
+        let original_edges = original_graph.edge_count();
+        let sparsified_edges = sparsified_graph.edge_count();
+        let uniform_sketch_ratio = (sparsified_edges as f64 / original_edges as f64);
+
+        let original_ccs = connected_components(&original_graph);
+        let sparsified_ccs = connected_components(&sparsified_graph);
+        assert_eq!(original_ccs, sparsified_ccs);
+
+        let mut parameters = SparsifierParameters::new_default(true);
+        parameters.jl_factor = 4.0;
+        parameters.sketch_uniform = false;
+        let stream = InputStream::new(input_filename, "");
+        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+        let sparsified_graph = sparsifier.to_petgraph();
+        let sparsified_edges = sparsified_graph.edge_count();
+        let discrete_sketch_ratio = (sparsified_edges as f64 / original_edges as f64);
+        let sparsified_ccs = connected_components(&sparsified_graph);
+        assert_eq!(original_ccs, sparsified_ccs);
+
+        println!("file {}, \n
+            uniform sketch sparsification rate is {}\n
+            discrete sketch sparsification rate is {}", 
+            input_filename, uniform_sketch_ratio, discrete_sketch_ratio);
+    }
+
+    #[test]
+    #[ignore]
+    fn virus_sparsification_rate_test(){
+        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the virus dataset.-----");
+        sketch_sparsification_rate_test(INPUT_FILENAME_VIRUS);
+    }
+
+    #[test]
+    #[ignore]
+    fn mouse_sparsification_rate_test(){
+        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the mouse dataset.-----");
+        sketch_sparsification_rate_test(INPUT_FILENAME_MOUSE);
+    }
+
+    #[test]
+    #[ignore]
+    fn human1_sparsification_rate_test(){
+        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the human1 dataset.-----");
+        sketch_sparsification_rate_test(INPUT_FILENAME_HUMAN1);
+    }
+
+    #[test]
+    #[ignore]
+    fn human2_sparsification_rate_test(){
+        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the human2 dataset.-----");
+        sketch_sparsification_rate_test(INPUT_FILENAME_HUMAN2);
+    }
+
     // new test: vary parameters (epsilon, jl factor, others?) and ensure ccs stay the same. probably for smaller dataset.
     // write test establishing which sketch type is acceptable for various datasets. (seems like the uniform approach allows more aggressive sparsification).
 }
