@@ -31,3 +31,5 @@ harness = false
 [lib]
 bench = false
 
+[profile.release]
+codegen-units = 1

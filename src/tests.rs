@@ -693,101 +693,70 @@ mod integration_tests {
         assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
     }
 
-    fn graphtest(input_filename: &str, seed: u64) {
-        //println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph.-----");
-        let mut parameters = SparsifierParameters::new_default(true);
-        parameters.jl_factor = 4.0;
-        parameters.sketch_seed = seed;
-        parameters.sampling_seed = seed;
-        let test = true;
-        let stream = InputStream::new(input_filename, "");
-        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
-
-        let original_graph = stream.get_input_graph();
-        let sparsified_graph = sparsifier.to_petgraph();
-
-        let original_ccs = connected_components(&original_graph);
-        let sparsified_ccs = connected_components(&sparsified_graph);
-        println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", input_filename, original_ccs, sparsified_ccs);
-        assert_eq!(original_ccs, sparsified_ccs);
+    fn compare_diff_norms_to_julia(rust_diff_norms: &Vec<f64>, threshold: f64) {
+        let file_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
+        assert!(rust_diff_norms.len() == file_diff_norms.len(), 
+                "diff norm length mismatch. julia has length {}, rust has length {}", file_diff_norms.len(), rust_diff_norms.len());
+        let diff_norm_array = Array1::from_vec(rust_diff_norms.clone());
+        let julia_diff_norm_array = Array1::from_vec(file_diff_norms.clone());
+        let difference = &diff_norm_array - &julia_diff_norm_array;
+        let diff_mean = difference.mean().unwrap();
+        let diff_std = difference.std(0.0);
+        //let diff_max = difference.max().unwrap();
+        assert!(diff_mean.abs() < threshold, "mean difference between rust and julia diff norms is {}, which is higher than expected", diff_mean);
+        assert!(diff_std < threshold, "std dev of difference between rust and julia diff norms is {}, which is higher than expected", diff_std);
+        //assert!(diff_max.abs() < threshold*5.0, "max difference between rust and julia diff norms is {}, which is higher than expected", diff_max);
+        println!("the mean difference between rust and julia diff norms is {} and the std dev of the difference is {}.",
+             diff_mean, diff_std);
+        println!("mean rust diff norm is {}", diff_norm_array.mean().unwrap());
     }
 
-    #[test]
-    #[ignore]
-    fn petgraph_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for several datasets.-----");
-        let input_filenames = [INPUT_FILENAME_VIRUS, 
-            INPUT_FILENAME_MOUSE, 
-            INPUT_FILENAME_HUMAN1, 
-            INPUT_FILENAME_HUMAN2
-        ];
-
-        let iterations = 5;
-        for input_filename in input_filenames{
-            for seed in 0..iterations {
-                println!("_-_-_-_-_ running connectivity test for file {} with seed {} _-_-_-_-_", input_filename, seed);
-                graphtest(input_filename, seed);
-            }
-        }
+    fn compare_probs_to_julia(rust_probs: &Vec<f64>, threshold: f64) {
+        let file_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
+        assert!(rust_probs.len() == file_probs.len(), 
+                "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), rust_probs.len());
+        let probs_array = Array1::from_vec(rust_probs.clone());
+        let julia_probs_array = Array1::from_vec(file_probs.clone());
+        let difference = &probs_array - &julia_probs_array;
+        let prob_diff_mean = difference.mean().unwrap();
+        let prob_diff_std = difference.std(0.0);
+        assert!(prob_diff_mean.abs() < threshold, "mean difference between rust and julia probs is {}, which is higher than expected", prob_diff_mean);
+        assert!(prob_diff_std < threshold, "std dev of difference between rust and julia probs is {}, which is higher than expected", prob_diff_std);
+        println!("the mean difference between rust and julia probs is {} and the std dev of the difference is {}.",
+             prob_diff_mean, prob_diff_std);
+        println!("mean rust prob is {}", probs_array.mean().unwrap());
     }
 
     // loads the solution from the julia implementation from file, computes the diff norms and probabilities in rust, 
     // and verifies that they match the julia diff norms/probs from file.
     #[test]
-    fn verify_diff_norm_and_probs() {
+    fn verify_diff_norm_and_probs_via_julia_solution() {
         println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
         let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
-;
         let file_solution_dense = crate::utils::read_mtx::<i32>(JULIA_SOLUTION_FILENAME).to_dense();
         let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
-        println!("file solution is {}x{}", file_solution_dense.dim().0, file_solution_dense.dim().1);
-
         let sparsifier = Sparsifier::from_matrix(RUST_LAP_FILENAME, &parameters);
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
-        println!("num nodes = {}, num edges = {}, beta = {}, epsilon = {}, jl_factor = {}, jl dim = {}", 
-            sparsifier.num_nodes, num_edges, sparsifier.beta_constant, sparsifier.epsilon, sparsifier.jl_factor, sparsifier.jl_dim);
 
         // computing and verifying diff norms
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &file_solution_flat);
-        let file_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
-        assert!(new_diff_norms.len() == file_diff_norms.len(), 
-                "diff norm length mismatch. julia has length {}, rust has length {}", file_diff_norms.len(), new_diff_norms.len());
-        for i in 0..new_diff_norms.len() {
-            let new_diff_norm = new_diff_norms.get(i).unwrap();
-            let file_diff_norm = file_diff_norms.get(i).unwrap();
-            assert!(*new_diff_norm != 0.0_f64);
-            assert!(new_diff_norm.abs_diff_eq(file_diff_norm, 0.0001), 
-                    "diff norms differ at position {}. julia says {}, rust says {}", i, file_diff_norm, new_diff_norm);
-        }
-        let norm_array = Array1::from_vec(new_diff_norms.clone());
-        let (mean, std_dev) = crate::tests::mean_and_std_dev(&norm_array);
-        println!("norm mean = {}, norm std dev = {}", mean, std_dev);
+        // tight threshold because only deviation should be from floating point error
+        let threshold = 0.0001;
+        compare_diff_norms_to_julia(&new_diff_norms, threshold);
 
         // computing and verifying probabilities
         let new_probs = sparsifier.compute_probs(num_edges, &new_diff_norms);
-        let file_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
-        //println!("first element in new probs is {}, first in file_probs is {}", new_probs.get(0).unwrap(), file_probs.get(0).unwrap());
-        assert!(new_probs.len() == file_probs.len(), 
-                "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), new_probs.len());
-        for i in 0..new_probs.len() {
-            let new_prob = new_probs.get(i).unwrap();
-            let file_prob = file_probs.get(i).unwrap();
-            assert!(new_prob.abs_diff_eq(file_prob, 0.0001), 
-                    "probs differ at position {}. julia says {}, rust says {}. diff norm is {}, {}", i, file_prob, new_prob, new_diff_norms[i], file_diff_norms[i]);
-        }
-        let probs_array = Array1::from_vec(new_probs);
-        let (mean, std_dev) = crate::tests::mean_and_std_dev(&probs_array);
-        println!("prob mean = {}, prob std dev = {}", mean, std_dev);
+        compare_probs_to_julia(&new_probs, threshold);
     }
 
-    // this test loads the julia laplacian (for the virus dataset) into rust, passes it to c++ via interop, then in c++ loads the julia sketch product, 
-    // does the solve, sends the result back to rust via interop, and computes the diff norms. finally, compares the mean with the julia diff norms.
+    // this test loads the rust laplacian (for the virus dataset) from file, passes it to c++ via interop, then in c++ loads the julia sketch product from file, 
+    // does the solve, sends the result back to rust via interop, and computes the diff norms and probs. verifies against julia norms and probs from file. status: WORKS, but need to figure out how to check solution quality later. also, the diff norms and probs are very close to julia's, but not as close as when we just read the solution from file, so maybe there's some numerical instability in the solve or the interop that's causing some small differences.
     #[test]
     //#[ignore]
-    fn diff_norm_interop1(){
-        let mut parameters = SparsifierParameters::new_default(false);
+    fn verify_diff_norm_and_probs_via_julia_sketch_product(){
+        let mut parameters: SparsifierParameters<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
 
         // loading laplacian, reading julia sketch product from file, and getting the solution via c++ solver.
@@ -795,134 +764,23 @@ mod integration_tests {
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
         let solution: ffi::FlattenedVec = ffi::test_diff_norm(RUST_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME);
-        // let file_solution_dense = crate::utils::read_mtx::<i32>(JULIA_SOLUTION_FILENAME).to_dense();
-        // let solution = ffi::FlattenedVec::new(&file_solution_dense);
 
-        // computing diff norms, probs in rust and comparing with julia diff norms from file.
-        // result: the probabilities are basically the same. mean difference is almost exactly 0, std dev of difference is less than 10^-17.
-        // eh, but this might be because most probs are capped at 1, so we depress the perceived difference of the non-1 probs.
+        // computing diff norms in rust and comparing with julia diff norms from file.
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
-        let diff_norm_array = Array1::from_vec(new_diff_norms.clone());
-        let julia_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
-        let julia_diff_norm_array = Array1::from_vec(julia_diff_norms.clone());
-        let difference = &diff_norm_array - &julia_diff_norm_array;
-        println!("the mean difference between rust and julia diff norms is {} and the std dev of the difference is {}.",
-             &difference.mean().unwrap(), &difference.std(0.0));
-        let probs = sparsifier.compute_probs(sparsifier.num_edges(), &julia_diff_norms);
-        let probs_array = Array1::from_vec(probs.clone());
-        let julia_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
-        let julia_probs_array = Array1::from_vec(julia_probs.clone());
-        let probs_difference = &probs_array - &julia_probs_array;
-        println!("the mean difference between rust and julia probs is {} and the std dev of the difference is {}.",
-             &probs_difference.mean().unwrap(), &probs_difference.std(0.0));
+        let threshold = 0.01;
+        compare_diff_norms_to_julia(&new_diff_norms, threshold);
 
-        let coins = sparsifier.flip_coins(probs.len());
-        let outcomes: Vec<bool> =  probs.clone().into_iter().zip(coins.into_iter()).map(|(p, c)| c < p).collect();
-        let julia_outcomes = crate::utils::read_csv_as_bool_vec(JULIA_OUTCOMES_FILENAME).unwrap();
-        let mut rust_unique_deletes = 0;
-        let mut suspicious = 0;
-        for i in 0..probs.len() {
-            // if outcomes[i] != julia_outcomes[i] {
-            //     println!("outcome mismatch at position {}. rust outcome is {}, julia outcome is {}", i, outcomes[i], julia_outcomes[i]);
-            //     if julia_probs[i] == 1.0 {
-            //         println!("julia prob was 1.0, rust prob was {}", probs[i]);
-            //     }
-            // }
-            if !outcomes[i] && julia_outcomes[i] {
-                rust_unique_deletes += 1;
-                if (probs[i] - julia_probs[i]).abs() > 0.00001 {
-                    suspicious += 1;
-                    //println!("suspicious deletion rust prob {} julia prob {}", probs[i], julia_probs[i]);
-                }
-            }
-        }
-
-        println!("number of edges that rust deletes but julia doesn't: {}", rust_unique_deletes);
-        println!("number of suspicious deletions:  {}", suspicious);
-
-        // reweighting based off of rust probabilities. same observed behavior for julia probs, though.
-        let mut reweightings: Triplet<usize> = sparsifier.sample_and_reweight(probs);
-        reweightings.process_diagonal();
-        let csc_reweightings = reweightings.to_csc();
-        let before_edges = sparsifier.num_edges();
-        sparsifier.current_laplacian = sparsifier.current_laplacian.add(&csc_reweightings);
-        let after_edges = sparsifier.num_edges();
-        sparsifier.report_sparsification(before_edges, after_edges);
-
-        //println!("total number of deletions should be: {}", deletion_counter);
-
-        println!("checking diagonal after sampling");
-        sparsifier.check_diagonal();
-
-        // finally, we check the # of CCs. this fails - it adds more CCs even though the probs are nearly identical. WHY?
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let original_graph = stream.get_input_graph();
-        //let sparsified_graph: Graph<usize, f64, petgraph::Undirected, usize> = Graph::from_elements(min_spanning_tree(&original_graph));
-        let sparsified_graph = sparsifier.to_petgraph();
-        let original_ccs = connected_components(&original_graph);
-        let sparsified_ccs = connected_components(&sparsified_graph);
-        println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", INPUT_FILENAME_VIRUS, original_ccs, sparsified_ccs);
-        assert_eq!(original_ccs, sparsified_ccs);
+        // computing probs in rust and comparing with julia diff norms from file.
+        let probs = sparsifier.compute_probs(sparsifier.num_edges(), &new_diff_norms);
+        compare_probs_to_julia(&probs, threshold);
     }
 
-    //passes
+    // this test runs the virus dataset entirely from rust, until it gets the probabilities, and verifies these match the julia probabilities.
     #[test]
     //#[ignore]
-    fn diff_norm_interop2(){
+    fn diff_norm_and_probs_via_rust(){
         let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
-        parameters.verbose = true;
-
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
-
-        for (value, (row, col)) in stream.input_matrix.iter() {
-            //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
-        }
-
-        sparsifier.form_laplacian(true);
-
-        let num_edges = sparsifier.num_edges();
-        //let solution: ffi::FlattenedVec = ffi::test_diff_norm(RUST_LAP_FILENAME, "test_data/julia_sketch.csv", SOLVER_OUTPUT_FILENAME);
-
-        let solution: ffi::FlattenedVec = ffi::test_diff_norm(INPUT_FILENAME_VIRUS, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME);
-
-        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
-        let diff_norm_array = Array1::from_vec(new_diff_norms);
-        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
-        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
-        let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
-        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
-    }
-
-    fn sum_abs_evim(evim: &CsMatI<f64,i32>) -> f64 {
-        let values = evim.data();
-        let mut sum = 0.0;
-        for i in values {
-            sum += i.abs();
-        }
-        sum
-    }
-
-    // vibe coded function to find max entry of sketch product difference matrix for debugging purposes
-    fn max_value<T>(a: &Array2<T>) -> Option<T>
-    where
-        T: Copy + PartialOrd,
-    {
-        a.iter().cloned().max_by(|x, y| x.partial_cmp(y).unwrap())
-    }
-
-
-    // fails
-    #[test]
-    #[ignore]
-    fn diff_norm_interop3(){
-        evim_csc_equiv();
-        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
-        parameters.jl_factor = 4.0;
-        parameters.verbose = true;
-
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -932,125 +790,68 @@ mod integration_tests {
         }
 
         let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
-        //println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
-        
-        let julia_evim = utils::read_mtx_csr::<i32>(JULIA_EVIM_FILENAME).transpose_into();
-        //println!("sum of abs value of julia evim entries: {}", sum_abs_evim(&julia_evim));
-        let julia_evim_clone = julia_evim.clone();
-        let (indptr, indices, data) = julia_evim_clone.into_raw_storage();
-        //println!("first entry in julia evim: row {}, col {}, value {}", indptr[0], indices[0], data[0]);
-        for (value, (row, col)) in evim.iter() {
-            let julia_value = julia_evim.get(row.try_into().unwrap(),col.try_into().unwrap()).unwrap_or_else(|| panic!("no julia entry in row {}, col {}. value is {}", row, col, value));
-            assert!(value.abs_diff_eq(&julia_value, 0.01));
-        }
-        // then compute JL sketch of it
-        let sketch_cols = sparsifier.jl_sketch_sparse(&evim);
-        //let julia_sketch_cols = &crate::utils::read_mtx::<i32>("/global/homes/d/dtench/tianyu_spars/julia_sketch_product.mtx").to_dense();
-        let julia_sketch_cols = utils::read_vecs_from_file_flat(JULIA_SKETCH_PRODUCT_CSV_FILENAME);
-
-        let num_rows = sketch_cols.dim().0;
-        let num_cols = sketch_cols.dim().1;
-        //println!("rust shape: {:?}, julia shape: {:?}", sketch_cols.dim(), julia_sketch_cols.dim());
-        // let mut mismatch = false;
-        // for i in 0..num_rows {
-        //     for j in 0..num_cols {
-        //         if !mismatch && sketch_cols[[i,j]].abs_diff_eq(&julia_sketch_cols[[i,j]], 0.1) {
-        //             println!("mismatch in position {},{}. rust = {}, julia = {}",
-        //             i, j, sketch_cols[[i,j]], julia_sketch_cols[[i,j]]);
-        //             mismatch = true;
-        //         }
-        //         // assert!(sketch_cols[[i,j]].abs_diff_eq(&julia_sketch_cols[[i,j]], 0.001), 
-        //         // "mismatch in position {},{}. rust = {}, julia = {}",
-        //         // i, j, sketch_cols[[i,j]], julia_sketch_cols[[i,j]]);
-        //     }
-        // }
-        let mut flat_sketch_cols = ffi::FlattenedVec::new(&sketch_cols);
-        
-        // for i in 0..flat_julia_sketch_cols_mtx.vec.len() {
-        //     let mtx = flat_julia_sketch_cols_mtx.vec[i];
-        //     let csv = flat_julia_sketch_cols_csv.vec[i];
-        //     assert!(mtx.abs_diff_eq(&csv, 0.01), "difference at position {}, mtx says {} but csv says {}", i, mtx, csv);
-        // }
-        let difference = Array1::from_vec(flat_sketch_cols.vec.clone()) - Array1::from_vec(julia_sketch_cols.vec.clone());
-        println!("the mean difference between rust and julia products is {} and the std dev of the difference is {}.",
-             &difference.mean().unwrap(), &difference.std(0.0)
-             //, max_value(&difference).unwrap()
-        );
-        
+        let flat_sketch_cols = sparsifier.jl_sketch_colwise_flat(&evim);
         sparsifier.form_laplacian(true);
-        let num_edges = sparsifier.num_edges();
-
-        let col_ptrs: Vec<i32> = sparsifier.current_laplacian.indptr().as_slice().unwrap().to_vec();
-        let row_indices: Vec<i32> = sparsifier.current_laplacian.indices().to_vec();
-        let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
-
-        //let julia_sketch_from_csv = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
-        let solution = ffi::run_solve_lap(flat_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, SOLVER_OUTPUT_FILENAME, sparsifier.num_nodes.as_i32(), false);
-        
-        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
-        let julia_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
-        
-        let diff_norm_array = Array1::from_vec(new_diff_norms);
-        let julia_diff_norm_array = Array1::from_vec(julia_diff_norms.clone());
-        let difference = &diff_norm_array - &julia_diff_norm_array;
-        println!("the mean difference between rust and julia diff norms is {} and the std dev of the difference is {}.",
-             &difference.mean().unwrap(), &difference.std(0.0));
-        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
-        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
-        let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
-        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.05));
-        let probs = sparsifier.compute_probs(sparsifier.num_edges(), &julia_diff_norms);
-        let probs_array = Array1::from_vec(probs.clone());
-        let julia_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
-        let julia_probs_array = Array1::from_vec(julia_probs.clone());
-        let probs_difference = &probs_array - &julia_probs_array;
-        println!("the mean difference between rust and julia probs is {} and the std dev of the difference is {}.",
-             &probs_difference.mean().unwrap(), &probs_difference.std(0.0));
+        let num_edges = sparsifier.num_edges();        
+        let probs = sparsifier.get_probs(num_edges, flat_sketch_cols);
+        // higher threshold because different randomness in jl sketch compared to julia version
+        let threshold = 0.05;
+        compare_probs_to_julia(&probs, threshold);
+        let mut reweightings= sparsifier.sample_and_reweight(probs);
+        sparsifier.apply_reweightings(reweightings, true);
     }
 
-    // fails
+    fn graphtest(input_filename: &str) {
+        let iterations = 5;
+        for seed in 0..iterations {
+            println!("_-_-_-_-_ running connectivity test for file {} with seed {} _-_-_-_-_", input_filename, seed);
+            let mut parameters = SparsifierParameters::new_default(true);
+            parameters.jl_factor = 4.0;
+            parameters.sketch_seed = seed;
+            parameters.sampling_seed = seed;
+            let test = true;
+            let stream = InputStream::new(input_filename, "");
+            let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+
+            let original_graph = stream.get_input_graph();
+            let sparsified_graph = sparsifier.to_petgraph();
+
+            let original_ccs = connected_components(&original_graph);
+            let sparsified_ccs = connected_components(&sparsified_graph);
+            println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", input_filename, original_ccs, sparsified_ccs);
+            assert_eq!(original_ccs, sparsified_ccs);
+        }
+    }
+
     #[test]
-    // #[ignore]
-    fn diff_norm_interop4(){
-        evim_csc_equiv();
-        let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
-        parameters.jl_factor = 4.0;
-        parameters.verbose = true;
-
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
-
-        for (value, (row, col)) in stream.input_matrix.iter() {
-            //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
-        }
-
-        let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
-        //println!("sum of abs value of rust evim entries: {}", sum_abs_evim(&evim));
-        
-        // then compute JL sketch of it
-        let sketch_cols = sparsifier.jl_sketch_sparse(&evim);
-
-        let mut flat_sketch_cols = ffi::FlattenedVec::new(&sketch_cols);
-        //let flat_julia_sketch_cols = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
-        let flat_julia_sketch_cols = utils::read_vecs_from_file_flat(JULIA_SKETCH_PRODUCT_CSV_FILENAME);
-
-        sparsifier.form_laplacian(true);
-        let num_edges = sparsifier.num_edges();
-
-        let col_ptrs: Vec<i32> = sparsifier.current_laplacian.indptr().as_slice().unwrap().to_vec();
-        let row_indices: Vec<i32> = sparsifier.current_laplacian.indices().to_vec();
-        let values: Vec<f64> = sparsifier.current_laplacian.data().to_vec();
-
-        //let julia_sketch_from_csv = utils::read_vecs_from_file_flat("test_data/julia_sketch.csv");
-        let solution = ffi::run_solve_lap(flat_julia_sketch_cols, crate::utils::convert_indices_to_i32(&col_ptrs), crate::utils::convert_indices_to_i32(&row_indices), values, SOLVER_OUTPUT_FILENAME, sparsifier.num_nodes.as_i32(), false);
-        
-        let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
-        let diff_norm_array = Array1::from_vec(new_diff_norms);
-        let (mean, std_dev) = crate::tests::mean_and_std_dev(&diff_norm_array);
-        println!("rust diff norm mean = {}, rust diff norm std dev = {}", mean, std_dev);
-        let target_diff_norm_mean = 2.6968945977169607_f64; // value obtained from tianyu's julia code
-        assert!(mean.abs_diff_eq(&target_diff_norm_mean, 0.01));
+    //#[ignore]
+    fn virus_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the virus dataset.-----");
+        graphtest(INPUT_FILENAME_VIRUS);
     }
+
+    #[test]
+    //#[ignore]
+    fn mouse_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mouse dataset.-----");
+        graphtest(INPUT_FILENAME_MOUSE);
+    }
+
+    #[test]
+    //#[ignore]
+    fn human1_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human1 dataset.-----");
+        graphtest(INPUT_FILENAME_HUMAN1);
+    }
+
+    #[test]
+    //#[ignore]
+    fn human2_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human2 dataset.-----");
+        graphtest(INPUT_FILENAME_HUMAN2);
+    }
+
+    // new test: vary parameters (epsilon, jl factor, others?) and ensure ccs stay the same. probably for smaller dataset.
+    // write test establishing which sketch type is acceptable for various datasets. (seems like the uniform approach allows more aggressive sparsification).
 }
 

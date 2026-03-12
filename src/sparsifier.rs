@@ -149,11 +149,12 @@ pub struct SparsifierParameters<IndexType: CustomIndex> {
     pub sketch_seed: u64,
     pub sampling_seed: u64, 
     pub bench: bool,
+    pub sketch_uniform: bool,
 }
 
 impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
     // standard constructor
-    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool) -> SparsifierParameters<IndexType> {
+    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool) -> SparsifierParameters<IndexType> {
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -164,6 +165,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             sketch_seed: sketch_seed,
             sampling_seed: sampling_seed, 
             bench: bench,
+            sketch_uniform: sketch_uniform,
         }
     }
 
@@ -176,6 +178,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
         let jl_factor: f64 = 1.5;
         let sketch_seed = 1;
         let sampling_seed = 1;
+        let sketch_uniform = true;
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -186,6 +189,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             sketch_seed: sketch_seed,
             sampling_seed: sampling_seed, 
             bench: bench,
+            sketch_uniform: sketch_uniform,
         }
     }
 }
@@ -206,6 +210,7 @@ pub struct Sparsifier<IndexType: CustomIndex>{
     pub sketch_seed: u64,   //random seed for hashed jl sketch matrix
     pub sampling_seed: u64,    // seed for sampling edges during sparsification
     pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
+    pub sketch_uniform: bool, //whether to use the hash function that maps uniformly to (-1,1) for the JL sketch, or the one that maps uniformly to {-1,1}
 }
 
 impl<IndexType: CustomIndex> Sparsifier<IndexType> {
@@ -240,6 +245,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             sketch_seed: parameters.sketch_seed,
             sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
+            sketch_uniform: parameters.sketch_uniform,
         }
     }
 
@@ -273,6 +279,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             sketch_seed: parameters.sketch_seed,
             sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
+            sketch_uniform: parameters.sketch_uniform,
         }
     }
 
@@ -366,9 +373,12 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let scaling_factor = (3.0_f64).sqrt();
         for i in 0..rows {
             for j in 0..cols {
-                //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) / scaling_factor;
-                //input[[i,j]] += (self.hash_with_inputs(i as u64, j as u64) as f64) * scaling_factor;
-                input[[i,j]] += self.hash_with_inputs(i as u64, j as u64) as f64* scaling_factor;
+                if self.sketch_uniform {
+                    input[[i,j]] += self.hash_with_inputs_alt(i as u64, j as u64) as f64* scaling_factor;
+                }
+                else { 
+                    input[[i,j]] += self.hash_with_inputs(i as u64, j as u64) as f64* scaling_factor;
+                }
             }
         }
         //let col_means = input.mean_axis(Axis(0));
@@ -382,9 +392,13 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let scaling_factor = (3.0_f64).sqrt();
         for col in 0..num_cols {
             let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
-            // input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) / scaling_factor).unwrap();
-            // input[[col]] = cast::<f64, ValueType>((self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64) * scaling_factor).unwrap();
-            input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64 * scaling_factor).unwrap();
+            // input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs_alt(row.index() as u64, actual_col as u64) as f64 * scaling_factor).unwrap();
+            if self.sketch_uniform {
+                input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs_alt(row.index() as u64, actual_col as u64) as f64 * scaling_factor).unwrap();
+            }
+            else {
+                input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs(row.index() as u64, actual_col as u64) as f64 * scaling_factor).unwrap();
+            }
         }
     }
 
