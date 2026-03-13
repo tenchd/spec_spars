@@ -319,8 +319,17 @@ function compute_eccentricity(G, samples, G_weight=weights(G))
     return eccentricity(G, samples, G_weight)
 
 end
+
+function rewrite_mtx(mat::String, output::String)
+    # read in the matrix and stream it
+    G = MatrixMarket.mmread(mat)
+    G = SparseMatrixCSC{Float64, Int64}(G)
+    first(G) = 1.0
+    MatrixMarket.mmwrite(output, G)
+end
+
 println("-------------------------------------------------------------------")
-Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx", eps=5e-1, writeout = true)
+Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx", eps=5e-1, writeout = false)
 println("-------------------------------------------------------------------")
 #Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", eps=5e-1)
 println("-------------------------------------------------------------------")
