@@ -98,6 +98,14 @@ mod integration_tests {
     static INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
     static INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
     static INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
+    static INPUT_FILENAME_BCSSTK30: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/bcsstk30/bcsstk30_nonpattern.mtx";
+    static INPUT_FILENAME_CAHEPPH: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/ca-HepPh/ca-HepPh_nonpattern.mtx";
+    static INPUT_FILENAME_COPAPERS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/coPapersCiteseer/coPapersCiteseer_nonpattern.mtx";
+    static INPUT_FILENAME_GUPTA2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta2/gupta2_nonpattern.mtx";
+    static INPUT_FILENAME_GUPTA3: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta3/gupta3_nonpattern.mtx";
+    static INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/loc-Brightkite/loc-Brightkite_nonpattern.mtx";
+    static INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
+    static INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
     static INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
 
     // filename for solver output file; empty string means it writes no output
@@ -895,6 +903,62 @@ mod integration_tests {
     fn k49_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the k49 dataset.-----");
         graphtest(INPUT_FILENAME_K49);
+    }
+
+    #[test]
+    #[ignore]
+    fn bcsstk30_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the bcsstk30 dataset.-----");
+        graphtest(INPUT_FILENAME_BCSSTK30);
+    }
+
+    #[test]
+    #[ignore]
+    fn cahepph_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the cahepph dataset.-----");
+        graphtest(INPUT_FILENAME_CAHEPPH);
+    }
+
+    #[test]
+    #[ignore]
+    fn copapers_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the copapers dataset.-----");
+        graphtest(INPUT_FILENAME_COPAPERS);
+    }
+
+    #[test]
+    #[ignore]
+    fn gupta2_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the gupta2 dataset.-----");
+        graphtest(INPUT_FILENAME_GUPTA2);
+    }
+
+    #[test]
+    #[ignore]
+    fn gupta3_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the gupta3 dataset.-----");
+        graphtest(INPUT_FILENAME_GUPTA3);
+    }
+
+    #[test]
+    #[ignore]
+    fn locbright_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the locbright dataset.-----");
+        graphtest(INPUT_FILENAME_LOCBRIGHT);
+    }
+
+    #[test]
+    #[ignore]
+    fn mycielskian_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mycielskian dataset.-----");
+        graphtest(INPUT_FILENAME_MYCIELSKIAN);
+    }
+
+    #[test]
+    #[ignore]
+    fn pattern1_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the pattern1 dataset.-----");
+        graphtest(INPUT_FILENAME_PATTERN1);
     }
 
     fn sketch_sparsification_rate_test(input_filename: &str) {
