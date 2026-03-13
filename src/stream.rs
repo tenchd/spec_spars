@@ -70,7 +70,7 @@ impl InputStream {
     // used for testing purposes
 
     #[allow(dead_code)]
-    pub fn produce_laplacian(&self) -> CsMatI<f64, i32>{
+    pub fn produce_laplacian(&self) -> Sparsifier<i32> {
         let parameters = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), &parameters);
 
@@ -79,10 +79,10 @@ impl InputStream {
             sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
 
-        sparsifier.form_laplacian(true);
+        sparsifier.form_laplacian(false);
 
         // now the sparsifier laplacian can be passed to c++ for interop testing.
-        sparsifier.current_laplacian
+        sparsifier
     }
 
     #[allow(dead_code)]

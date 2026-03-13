@@ -1,5 +1,5 @@
 use std::ops::Add;
-use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI, CsMatViewI};
+use sprs::{CsMatI, CsMatBase, TriMatBase, TriMatI, CsMatViewI, CsVecI};
 use std::sync::mpsc;
 use std::thread;
 use std::hash::{Hash,Hasher};
@@ -752,5 +752,14 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         }
         assert!(sprs::is_symmetric(&self.current_laplacian));
         //println!("laplacian matrix: each column sums to 0. matrix is symmetric. format check PASSED.");
+    }
+
+    // given an input vector x, returns x^T L x where L = the current laplacian.
+    pub fn compute_quadratic_form(&self, vector: &CsVecI<f64, IndexType>) -> f64 {
+        let dense_vector = vector.to_dense();
+        assert!(vector.dim() == self.num_nodes.index());
+        let partial_product = &self.current_laplacian * &dense_vector;
+        let answer = dense_vector.dot(&partial_product);
+        answer
     }
 }

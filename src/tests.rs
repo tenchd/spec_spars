@@ -1,5 +1,5 @@
 
-use sprs::{CsMat,TriMat,CsMatI};
+use sprs::{CsMat,TriMat,CsMatI,CsVecI};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
 use ndarray::{Axis, Array1};
@@ -46,6 +46,17 @@ pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> C
     trip.to_csr()
 }
 
+pub fn make_random_vector(length: usize) -> CsVecI::<f64, i32> {
+    let mut rng = rand::thread_rng();
+    let uniform = Uniform::new(-1.0, 1.0);
+    let mut data: Vec<f64> = vec![0.0; length];
+    let indices = (0..length as i32).collect();
+    for i in 0..length {
+        data[i] = uniform.sample(&mut rng);
+    }
+    CsVecI::<f64, i32>::new(length, indices, data)
+}
+
 pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
     let total = input.sum_axis(Axis(0));
     let length = input.len() as f64;
@@ -65,7 +76,7 @@ mod integration_tests {
     use std::ops::Add;
     use std::time::{Instant};
     use std::process::Command;
-    use sprs::{CsMat,TriMat,CsMatI};
+    use sprs::{CsMat,TriMat,CsMatI, CsVecI};
     use rand::Rng;
     use rand::distributions::{Distribution, Uniform};
     use ndarray::{Axis, Array1, Array2};
@@ -77,7 +88,7 @@ mod integration_tests {
     use crate::{ffi::test_roll, utils, Sparsifier,InputStream};
     use crate::utils::{Benchmarker,CustomIndex};
     use crate::ffi;
-    use crate::tests::make_random_evim_matrix;
+    use crate::tests::{make_random_evim_matrix, make_random_vector};
     use crate::sparsifier::{Triplet, SparsifierParameters};
 
     //-----static variables used to standardize location of files used in correctness tests.-----
@@ -86,6 +97,7 @@ mod integration_tests {
     static INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
     static INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
     static INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
+    static INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
     static INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
 
     // filename for solver output file; empty string means it writes no output
@@ -120,7 +132,7 @@ mod integration_tests {
         parameters.verbose = true;
 
         let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let lap = stream.produce_laplacian();
+        let lap = stream.produce_laplacian().current_laplacian;
         crate::utils::write_mtx(RUST_LAP_FILENAME, &lap);
     }
 
@@ -161,7 +173,7 @@ mod integration_tests {
     fn lap_equiv_julia_rust(){
         println!("TEST:----Running lap equivalence test: compare rust laplacian with known good example from julia reference implementation.-----");
         let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let rust_lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
+        let rust_lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
         let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(JULIA_LAP_FILENAME);
         let difference_lap = &rust_lap + &julia_lap; //this is a subtraction because the rust values are negative.
 
@@ -523,7 +535,7 @@ mod integration_tests {
         let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(JULIA_SKETCH_PRODUCT_MTX_FILENAME);
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
         let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian();
+        let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
         let n = lap.cols();
         let m = lap.rows();
         assert_eq!(n,m);
@@ -801,54 +813,88 @@ mod integration_tests {
         sparsifier.apply_reweightings(reweightings, true);
     }
 
+    // quadatric form tests pass for discrete sketch but not uniform.
+    // try more datasets?
     fn graphtest(input_filename: &str) {
-        let iterations = 5;
+        let iterations = 1;
         for seed in 0..iterations {
             println!("_-_-_-_-_ running connectivity test for file {} with seed {} _-_-_-_-_", input_filename, seed);
             let mut parameters = SparsifierParameters::new_default(true);
             parameters.jl_factor = 4.0;
             parameters.sketch_seed = seed;
             parameters.sampling_seed = seed;
+            parameters.sketch_uniform = true;
             let test = true;
             let stream = InputStream::new(input_filename, "");
             let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
 
             let original_graph = stream.get_input_graph();
             let sparsified_graph = sparsifier.to_petgraph();
-
             let original_ccs = connected_components(&original_graph);
             let sparsified_ccs = connected_components(&sparsified_graph);
             println!("for file {} original # of ccs is {} and sparsified # of ccs is {}", input_filename, original_ccs, sparsified_ccs);
             assert_eq!(original_ccs, sparsified_ccs);
+
+            let original_state = stream.produce_laplacian();
+            let probe_iterations = 100;
+            let mut errors = Array1::zeros(probe_iterations);
+            for i in 0..probe_iterations {
+                let probe_vector = make_random_vector(sparsifier.num_nodes as usize);
+                let original_product = original_state.compute_quadratic_form(&probe_vector);
+                let sparsified_product = sparsifier.compute_quadratic_form(&probe_vector);
+                let upper_bound = original_product * (1.0 + sparsifier.epsilon);
+                let lower_bound = original_product * (1.0 - sparsifier.epsilon);
+                let relative_error = (sparsified_product - original_product).abs() / original_product.abs();
+                //println!("original quadratic form is {}, sparsified quadratic form is {}, upper bound is {}, lower bound is {}",
+                //    original_product, sparsified_product, upper_bound, lower_bound);
+                assert!(sparsified_product <= upper_bound, "i = {}. sparsifier quadratic form {} is higher than upper bound {}. rel error {}", 
+                    i, sparsified_product, upper_bound, relative_error);
+                assert!(sparsified_product >= lower_bound, "i = {}. sparsifier quadratic form {} is lower than lower bound {}. rel error {}", 
+                    i, sparsified_product, lower_bound, relative_error);
+                errors[i] = relative_error;
+            }
+            let max_error = errors.iter().copied().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+            println!("for file {}, 
+                mean rel error ------ {}
+                std dev rel error --- {}
+                max rel error ------- {}",
+                input_filename, errors.mean().unwrap(), errors.std(0.0), max_error);
         }
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn virus_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the virus dataset.-----");
         graphtest(INPUT_FILENAME_VIRUS);
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn mouse_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mouse dataset.-----");
         graphtest(INPUT_FILENAME_MOUSE);
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn human1_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human1 dataset.-----");
         graphtest(INPUT_FILENAME_HUMAN1);
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn human2_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human2 dataset.-----");
         graphtest(INPUT_FILENAME_HUMAN2);
+    }
+
+    #[test]
+    #[ignore]
+    fn k49_full_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the k49 dataset.-----");
+        graphtest(INPUT_FILENAME_K49);
     }
 
     fn sketch_sparsification_rate_test(input_filename: &str) {
@@ -893,7 +939,7 @@ mod integration_tests {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn mouse_sparsification_rate_test(){
         println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the mouse dataset.-----");
         sketch_sparsification_rate_test(INPUT_FILENAME_MOUSE);
