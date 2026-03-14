@@ -1,6 +1,6 @@
 use std::process::Command;
 use sprs::CsMatI;
-use crate::{read_mtx,Sparsifier, sparsifier::SparsifierParameters};
+use crate::{read_mtx,Sparsifier, sparsifier::SparsifierParameters, sparsifier::SparsificationStats};
 use crate::utils::Benchmarker;
 use petgraph::Graph;
 
@@ -45,7 +45,7 @@ impl InputStream {
         }
     }
 
-    pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool) -> Sparsifier<i32> {
+    pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool) -> (Sparsifier<i32>, SparsificationStats) {
         //let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
         let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), parameters);
 
@@ -55,16 +55,16 @@ impl InputStream {
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
-        sparsifier.sparsify(test);
+        let sparsification_stats = sparsifier.sparsify(test);
 
         if test{println!("checking diagonal final time");
         sparsifier.check_diagonal();}
 
         if (!test) {
-            crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, &self.dataset_name, true);
+            //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, &self.dataset_name, true);
         }
 
-        sparsifier
+        (sparsifier, sparsification_stats)
     }
 
     // used for testing purposes

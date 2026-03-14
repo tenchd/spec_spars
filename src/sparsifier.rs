@@ -194,6 +194,24 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
     }
 }
 
+pub struct SparsificationStats {
+    pub original_num_edges: usize,
+    pub final_num_edges: usize,
+}
+
+impl SparsificationStats {
+    pub fn new(original_num_edges: usize, final_num_edges: usize) -> SparsificationStats {
+        SparsificationStats{
+            original_num_edges: original_num_edges,
+            final_num_edges: final_num_edges,
+        }
+    }
+
+    pub fn sparsification_rate(&self) -> f64 {
+        1.0 - (self.final_num_edges as f64 / self.original_num_edges as f64)
+    }
+}
+
 pub struct Sparsifier<IndexType: CustomIndex>{
     pub num_nodes: IndexType,     // number of nodes in input graph. we need to know this at construction time.
     pub new_entries: Triplet<IndexType>,  //stores values that haven't been sparsified yet
@@ -622,7 +640,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         reweightings
     }
 
-    pub fn apply_reweightings(&mut self, mut reweightings: Triplet<IndexType>, report: bool) {
+    pub fn apply_reweightings(&mut self, mut reweightings: Triplet<IndexType>, report: bool) -> SparsificationStats {
         reweightings.process_diagonal();
         let csc_reweightings = reweightings.to_csc();
 
@@ -630,6 +648,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         self.current_laplacian = self.current_laplacian.add(&csc_reweightings);
         let after_edges = self.num_edges();
         if report {self.report_sparsification(before_edges, after_edges);}
+        SparsificationStats::new(before_edges, after_edges)
     }
 
     pub fn form_laplacian(&mut self, check: bool) {
@@ -659,7 +678,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         println!("");
     }
 
-    pub fn sparsify(&mut self, check: bool) {
+    pub fn sparsify(&mut self, check: bool) -> SparsificationStats {
         // compute evim format of new triplet entries (no diagonal)
         if self.benchmarker.is_active(){
             self.benchmarker.start();
@@ -693,7 +712,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             self.benchmarker.set_time(BenchmarkPoint::ReweightingsComplete);
         }
         // make sure diagonal is correct after reweightings
-        self.apply_reweightings(reweightings, true);
+        let sparsifier_stats = self.apply_reweightings(reweightings, true);
 
         //println!("total number of deletions should be: {}", deletion_counter);
 
@@ -704,7 +723,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             self.benchmarker.set_time(BenchmarkPoint::End);
             self.benchmarker.display_durations();
         }
-
+        sparsifier_stats
     }
 
 

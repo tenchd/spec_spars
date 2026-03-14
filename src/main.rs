@@ -1,6 +1,6 @@
 #![allow(unused)]
 use clap::Parser;
-use spec_spars::lap_test;
+use spec_spars::{lap_test, run_experiment};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -37,6 +37,10 @@ struct Args {
     // if set, ignores input_file and dataset_name parameters and sparsifies a set list of datasets according to other command line arguments.
     #[arg(short, long, default_value_t = false)]
     process_all: bool,
+
+    // if set, ignores everything else and runs currently staged experiment.
+    #[arg(short, long, default_value_t = false)]
+    run_experiment: bool,
 }
 
 // allows for bulk processing of a list of datasets. feel free to customize for bulk jobs.
@@ -71,14 +75,31 @@ fn process_standard_datasets(args: Args) {
 fn main() {
     let args = Args::parse();
 
-    println!("Arguments are input file = {}, dataset name = {}, epsilon = {}, verbose = {}, sketch seed = {}, sampling seed = {}, benchmark skip = {}, process all = {}",
-        args.input_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, args.benchmark_skip, args.process_all);
-    if args.process_all {
-        process_standard_datasets(args);
+    println!("Command line arguments are: 
+        input file = {}, 
+        dataset name = {}, 
+        epsilon = {}, 
+        verbose = {}, 
+        sketch seed = {}, 
+        sampling seed = {}, 
+        benchmark skip = {}, 
+        process all = {}, 
+        run_experiment = {}",
+        args.input_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, 
+        args.benchmark_skip, args.process_all, args.run_experiment);
+
+    if args.run_experiment {
+        println!("running staged experiment on specified input file. ignoring parameter input flags.");
+        run_experiment(args.input_file.as_str(), args.dataset_name.as_str());
     }
-    else {
-        lap_test(&args.input_file, &args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
+    else {    
+        if args.process_all {
+            println!("running demo sparsifications. ignoring all other input flags.");
+            process_standard_datasets(args);
+        }
+        else {
+            lap_test(&args.input_file, &args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
+        }
     }
-    
 }
 

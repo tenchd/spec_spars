@@ -124,36 +124,42 @@ impl Benchmarker {
         self.times[self.resolve(point1)].unwrap() - self.times[self.resolve(point2)].unwrap()
     }
 
+    pub fn get_duration(&self, point1: BenchmarkPoint, point2: BenchmarkPoint) -> f64 {
+        self.compute_duration(point1, point2).as_secs_f64()
+    }
+
     pub fn display_durations(&self){
         if self.active{
             println!("");
             println!("--------------- Runtime information: -----------------------");
             println!("time to compute EVIM: - - - - - - - - - - - -  {:.2} seconds", 
-                self.compute_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize).as_secs_f64());
+                self.get_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize));
             println!("time to JL sketch: --------------------------- {:.2} seconds", 
-                self.compute_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete).as_secs_f64());
+                self.get_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete));
             println!("time to solve: - - - - - - - - - - - - - - - - {:.2} seconds", 
-                self.compute_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete).as_secs_f64());
+                self.get_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete));
             println!("time to compute diff norms: ------------------ {:.2} seconds", 
-                self.compute_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete).as_secs_f64());
+                self.get_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete));
             println!("time to reweight: - - - - - - - - - - - - - -  {:.2} seconds", 
-                self.compute_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete).as_secs_f64());
+                self.get_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete));
             println!("------------------------------------------------------------");
             println!("");
         }
     }
 
+
+
 }
 
 pub fn read_mtx<IndexType: CustomIndex>(filename: &str) -> CsMatI<f64, IndexType>{
-    println!("reading file {}", filename);
+    //println!("reading file {}", filename);
     let trip = read_matrix_market::<f64, IndexType, &str>(filename).unwrap();    
     let col_format = trip.to_csc::<IndexType>();
     return col_format;
 }
 
 pub fn read_mtx_csr<IndexType: CustomIndex>(filename: &str) -> CsMatI<f64, IndexType>{
-    println!("reading file {}", filename);
+    //println!("reading file {}", filename);
     let trip = read_matrix_market::<f64, IndexType, &str>(filename).unwrap();    
     let row_format = trip.to_csr::<IndexType>();
     return row_format;

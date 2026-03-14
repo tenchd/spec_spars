@@ -15,12 +15,30 @@ pub mod utils;
 pub mod sparsifier;
 pub mod stream;
 pub mod tests;
+pub mod experiments;
 
 use utils::read_mtx;
 use sparsifier::{Sparsifier,SparsifierParameters};
 use stream::InputStream;
 use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
+
+//-----const variables used to standardize location of files used in correctness tests.-----
+// filenames for original file inputs
+const INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
+const INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
+const INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
+const INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
+const INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
+const INPUT_FILENAME_BCSSTK30: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/bcsstk30/bcsstk30_nonpattern.mtx";
+const INPUT_FILENAME_CAHEPPH: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/ca-HepPh/ca-HepPh_nonpattern.mtx";
+const INPUT_FILENAME_COPAPERS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/coPapersCiteseer/coPapersCiteseer_nonpattern.mtx";
+const INPUT_FILENAME_GUPTA2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta2/gupta2_nonpattern.mtx";
+const INPUT_FILENAME_GUPTA3: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta3/gupta3_nonpattern.mtx";
+const INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/loc-Brightkite/loc-Brightkite_nonpattern.mtx";
+const INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
+const INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
+const INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
 
 
 #[cxx::bridge]
@@ -101,25 +119,8 @@ pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose:
     stream.run_stream(&parameters, test);
 }
 
-
-
-
-// fn main() {
-//     let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx";
-//     //let input_filename = "data/virus_input.mtx";
-//     //let input_filename = "/global/u1/d/dtench/rust_spars/cxx-test/data/cage3.mtx";
-//     //let input_filename = "/global/u1/d/dtench/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-//     lap_test(input_filename);
-
-//     // let mat = ndarray::array![[-7.0, 1.0, 2.0, 4.0], 
-//     //                                                     [1.0, -8.0, 3.0, 5.0],
-//     //                                                     [2.0, 3.0, -11.0, 6.0],
-//     //                                                     [4.0, 5.0, 6.0, -15.0], ];   
-//     // let sprsmat = sprs::CsMatBase::csc_from_dense(mat.view(), 0.1);
-//     // utils::write_mtx("data/test.mtx", &sprsmat);
-// }
-
-
-    //jl_visualize();
-    //l2_norm("/global/u1/d/dtench/rust_spars/cxx-test/sketch/virus_sketch.mtx");
-    //tianyu_test(); 
+pub fn run_experiment(input_filename: &str, dataset_name: &str) {
+    // let input_filename = crate::INPUT_FILENAME_HUMAN1;
+    // let dataset_name = "human1";
+    crate::experiments::basic_exploration(input_filename, dataset_name);
+}

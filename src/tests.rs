@@ -3,6 +3,7 @@ use sprs::{CsMat,TriMat,CsMatI,CsVecI};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform};
 use ndarray::{Axis, Array1};
+use crate::utils::{CustomIndex, CustomIndex::from_int};
 
 // if lower_diagonal, assumes a square matrix and only populates entries below the main diagonal. else populates randomly from all possible matrix locations
 pub fn make_random_matrix(num_rows: usize, num_cols: usize, nnz: usize, csc: bool, lower_diagonal: bool) -> CsMat<f64> {
@@ -46,15 +47,15 @@ pub fn make_random_evim_matrix(num_rows: usize, num_cols: usize, csc: bool) -> C
     trip.to_csr()
 }
 
-pub fn make_random_vector(length: usize) -> CsVecI::<f64, i32> {
+pub fn make_random_vector<IndexType: CustomIndex>(length: IndexType) -> CsVecI::<f64, IndexType> {
     let mut rng = rand::thread_rng();
     let uniform = Uniform::new(-1.0, 1.0);
-    let mut data: Vec<f64> = vec![0.0; length];
-    let indices = (0..length as i32).collect();
-    for i in 0..length {
+    let mut data: Vec<f64> = vec![0.0; length.index()];
+    let indices: Vec<IndexType> = (from_int(0)..length).collect();
+    for i in 0..length.index() {
         data[i] = uniform.sample(&mut rng);
     }
-    CsVecI::<f64, i32>::new(length, indices, data)
+    CsVecI::<f64, IndexType>::new(length.index(), indices, data)
 }
 
 pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
@@ -91,46 +92,46 @@ mod integration_tests {
     use crate::tests::{make_random_evim_matrix, make_random_vector};
     use crate::sparsifier::{Triplet, SparsifierParameters};
 
-    //-----static variables used to standardize location of files used in correctness tests.-----
-    // filenames for original file inputs
-    static INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
-    static INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
-    static INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-    static INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
-    static INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
-    static INPUT_FILENAME_BCSSTK30: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/bcsstk30/bcsstk30_nonpattern.mtx";
-    static INPUT_FILENAME_CAHEPPH: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/ca-HepPh/ca-HepPh_nonpattern.mtx";
-    static INPUT_FILENAME_COPAPERS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/coPapersCiteseer/coPapersCiteseer_nonpattern.mtx";
-    static INPUT_FILENAME_GUPTA2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta2/gupta2_nonpattern.mtx";
-    static INPUT_FILENAME_GUPTA3: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta3/gupta3_nonpattern.mtx";
-    static INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/loc-Brightkite/loc-Brightkite_nonpattern.mtx";
-    static INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
-    static INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
-    static INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
+    // //-----const variables used to standardize location of files used in correctness tests.-----
+    // // filenames for original file inputs
+    // const INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
+    // const INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
+    // const INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
+    // const INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
+    // const INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
+    // const INPUT_FILENAME_BCSSTK30: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/bcsstk30/bcsstk30_nonpattern.mtx";
+    // const INPUT_FILENAME_CAHEPPH: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/ca-HepPh/ca-HepPh_nonpattern.mtx";
+    // const INPUT_FILENAME_COPAPERS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/coPapersCiteseer/coPapersCiteseer_nonpattern.mtx";
+    // const INPUT_FILENAME_GUPTA2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta2/gupta2_nonpattern.mtx";
+    // const INPUT_FILENAME_GUPTA3: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta3/gupta3_nonpattern.mtx";
+    // const INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/loc-Brightkite/loc-Brightkite_nonpattern.mtx";
+    // const INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
+    // const INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
+    // const INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
 
     // filename for solver output file; empty string means it writes no output
-    static SOLVER_OUTPUT_FILENAME: &str= "";
+    const SOLVER_OUTPUT_FILENAME: &str= "";
 
     // filename for laplacian file written out by rust
-    static RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
+    const RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
 
     // filename for laplacian written out by julia file
-    static JULIA_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_lap.mtx";
+    const JULIA_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_lap.mtx";
     // evim from julia run
-    static JULIA_EVIM_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_evim.mtx";
+    const JULIA_EVIM_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_evim.mtx";
     // sketch factor matrix from julia 
-    static JULIA_SKETCH_FACTOR_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv";
+    const JULIA_SKETCH_FACTOR_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv";
     // sketch product matrix from julia, in both csv and mtx formats
-    static JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv";
-    static JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx";
+    const JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv";
+    const JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx";
     // solution matrix from julia
-    static JULIA_SOLUTION_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_solution.mtx";
+    const JULIA_SOLUTION_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_solution.mtx";
     // diff norms written out from julia run
-    static JULIA_DIFF_NORMS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv";
+    const JULIA_DIFF_NORMS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv";
     // probabilities written out from julia run
-    static JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
+    const JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
     // 
-    static JULIA_OUTCOMES_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/decisions.csv";
+    const JULIA_OUTCOMES_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/decisions.csv";
 
     // this eventually needs to be moved to somewhere else. but we need the rust lap file for later tests, and running it here ensures later tests will have it.
     #[test]
@@ -139,7 +140,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         parameters.verbose = true;
 
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let lap = stream.produce_laplacian().current_laplacian;
         crate::utils::write_mtx(RUST_LAP_FILENAME, &lap);
     }
@@ -180,7 +181,7 @@ mod integration_tests {
     //#[ignore]
     fn lap_equiv_julia_rust(){
         println!("TEST:----Running lap equivalence test: compare rust laplacian with known good example from julia reference implementation.-----");
-        let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let lap_stream: InputStream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let rust_lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
         let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(JULIA_LAP_FILENAME);
         let difference_lap = &rust_lap + &julia_lap; //this is a subtraction because the rust values are negative.
@@ -202,7 +203,7 @@ mod integration_tests {
         println!("TEST:-----Testing that, given edge probabilities all 0.5, laplacian is appropriately sparsified.-----");
         
         for seed in 0..5 {
-            let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+            let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
             let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
             parameters.sketch_seed = seed;
             parameters.sampling_seed = seed;
@@ -307,7 +308,7 @@ mod integration_tests {
     //#[ignore]
     fn evim_csc_equiv(){
         println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");        
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -426,7 +427,7 @@ mod integration_tests {
     //#[ignore]
     fn jl_sketch_equiv_virus(){
         println!("TEST:-----Testing that simplified jl sketching matrix multiplication gives the same output as library mat mult implementation.-----");
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let num_rows = stream.num_nodes;
         let parameters = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
@@ -460,7 +461,7 @@ mod integration_tests {
     pub fn jl_sketch_zero() {
         println!("TEST:-----Verifying that jl sketch output columns each sum to 0.-----");
 
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -479,8 +480,8 @@ mod integration_tests {
         let result = crate::tests::mean_and_std_dev(&sums);
         println!("mean {}, std dev {}", result.0, result.1);
 
-        let total = sums.sum_axis(Axis(0));
-        println!("TOTAL: {:?}", total);
+        //let total = sums.sum_axis(Axis(0));
+        //println!("TOTAL: {:?}", total);
         for i in 0..sums.len() {
             assert!(sums[i].abs_diff_eq(&0.0, 0.05));
         }
@@ -492,7 +493,7 @@ mod integration_tests {
     //#[ignore]
     pub fn flatten_interop() {
         println!("TEST:-----Verifying that flattening doesn't corrupt jl sketch columns.-----");
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let parameters= SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
@@ -542,7 +543,7 @@ mod integration_tests {
     fn run_interop_test(test_selector: i32, verbose: bool) {
         let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(JULIA_SKETCH_PRODUCT_MTX_FILENAME);
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
-        let lap_stream: InputStream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let lap_stream: InputStream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
         let n = lap.cols();
         let m = lap.rows();
@@ -556,7 +557,7 @@ mod integration_tests {
         println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
 
         // need to pass original input mtx, julia lap, julia sketch, output. 
-        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, INPUT_FILENAME_VIRUS, JULIA_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
+        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, crate::INPUT_FILENAME_VIRUS, JULIA_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
         assert!(result);
     }
 
@@ -613,8 +614,8 @@ mod integration_tests {
         println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
-        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
+        let (sparsifier, _) = stream.run_stream(&parameters, test);
 
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -647,12 +648,12 @@ mod integration_tests {
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
-        let input_filenames = [INPUT_FILENAME_MOUSE, INPUT_FILENAME_HUMAN1, INPUT_FILENAME_HUMAN2];
+        let input_filenames = [crate::INPUT_FILENAME_MOUSE, crate::INPUT_FILENAME_HUMAN1, crate::INPUT_FILENAME_HUMAN2];
 
         for input_filename in input_filenames {
 
             let stream = InputStream::new(input_filename, "");
-            let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+            let (sparsifier, _) = stream.run_stream(&parameters, test);
 
             let input_pattern = stream.input_matrix.map(&map_to_pattern);
             let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -686,8 +687,8 @@ mod integration_tests {
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
 
-        let stream = InputStream::new(INPUT_FILENAME_SMALL, "small_input");
-        let mut sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+        let stream = InputStream::new(crate::INPUT_FILENAME_SMALL, "small_input");
+        let (mut sparsifier, _) = stream.run_stream(&parameters, test);
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
 
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -801,7 +802,7 @@ mod integration_tests {
     fn diff_norm_and_probs_via_rust(){
         let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
-        let stream = InputStream::new(INPUT_FILENAME_VIRUS, "");
+        let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
@@ -834,7 +835,7 @@ mod integration_tests {
             parameters.sketch_uniform = true;
             let test = true;
             let stream = InputStream::new(input_filename, "");
-            let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+            let (sparsifier, _) = stream.run_stream(&parameters, test);
 
             let original_graph = stream.get_input_graph();
             let sparsified_graph = sparsifier.to_petgraph();
@@ -847,7 +848,7 @@ mod integration_tests {
             let probe_iterations = 100;
             let mut errors = Array1::zeros(probe_iterations);
             for i in 0..probe_iterations {
-                let probe_vector = make_random_vector(sparsifier.num_nodes as usize);
+                let probe_vector = make_random_vector::<i32>(sparsifier.num_nodes.try_into().unwrap());
                 let original_product = original_state.compute_quadratic_form(&probe_vector);
                 let sparsified_product = sparsifier.compute_quadratic_form(&probe_vector);
                 let upper_bound = original_product * (1.0 + sparsifier.epsilon);
@@ -874,91 +875,91 @@ mod integration_tests {
     #[ignore]
     fn virus_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the virus dataset.-----");
-        graphtest(INPUT_FILENAME_VIRUS);
+        graphtest(crate::INPUT_FILENAME_VIRUS);
     }
 
     #[test]
     #[ignore]
     fn mouse_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mouse dataset.-----");
-        graphtest(INPUT_FILENAME_MOUSE);
+        graphtest(crate::INPUT_FILENAME_MOUSE);
     }
 
     #[test]
     #[ignore]
     fn human1_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human1 dataset.-----");
-        graphtest(INPUT_FILENAME_HUMAN1);
+        graphtest(crate::INPUT_FILENAME_HUMAN1);
     }
 
     #[test]
     #[ignore]
     fn human2_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human2 dataset.-----");
-        graphtest(INPUT_FILENAME_HUMAN2);
+        graphtest(crate::INPUT_FILENAME_HUMAN2);
     }
 
     #[test]
     #[ignore]
     fn k49_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the k49 dataset.-----");
-        graphtest(INPUT_FILENAME_K49);
+        graphtest(crate::INPUT_FILENAME_K49);
     }
 
     #[test]
     #[ignore]
     fn bcsstk30_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the bcsstk30 dataset.-----");
-        graphtest(INPUT_FILENAME_BCSSTK30);
+        graphtest(crate::INPUT_FILENAME_BCSSTK30);
     }
 
     #[test]
     #[ignore]
     fn cahepph_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the cahepph dataset.-----");
-        graphtest(INPUT_FILENAME_CAHEPPH);
+        graphtest(crate::INPUT_FILENAME_CAHEPPH);
     }
 
     #[test]
     #[ignore]
     fn copapers_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the copapers dataset.-----");
-        graphtest(INPUT_FILENAME_COPAPERS);
+        graphtest(crate::INPUT_FILENAME_COPAPERS);
     }
 
     #[test]
     #[ignore]
     fn gupta2_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the gupta2 dataset.-----");
-        graphtest(INPUT_FILENAME_GUPTA2);
+        graphtest(crate::INPUT_FILENAME_GUPTA2);
     }
 
     #[test]
     #[ignore]
     fn gupta3_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the gupta3 dataset.-----");
-        graphtest(INPUT_FILENAME_GUPTA3);
+        graphtest(crate::INPUT_FILENAME_GUPTA3);
     }
 
     #[test]
     #[ignore]
     fn locbright_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the locbright dataset.-----");
-        graphtest(INPUT_FILENAME_LOCBRIGHT);
+        graphtest(crate::INPUT_FILENAME_LOCBRIGHT);
     }
 
     #[test]
     #[ignore]
     fn mycielskian_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mycielskian dataset.-----");
-        graphtest(INPUT_FILENAME_MYCIELSKIAN);
+        graphtest(crate::INPUT_FILENAME_MYCIELSKIAN);
     }
 
     #[test]
     #[ignore]
     fn pattern1_full_test(){
         println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the pattern1 dataset.-----");
-        graphtest(INPUT_FILENAME_PATTERN1);
+        graphtest(crate::INPUT_FILENAME_PATTERN1);
     }
 
     fn sketch_sparsification_rate_test(input_filename: &str) {
@@ -966,7 +967,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         let test = true;
         let stream = InputStream::new(input_filename, "");
-        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+        let (sparsifier, _) = stream.run_stream(&parameters, test);
 
         let original_graph = stream.get_input_graph();
         let sparsified_graph = sparsifier.to_petgraph();
@@ -982,7 +983,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         parameters.sketch_uniform = false;
         let stream = InputStream::new(input_filename, "");
-        let sparsifier: Sparsifier<i32> = stream.run_stream(&parameters, test);
+        let (sparsifier, _) = stream.run_stream(&parameters, test);
         let sparsified_graph = sparsifier.to_petgraph();
         let sparsified_edges = sparsified_graph.edge_count();
         let discrete_sketch_ratio = (sparsified_edges as f64 / original_edges as f64);
@@ -999,28 +1000,28 @@ mod integration_tests {
     #[ignore]
     fn virus_sparsification_rate_test(){
         println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the virus dataset.-----");
-        sketch_sparsification_rate_test(INPUT_FILENAME_VIRUS);
+        sketch_sparsification_rate_test(crate::INPUT_FILENAME_VIRUS);
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn mouse_sparsification_rate_test(){
         println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the mouse dataset.-----");
-        sketch_sparsification_rate_test(INPUT_FILENAME_MOUSE);
+        sketch_sparsification_rate_test(crate::INPUT_FILENAME_MOUSE);
     }
 
     #[test]
     #[ignore]
     fn human1_sparsification_rate_test(){
         println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the human1 dataset.-----");
-        sketch_sparsification_rate_test(INPUT_FILENAME_HUMAN1);
+        sketch_sparsification_rate_test(crate::INPUT_FILENAME_HUMAN1);
     }
 
     #[test]
     #[ignore]
     fn human2_sparsification_rate_test(){
         println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the human2 dataset.-----");
-        sketch_sparsification_rate_test(INPUT_FILENAME_HUMAN2);
+        sketch_sparsification_rate_test(crate::INPUT_FILENAME_HUMAN2);
     }
 
     // new test: vary parameters (epsilon, jl factor, others?) and ensure ccs stay the same. probably for smaller dataset.
