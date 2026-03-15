@@ -6,7 +6,10 @@ use ndarray::Array1;
 use petgraph::algo::connected_components;
 use petgraph::Graph;
 use std::fs::File;
+use std::fs::OpenOptions;
+use std::path::Path;
 use csv::Writer;
+
 
 
 struct ExperimentResult {
@@ -17,9 +20,19 @@ struct ExperimentResult {
 
 impl ExperimentResult {
     fn new(output_filename: String, column_headers: Vec<String>) -> Self {
-        let file = File::create(&output_filename).expect("Could not create file");
+        //let file = File::create(&output_filename).expect("Could not create file");
+        let path: &Path = output_filename.as_ref();
+        let file_exists = path.exists();
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(true)
+            .open(&output_filename)
+            .expect("Could not open or create file");
         let mut writer = Writer::from_writer(file);
-        writer.write_record(&column_headers).expect("Could not write column headers");
+        if !file_exists {
+            writer.write_record(&column_headers).expect("Could not write column headers");
+        }
         ExperimentResult {
             output_filename,
             column_headers,
@@ -43,7 +56,7 @@ fn verify_ccs<IndexType: CustomIndex>(stream: &InputStream, sparsifier: &Sparsif
     let sparsified_graph = sparsifier.to_petgraph();
     let original_ccs = connected_components(&original_graph);
     let sparsified_ccs = connected_components(&sparsified_graph);
-    return original_ccs ==  sparsified_ccs;
+    return original_ccs == sparsified_ccs;
 }
 
 struct QuadraticFormProbeResult {
@@ -110,10 +123,10 @@ fn probe_quadratic_form(stream: &InputStream, sparsifier: &Sparsifier<i32>, data
 // whether observe CC failure, 
 // quadratic form statistics (# failures, mean/std/max of relative error)
 // sparsification rate
-pub fn basic_exploration(input_filename: &str, dataset_name: &str) {
+pub fn basic_exploration(input_filenames: &[&str], dataset_names: &[&str]) {
     let epsilons = [0.75, 0.5, 0.25];
     let sketch_types = [true, false]; //true for uniform, false for discrete (fix this later)
-    let output_filename = format!("{}_experiment_results.csv", dataset_name);
+    let output_filename = format!("basic_experiment_results.csv");
     let column_headers = vec![
         "dataset".to_string(),
         "epsilon".to_string(),
@@ -133,49 +146,49 @@ pub fn basic_exploration(input_filename: &str, dataset_name: &str) {
     ];
 
     let mut experiment_result = ExperimentResult::new(output_filename, column_headers);
+        
+    for (input_filename, dataset_name) in input_filenames.iter().zip(dataset_names.iter()) {
+        for epsilon in epsilons {
+            for sketch_type in sketch_types {
+                let mut sketch_name = "discrete";
+                if sketch_type {sketch_name = "uniform";}
+                println!("------------------------------------------------------------------------");
+                println!("    Sparsifying {} with epsilon {} and {} sketch", dataset_name, epsilon, sketch_name);
+                println!("------------------------------------------------------------------------");
+                let mut parameters = SparsifierParameters::new_default(true);
+                parameters.jl_factor = 4.0;
+                parameters.sketch_seed = 0;
+                parameters.sampling_seed = 0;
+                parameters.epsilon = epsilon;
+                parameters.sketch_uniform = sketch_type;
 
-    for epsilon in epsilons {
-        for sketch_type in sketch_types {
-            let mut sketch_name = "discrete";
-            if sketch_type {sketch_name = "uniform";}
-            println!("------------------------------------------------------------------------");
-            println!("    Sparsifying {} with epsilon {} and {} sketch", dataset_name, epsilon, sketch_name);
-            println!("------------------------------------------------------------------------");
-            let mut parameters = SparsifierParameters::new_default(true);
-            parameters.jl_factor = 4.0;
-            parameters.sketch_seed = 0;
-            parameters.sampling_seed = 0;
-            parameters.epsilon = epsilon;
-            parameters.sketch_uniform = sketch_type;
+                let stream = InputStream::new(input_filename, dataset_name);
+                let (sparsifier, sparsification_stats) = stream.run_stream(&parameters, false);
 
-            let stream = InputStream::new(input_filename, dataset_name);
-            let (sparsifier, sparsification_stats) = stream.run_stream(&parameters, false);
-
-            let cc_success = verify_ccs(&stream, &sparsifier);
-            let quadratic_form_result = probe_quadratic_form(&stream, &sparsifier, dataset_name, 100);
-            println!("------------------------------------------------------------------------");
-            println!("      Finished {} with epsilon {} and {} sketch", dataset_name, epsilon, sketch_name);
-            println!("------------------------------------------------------------------------");
-            experiment_result.record_result(vec![
-                dataset_name.to_string(),
-                epsilon.to_string(),
-                sketch_name.to_string(),
-                sparsifier.benchmarker.get_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize).to_string(),
-                sparsifier.benchmarker.get_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete).to_string(),
-                sparsifier.benchmarker.get_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete).to_string(),
-                sparsifier.benchmarker.get_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete).to_string(),
-                sparsifier.benchmarker.get_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete).to_string(),
-                cc_success.to_string(),
-                quadratic_form_result.upper_bound_violations.to_string(),
-                quadratic_form_result.lower_bound_violations.to_string(),
-                quadratic_form_result.mean_relative_error.to_string(),
-                quadratic_form_result.std_dev_relative_error.to_string(),
-                quadratic_form_result.max_relative_error.to_string(),
-                sparsification_stats.sparsification_rate().to_string(),
-            ]);
+                let cc_success = verify_ccs(&stream, &sparsifier);
+                let quadratic_form_result = probe_quadratic_form(&stream, &sparsifier, dataset_name, 100);
+                println!("------------------------------------------------------------------------");
+                println!("      Finished {} with epsilon {} and {} sketch", dataset_name, epsilon, sketch_name);
+                println!("------------------------------------------------------------------------");
+                experiment_result.record_result(vec![
+                    dataset_name.to_string(),
+                    epsilon.to_string(),
+                    sketch_name.to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete).to_string(),
+                    cc_success.to_string(),
+                    quadratic_form_result.upper_bound_violations.to_string(),
+                    quadratic_form_result.lower_bound_violations.to_string(),
+                    quadratic_form_result.mean_relative_error.to_string(),
+                    quadratic_form_result.std_dev_relative_error.to_string(),
+                    quadratic_form_result.max_relative_error.to_string(),
+                    sparsification_stats.sparsification_rate().to_string(),
+                ]);
+            }
         }
     }
-    // each csv output line should be: dataset, epsilon, sketch type, runtime breakdown, CC success, # upper bound violations, # lower bound violations, mean rel error, std dev rel error, max rel error, sparsification rate
-
-
+    experiment_result.finalize();
 }

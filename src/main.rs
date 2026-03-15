@@ -90,7 +90,7 @@ fn main() {
 
     if args.run_experiment {
         println!("running staged experiment on specified input file. ignoring parameter input flags.");
-        run_experiment(args.input_file.as_str(), args.dataset_name.as_str());
+        run_experiment();
     }
     else {    
         if args.process_all {

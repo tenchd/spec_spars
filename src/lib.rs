@@ -119,8 +119,8 @@ pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose:
     stream.run_stream(&parameters, test);
 }
 
-pub fn run_experiment(input_filename: &str, dataset_name: &str) {
-    // let input_filename = crate::INPUT_FILENAME_HUMAN1;
-    // let dataset_name = "human1";
-    crate::experiments::basic_exploration(input_filename, dataset_name);
+pub fn run_experiment() {
+    let input_filenames = [crate::INPUT_FILENAME_K49, crate::INPUT_FILENAME_BCSSTK30, crate::INPUT_FILENAME_CAHEPPH, crate::INPUT_FILENAME_COPAPERS];
+    let dataset_names = ["k49", "bcsstk30", "caHep-Ph", "CoPapers"];
+    crate::experiments::basic_exploration(&input_filenames, &dataset_names);
 }

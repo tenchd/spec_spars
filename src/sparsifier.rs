@@ -208,7 +208,7 @@ impl SparsificationStats {
     }
 
     pub fn sparsification_rate(&self) -> f64 {
-        1.0 - (self.final_num_edges as f64 / self.original_num_edges as f64)
+        (self.final_num_edges as f64 / self.original_num_edges as f64)
     }
 }
 
