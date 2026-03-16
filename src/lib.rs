@@ -23,7 +23,7 @@ use stream::InputStream;
 use crate::{ffi::FlattenedVec};
 use ndarray::Array2;
 
-//-----const variables used to standardize location of files used in correctness tests.-----
+//-----const variables used to standardize location of files used in correctness tests or experiments.-----
 // filenames for original file inputs
 const INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
 const INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
@@ -40,6 +40,23 @@ const INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_
 const INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
 const INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
 
+
+const DATASET_NAME_VIRUS: &str = "virus";
+const DATASET_NAME_HUMAN1: &str = "human_gene1";
+const DATASET_NAME_HUMAN2: &str = "human_gene2";
+const DATASET_NAME_MOUSE: &str = "mouse_gene";
+const DATASET_NAME_K49: &str = "k49_norm_10NN";
+const DATASET_NAME_BCSSTK30: &str = "bcsstk30";
+const DATASET_NAME_CAHEPPH: &str = "ca-HepPh";
+const DATASET_NAME_COPAPERS: &str = "coPapersCiteseer";
+const DATASET_NAME_GUPTA2: &str = "gupta2";
+const DATASET_NAME_GUPTA3: &str = "gupta3";
+const DATASET_NAME_LOCBRIGHT: &str = "loc-Brightkite";
+const DATASET_NAME_MYCIELSKIAN: &str = "mycielskian15";
+const DATASET_NAME_PATTERN1: &str = "pattern1";
+const DATASET_NAME_SMALL: &str = "small_input";
+
+const OUTPUT_LAPLACIAN_PATH: &str = "/global/homes/d/dtench/m1982/david/spec_spars_files/rust_sparse_output/";
 
 #[cxx::bridge]
 mod ffi {
@@ -120,7 +137,35 @@ pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose:
 }
 
 pub fn run_experiment() {
-    let input_filenames = [crate::INPUT_FILENAME_K49, crate::INPUT_FILENAME_BCSSTK30, crate::INPUT_FILENAME_CAHEPPH, crate::INPUT_FILENAME_COPAPERS];
-    let dataset_names = ["k49", "bcsstk30", "caHep-Ph", "CoPapers"];
+    let input_filenames = [crate::INPUT_FILENAME_VIRUS,
+        crate::INPUT_FILENAME_HUMAN1, 
+        crate::INPUT_FILENAME_HUMAN2, 
+        crate::INPUT_FILENAME_MOUSE, 
+        crate::INPUT_FILENAME_K49, 
+        crate::INPUT_FILENAME_BCSSTK30, 
+        crate::INPUT_FILENAME_CAHEPPH, 
+        crate::INPUT_FILENAME_COPAPERS,
+        crate::INPUT_FILENAME_GUPTA2,
+        crate::INPUT_FILENAME_GUPTA3,
+        crate::INPUT_FILENAME_LOCBRIGHT,
+        crate::INPUT_FILENAME_MYCIELSKIAN,
+        crate::INPUT_FILENAME_PATTERN1
+    ];
+        
+        let dataset_names = [crate::DATASET_NAME_VIRUS,
+            crate::DATASET_NAME_HUMAN1, 
+            crate::DATASET_NAME_HUMAN2, 
+            crate::DATASET_NAME_MOUSE, 
+            crate::DATASET_NAME_K49, 
+            crate::DATASET_NAME_BCSSTK30, 
+            crate::DATASET_NAME_CAHEPPH, 
+            crate::DATASET_NAME_COPAPERS,
+            crate::DATASET_NAME_GUPTA2,
+            crate::DATASET_NAME_GUPTA3,
+            crate::DATASET_NAME_LOCBRIGHT,
+            crate::DATASET_NAME_MYCIELSKIAN,
+            crate::DATASET_NAME_PATTERN1
+        ];
+
     crate::experiments::basic_exploration(&input_filenames, &dataset_names);
 }

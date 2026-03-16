@@ -29,6 +29,8 @@ geom_line() +
 geom_point() +
 scale_x_continuous(name ="Epsilon", 
                     breaks=seq(0,1,0.25)) +
-scale_y_continuous(name = "Runtime (seconds)", trans = "log2", limits = c(32, 256)) +
+scale_y_continuous(name = "Runtime (seconds)", trans = "log2"
+#                  , limits = c(32, 256)
+                  ) +
 scale_color_discrete(name = "Sketch Type") +
 facet_wrap(~dataset)
