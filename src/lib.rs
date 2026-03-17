@@ -39,6 +39,10 @@ const INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_pr
 const INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
 const INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
 const INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
+const INPUT_FILENAME_KRON13: &str = "/global/homes/d/dtench/m1982/david/dense_streams/kron13.mtx";
+const INPUT_FILENAME_KRON14: &str = "/global/homes/d/dtench/m1982/david/dense_streams/kron14.mtx";
+const INPUT_FILENAME_KRON15: &str = "/global/homes/d/dtench/m1982/david/dense_streams/kron15.mtx";
+const INPUT_FILENAME_KRON17: &str = "/global/homes/d/dtench/m1982/david/dense_streams/kron17.mtx";
 
 
 const DATASET_NAME_VIRUS: &str = "virus";
@@ -55,6 +59,10 @@ const DATASET_NAME_LOCBRIGHT: &str = "loc-Brightkite";
 const DATASET_NAME_MYCIELSKIAN: &str = "mycielskian15";
 const DATASET_NAME_PATTERN1: &str = "pattern1";
 const DATASET_NAME_SMALL: &str = "small_input";
+const DATASET_NAME_KRON13: &str = "kron13";
+const DATASET_NAME_KRON14: &str = "kron14";
+const DATASET_NAME_KRON15: &str = "kron15";
+const DATASET_NAME_KRON17: &str = "kron17";
 
 const OUTPUT_LAPLACIAN_PATH: &str = "/global/homes/d/dtench/m1982/david/spec_spars_files/rust_sparse_output/";
 
@@ -137,34 +145,44 @@ pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose:
 }
 
 pub fn run_experiment() {
-    let input_filenames = [crate::INPUT_FILENAME_VIRUS,
-        crate::INPUT_FILENAME_HUMAN1, 
-        crate::INPUT_FILENAME_HUMAN2, 
-        crate::INPUT_FILENAME_MOUSE, 
-        crate::INPUT_FILENAME_K49, 
-        crate::INPUT_FILENAME_BCSSTK30, 
-        crate::INPUT_FILENAME_CAHEPPH, 
-        crate::INPUT_FILENAME_COPAPERS,
-        crate::INPUT_FILENAME_GUPTA2,
-        crate::INPUT_FILENAME_GUPTA3,
-        crate::INPUT_FILENAME_LOCBRIGHT,
-        crate::INPUT_FILENAME_MYCIELSKIAN,
-        crate::INPUT_FILENAME_PATTERN1
+    let input_filenames = [
+        // crate::INPUT_FILENAME_VIRUS,
+        // crate::INPUT_FILENAME_HUMAN1, 
+        // crate::INPUT_FILENAME_HUMAN2, 
+        // crate::INPUT_FILENAME_MOUSE, 
+        // crate::INPUT_FILENAME_K49, 
+        // crate::INPUT_FILENAME_BCSSTK30, 
+        // crate::INPUT_FILENAME_CAHEPPH, 
+        // crate::INPUT_FILENAME_COPAPERS,
+        // crate::INPUT_FILENAME_GUPTA2,
+        // crate::INPUT_FILENAME_GUPTA3,
+        // crate::INPUT_FILENAME_LOCBRIGHT,
+        // crate::INPUT_FILENAME_MYCIELSKIAN,
+        // crate::INPUT_FILENAME_PATTERN1
+        crate::INPUT_FILENAME_KRON13,
+        crate::INPUT_FILENAME_KRON14,
+        crate::INPUT_FILENAME_KRON15,
+        crate::INPUT_FILENAME_KRON17
     ];
         
-        let dataset_names = [crate::DATASET_NAME_VIRUS,
-            crate::DATASET_NAME_HUMAN1, 
-            crate::DATASET_NAME_HUMAN2, 
-            crate::DATASET_NAME_MOUSE, 
-            crate::DATASET_NAME_K49, 
-            crate::DATASET_NAME_BCSSTK30, 
-            crate::DATASET_NAME_CAHEPPH, 
-            crate::DATASET_NAME_COPAPERS,
-            crate::DATASET_NAME_GUPTA2,
-            crate::DATASET_NAME_GUPTA3,
-            crate::DATASET_NAME_LOCBRIGHT,
-            crate::DATASET_NAME_MYCIELSKIAN,
-            crate::DATASET_NAME_PATTERN1
+        let dataset_names = [
+            // crate::DATASET_NAME_VIRUS,
+            // crate::DATASET_NAME_HUMAN1, 
+            // crate::DATASET_NAME_HUMAN2, 
+            // crate::DATASET_NAME_MOUSE, 
+            // crate::DATASET_NAME_K49, 
+            // crate::DATASET_NAME_BCSSTK30, 
+            // crate::DATASET_NAME_CAHEPPH, 
+            // crate::DATASET_NAME_COPAPERS,
+            // crate::DATASET_NAME_GUPTA2,
+            // crate::DATASET_NAME_GUPTA3,
+            // crate::DATASET_NAME_LOCBRIGHT,
+            // crate::DATASET_NAME_MYCIELSKIAN,
+            // crate::DATASET_NAME_PATTERN1
+            crate::DATASET_NAME_KRON13,
+            crate::DATASET_NAME_KRON14,
+            crate::DATASET_NAME_KRON15,
+            crate::DATASET_NAME_KRON17
         ];
 
     crate::experiments::basic_exploration(&input_filenames, &dataset_names);

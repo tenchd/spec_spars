@@ -103,3 +103,10 @@ fn main() {
     }
 }
 
+// fn main() {
+//     let input_filename = "/global/homes/d/dtench/m1982/david/dense_streams/kron13_raw.txt";
+//     let output_filename = "/global/homes/d/dtench/m1982/david/dense_streams/kron13.mtx";
+//     spec_spars::utils::edge_list_to_matrix_market(input_filename, output_filename, 1.0);
+//     println!("done!");
+// }
+

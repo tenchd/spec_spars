@@ -1,6 +1,6 @@
 library(tidyverse)
 
-data <- read_csv("basic_experiment_results.csv")
+data <- read_csv("basic_experiment_results_with_fscore.csv")
 
 ggplot(data, aes(x = epsilon, y = sparsification_rate * 100, color = sketch_type)) + 
 geom_point() +
@@ -19,6 +19,20 @@ scale_x_continuous(name ="Epsilon",
                     breaks=seq(0,1,0.25)) +
 scale_y_continuous(name = "Mean Relative Error (%)",
                   sec.axis = sec_axis(~. , name="Bound Violations (out of 100 trials)")) +
+#scale_y_continuous(name = "Mean Relative Error") +
+
+#scale_color_discrete(name = "Sketch Type") +
+facet_wrap(~dataset)
+
+ggplot(data, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
+geom_line(aes(y = fscore), linetype = "dotted") +
+geom_point(aes(y = fscore)) +
+geom_line(aes(y = mean_rel_error)) + 
+geom_point(aes(y = mean_rel_error)) +
+scale_x_continuous(name ="Epsilon", 
+                    breaks=seq(0,1,0.25)) +
+scale_y_continuous(name = "Mean Relative Error",
+                  sec.axis = sec_axis(~. , name="fscore")) +
 #scale_y_continuous(name = "Mean Relative Error") +
 
 #scale_color_discrete(name = "Sketch Type") +

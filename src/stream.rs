@@ -76,7 +76,6 @@ impl InputStream {
     }
 
     // used for testing purposes
-
     #[allow(dead_code)]
     pub fn produce_laplacian(&self) -> Sparsifier<i32> {
         let parameters = SparsifierParameters::new_default(false);

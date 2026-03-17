@@ -12,6 +12,9 @@ use std::io::{prelude::*, BufReader};
 use csv::Writer;
 use ndarray::{Array2, Axis};
 use std::error::Error;
+use std::collections::HashSet;
+use std::io::{self, BufRead, BufWriter, Write};
+use std::collections::HashMap;
 
 use csv::ReaderBuilder;
 
@@ -458,4 +461,120 @@ pub fn csvs_equivalent<P: AsRef<Path>>(path_a: P, path_b: P, epsilon: f64) -> Re
     }
 
     Ok(true)
+}
+
+// Vibe-coded function that turns kron files into mtx files.
+
+/// Convert an edge‑list file to a Matrix‑Market (`.mtx`) file whose entries
+/// are *real* (floating‑point) weights.
+///
+/// # Arguments
+/// * `input_path` – path to the edge‑list file.  
+///   First line: `<num_nodes> <num_edges>` (the second number is ignored).  
+///   Each subsequent line: `src dst [weight]`.  `weight` is optional; if omitted
+///   the `default_weight` is used for that edge.
+/// * `output_path` – full path of the file that will receive the Matrix‑Market
+///   representation.
+/// * `default_weight` – weight to assign when the source file does not supply
+///   one (e.g. `1.0`).
+///
+/// The matrix is declared *symmetric*; only the lower‑triangle `(i ≤ j)` is
+/// written. Duplicate edges are merged (the first occurrence wins).
+///
+/// # Errors
+/// Propagates any I/O or parsing errors.
+pub fn edge_list_to_matrix_market<P, Q>(
+    input_path: P,
+    output_path: Q,
+    default_weight: f64,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    // ---------- 1️⃣  read the edge list ----------
+    let in_path = input_path.as_ref();
+    let mut lines = BufReader::new(File::open(in_path)?).lines();
+
+    // first line: "<num_nodes> <num_edges>"
+    let first = lines
+        .next()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "empty input file"))??;
+    let mut parts = first.split_whitespace();
+    let n_nodes: usize = parts
+        .next()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing node count"))?
+        .parse()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    // ignore the declared edge count – we recompute it
+    let _declared_edges: usize = parts
+        .next()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing edge count"))?
+        .parse()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+    // store unique edges with a weight (min, max) → weight
+    let mut edge_weights: HashMap<(usize, usize), f64> = HashMap::new();
+
+    for line in lines {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let mut it = line.split_whitespace();
+
+        // read the two endpoints
+        let u: usize = it
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing first endpoint"))?
+            .parse()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let v: usize = it
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing second endpoint"))?
+            .parse()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        // optional third token = weight
+        let weight: f64 = if let Some(tok) = it.next() {
+            tok.parse()
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+        } else {
+            default_weight
+        };
+
+        // enforce (i ≤ j) for symmetric storage
+        let (i, j) = if u <= v { (u, v) } else { (v, u) };
+        // keep the first weight encountered for duplicate edges
+        edge_weights.entry((i, j)).or_insert(weight);
+    }
+
+    // ---------- 2️⃣  write Matrix‑Market file ----------
+    let out_path = output_path.as_ref();
+
+    // Ensure parent directories exist
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let out_file = File::create(out_path)?;
+    let mut out = BufWriter::new(out_file);
+
+    // Header: coordinate format, real entries, symmetric matrix
+    writeln!(out, "%%MatrixMarket matrix coordinate real symmetric")?;
+    writeln!(out, "% Converted from {}", in_path.display())?;
+
+    // Size line: rows cols non‑zero entries
+    writeln!(out, "{} {} {}", n_nodes, n_nodes, edge_weights.len())?;
+
+    // Deterministic order for reproducibility
+    let mut edges: Vec<((usize, usize), f64)> = edge_weights.into_iter().collect();
+    edges.sort_unstable_by_key(|&(pair, _)| pair); // sort by (i,j)
+
+    for ((i, j), w) in edges {
+        // Use default Display for f64 – prints as needed (e.g. 1.0, 2.5e-3)
+        writeln!(out, "{} {} {}", i, j, w)?;
+    }
+
+    Ok(())
 }
