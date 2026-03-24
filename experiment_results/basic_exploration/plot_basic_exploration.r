@@ -4,7 +4,7 @@ library(ggtext)
 
 data <- read_csv("basic_experiment_results_with_fscore.csv")
 
-metadata <- read_csv("dataset_stats.csv") %>% 
+metadata <- read_csv("dataset_stats_protected.csv") %>% 
   mutate(dataset = as.character(dataset))
 
 make_meta_string <- function(meta_row) {
