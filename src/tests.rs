@@ -615,7 +615,7 @@ mod integration_tests {
         let parameters = SparsifierParameters::new_default(true);
         let test = true;
         let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
-        let (sparsifier, _) = stream.run_stream(&parameters, test);
+        let (sparsifier, _) = stream.run_stream(&parameters, test, false);
 
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -653,7 +653,7 @@ mod integration_tests {
         for input_filename in input_filenames {
 
             let stream = InputStream::new(input_filename, "");
-            let (sparsifier, _) = stream.run_stream(&parameters, test);
+            let (sparsifier, _) = stream.run_stream(&parameters, test, false);
 
             let input_pattern = stream.input_matrix.map(&map_to_pattern);
             let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -688,7 +688,7 @@ mod integration_tests {
         let test = true;
 
         let stream = InputStream::new(crate::INPUT_FILENAME_SMALL, "small_input");
-        let (mut sparsifier, _) = stream.run_stream(&parameters, test);
+        let (mut sparsifier, _) = stream.run_stream(&parameters, test, false);
         let input_pattern = stream.input_matrix.map(&map_to_pattern);
 
         let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
@@ -835,7 +835,7 @@ mod integration_tests {
             parameters.sketch_uniform = true;
             let test = true;
             let stream = InputStream::new(input_filename, "");
-            let (sparsifier, _) = stream.run_stream(&parameters, test);
+            let (sparsifier, _) = stream.run_stream(&parameters, test, false);
 
             let original_graph = stream.get_input_graph();
             let sparsified_graph = sparsifier.to_petgraph();
@@ -967,7 +967,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         let test = true;
         let stream = InputStream::new(input_filename, "");
-        let (sparsifier, _) = stream.run_stream(&parameters, test);
+        let (sparsifier, _) = stream.run_stream(&parameters, test, false);
 
         let original_graph = stream.get_input_graph();
         let sparsified_graph = sparsifier.to_petgraph();
@@ -983,7 +983,7 @@ mod integration_tests {
         parameters.jl_factor = 4.0;
         parameters.sketch_uniform = false;
         let stream = InputStream::new(input_filename, "");
-        let (sparsifier, _) = stream.run_stream(&parameters, test);
+        let (sparsifier, _) = stream.run_stream(&parameters, test, false);
         let sparsified_graph = sparsifier.to_petgraph();
         let sparsified_edges = sparsified_graph.edge_count();
         let discrete_sketch_ratio = (sparsified_edges as f64 / original_edges as f64);

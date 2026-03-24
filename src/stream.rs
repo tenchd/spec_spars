@@ -45,7 +45,7 @@ impl InputStream {
         }
     }
 
-    pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool) -> (Sparsifier<i32>, SparsificationStats) {
+    pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool, writeout: bool) -> (Sparsifier<i32>, SparsificationStats) {
         //let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
         let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), parameters);
 
@@ -60,7 +60,8 @@ impl InputStream {
         if test{println!("checking diagonal final time");
         sparsifier.check_diagonal();}
 
-        if (!test) {
+        //FIX THIS LOGIC, currently creates filename that only makes sense for one experiment
+        if (!test && writeout) {
             //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, &self.dataset_name, true);
             let output_filename = &self.dataset_name;
             let output_filepath = crate::OUTPUT_LAPLACIAN_PATH;

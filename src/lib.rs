@@ -132,23 +132,27 @@ pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose:
     
     // for now, users can't set these parameters
     let jl_factor: f64 = 4.0;
+    let jl_scaling_factor: f64 = (3.0_f64).sqrt();
     let beta_constant = 4;
     let row_constant = 2;
     let sketch_uniform = true;
-    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, sketch_seed, sampling_seed, benchmark, sketch_uniform);
+    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, jl_scaling_factor, sketch_seed, sampling_seed, benchmark, sketch_uniform);
 
     // not a test
     let test = false;
 
+    // don't write sparsifier as a file
+    let writeout = false;
+
     let stream = InputStream::new(input_filename, dataset_name);
-    stream.run_stream(&parameters, test);
+    stream.run_stream(&parameters, test, writeout);
 }
 
 pub fn run_experiment() {
     let input_filenames = [
         // crate::INPUT_FILENAME_VIRUS,
-        // crate::INPUT_FILENAME_HUMAN1, 
-        // crate::INPUT_FILENAME_HUMAN2, 
+        crate::INPUT_FILENAME_HUMAN1, 
+        crate::INPUT_FILENAME_HUMAN2, 
         // crate::INPUT_FILENAME_MOUSE, 
         // crate::INPUT_FILENAME_K49, 
         // crate::INPUT_FILENAME_BCSSTK30, 
@@ -159,31 +163,33 @@ pub fn run_experiment() {
         // crate::INPUT_FILENAME_LOCBRIGHT,
         // crate::INPUT_FILENAME_MYCIELSKIAN,
         // crate::INPUT_FILENAME_PATTERN1
-        crate::INPUT_FILENAME_KRON13,
-        crate::INPUT_FILENAME_KRON14,
-        crate::INPUT_FILENAME_KRON15,
-        crate::INPUT_FILENAME_KRON17
+        // crate::INPUT_FILENAME_KRON13,
+        // crate::INPUT_FILENAME_KRON14,
+        // crate::INPUT_FILENAME_KRON15,
+        // crate::INPUT_FILENAME_KRON17
     ];
         
-        let dataset_names = [
-            // crate::DATASET_NAME_VIRUS,
-            // crate::DATASET_NAME_HUMAN1, 
-            // crate::DATASET_NAME_HUMAN2, 
-            // crate::DATASET_NAME_MOUSE, 
-            // crate::DATASET_NAME_K49, 
-            // crate::DATASET_NAME_BCSSTK30, 
-            // crate::DATASET_NAME_CAHEPPH, 
-            // crate::DATASET_NAME_COPAPERS,
-            // crate::DATASET_NAME_GUPTA2,
-            // crate::DATASET_NAME_GUPTA3,
-            // crate::DATASET_NAME_LOCBRIGHT,
-            // crate::DATASET_NAME_MYCIELSKIAN,
-            // crate::DATASET_NAME_PATTERN1
-            crate::DATASET_NAME_KRON13,
-            crate::DATASET_NAME_KRON14,
-            crate::DATASET_NAME_KRON15,
-            crate::DATASET_NAME_KRON17
-        ];
+    let dataset_names = [
+        // crate::DATASET_NAME_VIRUS,
+        crate::DATASET_NAME_HUMAN1, 
+        crate::DATASET_NAME_HUMAN2, 
+        // crate::DATASET_NAME_MOUSE, 
+        // crate::DATASET_NAME_K49, 
+        // crate::DATASET_NAME_BCSSTK30, 
+        // crate::DATASET_NAME_CAHEPPH, 
+        // crate::DATASET_NAME_COPAPERS,
+        // crate::DATASET_NAME_GUPTA2,
+        // crate::DATASET_NAME_GUPTA3,
+        // crate::DATASET_NAME_LOCBRIGHT,
+        // crate::DATASET_NAME_MYCIELSKIAN,
+        // crate::DATASET_NAME_PATTERN1
+        // crate::DATASET_NAME_KRON13,
+        // crate::DATASET_NAME_KRON14,
+        // crate::DATASET_NAME_KRON15,
+        // crate::DATASET_NAME_KRON17
+    ];
 
-    crate::experiments::basic_exploration(&input_filenames, &dataset_names);
+    let writeout = false;
+    //crate::experiments::basic_exploration(&input_filenames, &dataset_names, writeout);
+    crate::experiments::jl_scaling_factor_sensitivity(&input_filenames, &dataset_names, writeout);
 }

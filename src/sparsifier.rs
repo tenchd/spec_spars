@@ -146,6 +146,7 @@ pub struct SparsifierParameters<IndexType: CustomIndex> {
     pub row_constant: IndexType,
     pub verbose: bool,
     pub jl_factor: f64,
+    pub jl_scaling_factor: f64,
     pub sketch_seed: u64,
     pub sampling_seed: u64, 
     pub bench: bool,
@@ -154,7 +155,7 @@ pub struct SparsifierParameters<IndexType: CustomIndex> {
 
 impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
     // standard constructor
-    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool) -> SparsifierParameters<IndexType> {
+    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, jl_scaling_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool) -> SparsifierParameters<IndexType> {
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -162,6 +163,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             row_constant: row_constant,
             verbose: verbose,
             jl_factor: jl_factor,
+            jl_scaling_factor: jl_scaling_factor,
             sketch_seed: sketch_seed,
             sampling_seed: sampling_seed, 
             bench: bench,
@@ -176,6 +178,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
         let row_constant = 2;
         let verbose = false;
         let jl_factor: f64 = 1.5;
+        let jl_scaling_factor = (3.0_f64).sqrt();
         let sketch_seed = 1;
         let sampling_seed = 1;
         let sketch_uniform = true;
@@ -186,6 +189,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             row_constant: CustomIndex::from_int(row_constant),
             verbose: verbose,
             jl_factor: jl_factor,
+            jl_scaling_factor: jl_scaling_factor,
             sketch_seed: sketch_seed,
             sampling_seed: sampling_seed, 
             bench: bench,
@@ -210,6 +214,14 @@ impl SparsificationStats {
     pub fn sparsification_rate(&self) -> f64 {
         (self.final_num_edges as f64 / self.original_num_edges as f64)
     }
+
+    pub fn get_num_orig_edges(&self) -> usize {
+        self.original_num_edges
+    }
+
+    pub fn get_final_num_edges(&self) -> usize {
+        self.final_num_edges
+    }
 }
 
 pub struct Sparsifier<IndexType: CustomIndex>{
@@ -223,8 +235,9 @@ pub struct Sparsifier<IndexType: CustomIndex>{
     pub row_constant: IndexType,    // set to be 20 in line 3(b) of alg pseudocode, probably can be far smaller
     pub beta: f64,     // parameter defined in line 1 of alg pseudocode
     pub verbose: bool,    //when true, prints a bunch of debugging info
-    pub jl_factor: f64, //constant factor for jl sketch matrix
-    pub jl_dim: IndexType, 
+    pub jl_factor: f64, //constant factor for jl sketch matrix, used to compute num cols (jl_dim)
+    pub jl_dim: IndexType, // number of jl sketch columns
+    pub jl_scaling_factor: f64, // scalar value all jl sketch entries are scaled by
     pub sketch_seed: u64,   //random seed for hashed jl sketch matrix
     pub sampling_seed: u64,    // seed for sampling edges during sparsification
     pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
@@ -260,6 +273,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             verbose: parameters.verbose,
             jl_factor: parameters.jl_factor,
             jl_dim: jl_dim,
+            jl_scaling_factor: parameters.jl_scaling_factor,
             sketch_seed: parameters.sketch_seed,
             sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
@@ -294,6 +308,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             verbose: parameters.verbose,
             jl_factor: parameters.jl_factor,
             jl_dim: jl_dim,
+            jl_scaling_factor: parameters.jl_scaling_factor,
             sketch_seed: parameters.sketch_seed,
             sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
@@ -388,7 +403,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         let rows = input.dim().0;
         let cols = input.dim().1;
         //let scaling_factor = (self.jl_dim.index() as f64).sqrt();
-        let scaling_factor = (3.0_f64).sqrt();
+        let scaling_factor = self.jl_scaling_factor;
         for i in 0..rows {
             for j in 0..cols {
                 if self.sketch_uniform {
@@ -407,7 +422,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     pub fn populate_row<ValueType: CustomValue>(&self, input: &mut Array1<ValueType>, row: IndexType, col_start: IndexType, col_end: IndexType){
         let num_cols = (col_end - col_start).index();
         //let scaling_factor = (self.jl_dim.index() as f64).sqrt();
-        let scaling_factor = (3.0_f64).sqrt();
+        let scaling_factor = self.jl_scaling_factor;
         for col in 0..num_cols {
             let actual_col = col+col_start.index(); //have to hash actual column value which should be col+col_start
             // input[[col]] = cast::<f64, ValueType>(self.hash_with_inputs_alt(row.index() as u64, actual_col as u64) as f64 * scaling_factor).unwrap();

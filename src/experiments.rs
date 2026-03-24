@@ -32,6 +32,7 @@ impl ExperimentResult {
         let mut writer = Writer::from_writer(file);
         if !file_exists {
             writer.write_record(&column_headers).expect("Could not write column headers");
+            writer.flush().expect("Could not flush writer");
         }
         ExperimentResult {
             output_filename,
@@ -115,7 +116,7 @@ fn probe_quadratic_form(stream: &InputStream, sparsifier: &Sparsifier<i32>, data
     return QuadraticFormProbeResult::new(upper_bound_violations, lower_bound_violations, errors.mean().unwrap(), errors.std(0.0), max_error);
 }
 
-// first experiment: for mouse dataset, vary epsilon and sketch type. track the follwing for each run:
+// first experiment: for given datasets, vary epsilon and sketch type. track the follwing for each run:
 // dataset (for now all mouse)
 // epsilon
 // sketch type (discrete, uniform)
@@ -123,10 +124,11 @@ fn probe_quadratic_form(stream: &InputStream, sparsifier: &Sparsifier<i32>, data
 // whether observe CC failure, 
 // quadratic form statistics (# failures, mean/std/max of relative error)
 // sparsification rate
-pub fn basic_exploration(input_filenames: &[&str], dataset_names: &[&str]) {
+pub fn basic_exploration(input_filenames: &[&str], dataset_names: &[&str], writeout: bool) {
     let epsilons = [0.75, 0.5, 0.25];
     let sketch_types = [true, false]; //true for uniform, false for discrete (fix this later)
-    let output_filename = format!("basic_experiment_results.csv");
+    let output_filename = format!("experiment_results/basic_exploration/basic_experiment_results.csv");
+    let dataset_stats_filename = format!("experiment_results/basic_exploration/dataset_stats.csv");
     let column_headers = vec![
         "dataset".to_string(),
         "epsilon".to_string(),
@@ -146,8 +148,19 @@ pub fn basic_exploration(input_filenames: &[&str], dataset_names: &[&str]) {
     ];
 
     let mut experiment_result = ExperimentResult::new(output_filename, column_headers);
+
+    let dataset_stats_column_headers = vec![
+        "dataset".to_string(),
+        "num_nodes".to_string(),
+        "num_edges".to_string(),
+        "notes".to_string(),
+    ];
+
+    let mut dataset_stats = ExperimentResult::new(dataset_stats_filename, dataset_stats_column_headers);
         
     for (input_filename, dataset_name) in input_filenames.iter().zip(dataset_names.iter()) {
+        // track if it's the first experiment for this input file. if so, write its stats into the dataset sets csv file.
+        let mut first = true;
         for epsilon in epsilons {
             for sketch_type in sketch_types {
                 let mut sketch_name = "discrete";
@@ -163,7 +176,7 @@ pub fn basic_exploration(input_filenames: &[&str], dataset_names: &[&str]) {
                 parameters.sketch_uniform = sketch_type;
 
                 let stream = InputStream::new(input_filename, dataset_name);
-                let (sparsifier, sparsification_stats) = stream.run_stream(&parameters, false);
+                let (sparsifier, sparsification_stats) = stream.run_stream(&parameters, false, false);
 
                 let cc_success = verify_ccs(&stream, &sparsifier);
                 let quadratic_form_result = probe_quadratic_form(&stream, &sparsifier, dataset_name, 100);
@@ -187,8 +200,161 @@ pub fn basic_exploration(input_filenames: &[&str], dataset_names: &[&str]) {
                     quadratic_form_result.max_relative_error.to_string(),
                     sparsification_stats.sparsification_rate().to_string(),
                 ]);
+
+                // if you haven't written the dataset information for this input file yet, do it now.
+                if first {
+                    dataset_stats.record_result(vec![
+                        dataset_name.to_string(),
+                        sparsifier.num_nodes.to_string(),
+                        sparsification_stats.get_num_orig_edges().to_string(),
+                        ".".to_string(),
+                    ]);
+                    first = false;
+                }
+
+                if writeout {
+                    // write out sparsifier laplacian with informative filename
+                    let output_filename = dataset_name;
+                    let output_filepath = crate::OUTPUT_LAPLACIAN_PATH;
+                    let mut sketch_type = "_discrete";
+                    if sparsifier.sketch_uniform {sketch_type = "_uniform";}
+                    let params = sparsifier.epsilon.to_string() + &sketch_type;
+                    let output_location = output_filepath.to_owned() + &output_filename.to_owned() + "_rust_static_" + &params.to_owned() + ".mtx";
+                    println!("Writing to {}", output_location);
+                    crate::utils::write_mtx(&output_location, &sparsifier.current_laplacian);
+                }
             }
         }
     }
     experiment_result.finalize();
+    dataset_stats.finalize();
+}
+
+// this experiment tests the effect of the jl scaling factor on solution quality.
+pub fn jl_scaling_factor_sensitivity(input_filenames: &[&str], dataset_names: &[&str], writeout: bool) {
+    let sketch_types = [true, false]; //true for uniform, false for discrete (fix this later)
+    let output_filename = format!("experiment_results/jl_scaling/experiment_results.csv");
+    let dataset_stats_filename = format!("experiment_results/jl_scaling/dataset_stats.csv");
+    let column_headers = vec![
+        "dataset".to_string(),
+        "epsilon".to_string(),
+        "sketch_type".to_string(),
+        "jl_scaling_factor".to_string(),
+        "evim_time".to_string(),
+        "jl_time".to_string(),
+        "solve_time".to_string(),
+        "diff_norm_time".to_string(),
+        "reweight_time".to_string(),
+        "cc_success".to_string(),
+        "upper_bound_violations".to_string(),
+        "lower_bound_violations".to_string(),
+        "mean_rel_error".to_string(),
+        "std_dev_rel_error".to_string(),
+        "max_rel_error".to_string(),
+        "sparsification_rate".to_string(),
+    ];
+
+    let mut experiment_result = ExperimentResult::new(output_filename, column_headers);
+
+    let dataset_stats_column_headers = vec![
+        "dataset".to_string(),
+        "num_nodes".to_string(),
+        "num_edges".to_string(),
+        "notes".to_string(),
+    ];
+
+    let mut dataset_stats = ExperimentResult::new(dataset_stats_filename, dataset_stats_column_headers);
+        
+    for (input_filename, dataset_name) in input_filenames.iter().zip(dataset_names.iter()) {
+        // track if it's the first experiment for this input file. if so, write its stats into the dataset sets csv file.
+        let mut first = true;
+        for jl_scaling_option in [1,2,3,4] {
+            for sketch_type in sketch_types {
+                let mut sketch_name = "discrete";
+                if sketch_type {sketch_name = "uniform";}
+                let mut parameters = SparsifierParameters::new_default(true);
+                parameters.jl_factor = 4.0;
+                parameters.sketch_seed = 0;
+                parameters.sampling_seed = 0;
+                parameters.epsilon = 0.5;
+                parameters.sketch_uniform = sketch_type;
+ 
+                let mut jl_dim = -1;
+                
+                // scoped sparsifier build to get jl_dim without keeping dummy sparsifier around.
+                // figure out a better way to handle this later.
+                if true {
+                    let temp_sparsifier = Sparsifier::<i32>::from_matrix(input_filename, &parameters);
+                    jl_dim = temp_sparsifier.jl_dim;
+                    println!("jl dim set to {}, sqrt is {}", jl_dim, (jl_dim as f64).sqrt());
+                }
+
+                match jl_scaling_option{
+                    1=>parameters.jl_scaling_factor = (3.0_f64).sqrt(),
+                    2=>parameters.jl_scaling_factor = 1.0/((3.0_f64).sqrt()),
+                    3=>parameters.jl_scaling_factor = 1.0/((jl_dim as f64).sqrt()),
+                    4=>parameters.jl_scaling_factor = (jl_dim as f64).sqrt(),
+                    _=>assert!(false, "Bad option for jl scaling factor in crate::experiments::jl_scaling_factor_sensitivity"),
+                }
+
+
+                println!("------------------------------------------------------------------------");
+                println!("    Sparsifying {} with jl scaling factor {:.2} and {} sketch", dataset_name, parameters.jl_scaling_factor, sketch_name);
+                println!("------------------------------------------------------------------------");
+
+                let stream = InputStream::new(input_filename, dataset_name);
+                let (sparsifier, sparsification_stats) = stream.run_stream(&parameters, false, false);
+
+                let cc_success = verify_ccs(&stream, &sparsifier);
+                let quadratic_form_result = probe_quadratic_form(&stream, &sparsifier, dataset_name, 100);
+                println!("------------------------------------------------------------------------");
+                println!("      Finished {} with jl scaling factor {:.2} and {} sketch", dataset_name, parameters.jl_scaling_factor, sketch_name);
+                println!("------------------------------------------------------------------------");
+                experiment_result.record_result(vec![
+                    dataset_name.to_string(),
+                    parameters.epsilon.to_string(),
+                    sketch_name.to_string(),
+                    sparsifier.jl_scaling_factor.to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::EvimComplete, BenchmarkPoint::Initialize).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::JlSketchComplete, BenchmarkPoint::EvimComplete).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::SolvesComplete, BenchmarkPoint::JlSketchComplete).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::DiffNormsComplete, BenchmarkPoint::SolvesComplete).to_string(),
+                    sparsifier.benchmarker.get_duration(BenchmarkPoint::ReweightingsComplete, BenchmarkPoint::DiffNormsComplete).to_string(),
+                    cc_success.to_string(),
+                    quadratic_form_result.upper_bound_violations.to_string(),
+                    quadratic_form_result.lower_bound_violations.to_string(),
+                    quadratic_form_result.mean_relative_error.to_string(),
+                    quadratic_form_result.std_dev_relative_error.to_string(),
+                    quadratic_form_result.max_relative_error.to_string(),
+                    sparsification_stats.sparsification_rate().to_string(),
+                ]);
+
+                // if you haven't written the dataset information for this input file yet, do it now.
+                if first {
+                    dataset_stats.record_result(vec![
+                        dataset_name.to_string(),
+                        sparsifier.num_nodes.to_string(),
+                        sparsification_stats.get_num_orig_edges().to_string(),
+                        ".".to_string(),
+                    ]);
+                    first = false;
+                }
+
+                if writeout {
+                    // write out sparsifier laplacian with informative filename
+                    let output_filename = dataset_name;
+                    let output_filepath = crate::OUTPUT_LAPLACIAN_PATH;
+                    let mut sketch_type = "_discrete";
+                    if sparsifier.sketch_uniform {sketch_type = "_uniform";}
+                    let params = sparsifier.jl_scaling_factor.to_string() + &sketch_type;
+                    let output_location = output_filepath.to_owned() + &output_filename.to_owned() + "_rust_static_" + &params.to_owned() + ".mtx";
+                    println!("Writing to {}", output_location);
+                    crate::utils::write_mtx(&output_location, &sparsifier.current_laplacian);
+                }
+
+            }
+        }
+    }
+    experiment_result.finalize();
+    dataset_stats.finalize();
 }
