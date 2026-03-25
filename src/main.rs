@@ -1,6 +1,6 @@
 #![allow(unused)]
 use clap::Parser;
-use spec_spars::{lap_test, run_experiment};
+use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,6 +41,10 @@ struct Args {
     // if set, ignores everything else and runs currently staged experiment.
     #[arg(short, long, default_value_t = false)]
     run_experiment: bool,
+
+    // selects experiment.
+    #[arg(short, long, default_value_t = 0)]
+    choose_experiment: usize,
 }
 
 // allows for bulk processing of a list of datasets. feel free to customize for bulk jobs.
@@ -72,6 +76,21 @@ fn process_standard_datasets(args: Args) {
 
 }
 
+fn run_basic() {
+    println!("running basic experiment on specified input file. ignoring parameter input flags.");
+    run_basic_experiment();
+}
+
+fn run_jl_scaling() {
+    println!("running JL scaling experiment on specified input file. ignoring parameter input flags.");
+    run_jl_scaling_experiment();
+}
+
+fn run_jl_dim() {
+    println!("running JL dimension sensitivity experiment on specified input file. ignoring parameter input flags.");
+    run_jl_dim_experiment();
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -84,13 +103,20 @@ fn main() {
         sampling seed = {}, 
         benchmark skip = {}, 
         process all = {}, 
-        run_experiment = {}",
+        run_experiment = {},
+        experiment selector = {}",
+
         args.input_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, 
-        args.benchmark_skip, args.process_all, args.run_experiment);
+        args.benchmark_skip, args.process_all, args.run_experiment, args.choose_experiment);
 
     if args.run_experiment {
-        println!("running staged experiment on specified input file. ignoring parameter input flags.");
-        run_experiment();
+        match args.choose_experiment {
+            0 => run_basic(),
+            1 => run_jl_scaling(),
+            2 => run_jl_dim(),
+            _ => println!("invalid experiment selector. currently only supports 0 (basic), 1 (jl scaling), and 2 (jl dimension)."),
+        }
+
     }
     else {    
         if args.process_all {
