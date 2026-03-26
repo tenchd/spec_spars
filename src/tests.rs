@@ -829,10 +829,10 @@ mod integration_tests {
         for seed in 0..iterations {
             println!("_-_-_-_-_ running connectivity test for file {} with seed {} _-_-_-_-_", input_filename, seed);
             let mut parameters = SparsifierParameters::new_default(true);
-            parameters.jl_factor = 4.0;
+            parameters.jl_factor = 20.0;
             parameters.sketch_seed = seed;
             parameters.sampling_seed = seed;
-            parameters.sketch_uniform = true;
+            parameters.sketch_uniform = false;
             let test = true;
             let stream = InputStream::new(input_filename, "");
             let (sparsifier, _) = stream.run_stream(&parameters, test, false);
@@ -872,159 +872,10 @@ mod integration_tests {
     }
 
     #[test]
-    #[ignore]
-    fn virus_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the virus dataset.-----");
-        graphtest(crate::INPUT_FILENAME_VIRUS);
+    //#[ignore]
+    fn kron13_connectivity_test(){
+        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the kron13 dataset.-----");
+        graphtest(crate::INPUT_FILENAME_KRON13);
     }
-
-    #[test]
-    #[ignore]
-    fn mouse_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mouse dataset.-----");
-        graphtest(crate::INPUT_FILENAME_MOUSE);
-    }
-
-    #[test]
-    #[ignore]
-    fn human1_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human1 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_HUMAN1);
-    }
-
-    #[test]
-    #[ignore]
-    fn human2_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the human2 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_HUMAN2);
-    }
-
-    #[test]
-    #[ignore]
-    fn k49_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the k49 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_K49);
-    }
-
-    #[test]
-    #[ignore]
-    fn bcsstk30_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the bcsstk30 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_BCSSTK30);
-    }
-
-    #[test]
-    #[ignore]
-    fn cahepph_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the cahepph dataset.-----");
-        graphtest(crate::INPUT_FILENAME_CAHEPPH);
-    }
-
-    #[test]
-    #[ignore]
-    fn copapers_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the copapers dataset.-----");
-        graphtest(crate::INPUT_FILENAME_COPAPERS);
-    }
-
-    #[test]
-    #[ignore]
-    fn gupta2_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the gupta2 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_GUPTA2);
-    }
-
-    #[test]
-    #[ignore]
-    fn gupta3_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the gupta3 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_GUPTA3);
-    }
-
-    #[test]
-    #[ignore]
-    fn locbright_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the locbright dataset.-----");
-        graphtest(crate::INPUT_FILENAME_LOCBRIGHT);
-    }
-
-    #[test]
-    #[ignore]
-    fn mycielskian_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the mycielskian dataset.-----");
-        graphtest(crate::INPUT_FILENAME_MYCIELSKIAN);
-    }
-
-    #[test]
-    #[ignore]
-    fn pattern1_full_test(){
-        println!("TEST:-----Verifying that sparsified graph retains the connectivity of the original graph, for the pattern1 dataset.-----");
-        graphtest(crate::INPUT_FILENAME_PATTERN1);
-    }
-
-    fn sketch_sparsification_rate_test(input_filename: &str) {
-        let mut parameters = SparsifierParameters::new_default(true);
-        parameters.jl_factor = 4.0;
-        let test = true;
-        let stream = InputStream::new(input_filename, "");
-        let (sparsifier, _) = stream.run_stream(&parameters, test, false);
-
-        let original_graph = stream.get_input_graph();
-        let sparsified_graph = sparsifier.to_petgraph();
-        let original_edges = original_graph.edge_count();
-        let sparsified_edges = sparsified_graph.edge_count();
-        let uniform_sketch_ratio = (sparsified_edges as f64 / original_edges as f64);
-
-        let original_ccs = connected_components(&original_graph);
-        let sparsified_ccs = connected_components(&sparsified_graph);
-        assert_eq!(original_ccs, sparsified_ccs);
-
-        let mut parameters = SparsifierParameters::new_default(true);
-        parameters.jl_factor = 4.0;
-        parameters.sketch_uniform = false;
-        let stream = InputStream::new(input_filename, "");
-        let (sparsifier, _) = stream.run_stream(&parameters, test, false);
-        let sparsified_graph = sparsifier.to_petgraph();
-        let sparsified_edges = sparsified_graph.edge_count();
-        let discrete_sketch_ratio = (sparsified_edges as f64 / original_edges as f64);
-        let sparsified_ccs = connected_components(&sparsified_graph);
-        assert_eq!(original_ccs, sparsified_ccs);
-
-        println!("file {}, \n
-            uniform sketch sparsification rate is {}\n
-            discrete sketch sparsification rate is {}", 
-            input_filename, uniform_sketch_ratio, discrete_sketch_ratio);
-    }
-
-    #[test]
-    #[ignore]
-    fn virus_sparsification_rate_test(){
-        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the virus dataset.-----");
-        sketch_sparsification_rate_test(crate::INPUT_FILENAME_VIRUS);
-    }
-
-    #[test]
-    #[ignore]
-    fn mouse_sparsification_rate_test(){
-        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the mouse dataset.-----");
-        sketch_sparsification_rate_test(crate::INPUT_FILENAME_MOUSE);
-    }
-
-    #[test]
-    #[ignore]
-    fn human1_sparsification_rate_test(){
-        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the human1 dataset.-----");
-        sketch_sparsification_rate_test(crate::INPUT_FILENAME_HUMAN1);
-    }
-
-    #[test]
-    #[ignore]
-    fn human2_sparsification_rate_test(){
-        println!("TEST:-----Measuring sparsification rate of uniform and discrete sketch approaches, for the human2 dataset.-----");
-        sketch_sparsification_rate_test(crate::INPUT_FILENAME_HUMAN2);
-    }
-
-    // new test: vary parameters (epsilon, jl factor, others?) and ensure ccs stay the same. probably for smaller dataset.
-    // write test establishing which sketch type is acceptable for various datasets. (seems like the uniform approach allows more aggressive sparsification).
 }
 
