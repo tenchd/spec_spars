@@ -45,13 +45,16 @@ impl InputStream {
         }
     }
 
-    pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool, writeout: bool) -> (Sparsifier<i32>, SparsificationStats) {
+    // NOTE: this currently assumes that the input matrix is symmetric and only reads the upper trianglar entries
+        pub fn run_stream(&self, parameters: &SparsifierParameters<i32>, test: bool, writeout: bool) -> (Sparsifier<i32>, SparsificationStats) {
         //let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), epsilon, beta_constant, row_constant, verbose, jl_factor, seed, benchmarker);
         let mut sparsifier: Sparsifier<i32> = Sparsifier::new(self.num_nodes.try_into().unwrap(), parameters);
 
         for (value, (row, col)) in self.input_matrix.iter() {
             //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // to check equivalence with original matrix, call sparsify with argument true and uncomment the check loop below
@@ -92,14 +95,15 @@ impl InputStream {
         // now the sparsifier laplacian can be passed to c++ for interop testing.
         sparsifier
     }
-
+    
+    // NOTE: this currently assumes that the input matrix is symmetric and only reads the upper trianglar entries
     #[allow(dead_code)]
     pub fn get_input_graph(&self) -> Graph<usize, f64, petgraph::Undirected, usize> {
         let mut edges: Vec<(usize, usize, f64)> = vec![];
 
         for (value, (row, col)) in self.input_matrix.iter() {
             if row < col {
-                edges.push((row as usize, col as usize, *value))
+                edges.push((row as usize, col as usize, *value));
             }
         }
         let output_graph: Graph::<usize, f64, petgraph::Undirected, usize> = Graph::from_edges(&edges);

@@ -337,6 +337,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     }
 
     // inserts an edge into the sparsifier. if this makes the size of the sparsifier cross the threshold, trigger sparsification.
+    // NOTE: it is the responsibility of the code calling this function to ensure that duplicates of edges are not inserted; the code doesn't check for those.
     pub fn insert(&mut self, v1: IndexType, v2: IndexType, value: f64) {
         // insert -1 into v1,v2 and v2,v1. add 1 to v1,v1 and v2,v2
         // problem: duplicate values in diagonals for triplets. 
@@ -346,8 +347,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         assert!(v1 < self.num_nodes);
         assert!(v2 < self.num_nodes);
 
-        // ignore diagonal entries, upper triangular entries, and entries with 0 value
-        if v1 > v2 && value != 0.0 {
+        // ignore diagonal entries and entries with 0 value
+        if value != 0.0 {
             self.new_entries.insert(v1, v2, value);
             //println!("inserting ({}, {}) with value {}", v1, v2, value);
         }

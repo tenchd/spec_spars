@@ -224,10 +224,14 @@ pub fn run_jl_scaling_experiment(){
         // crate::INPUT_FILENAME_LOCBRIGHT,
         // crate::INPUT_FILENAME_MYCIELSKIAN,
         // crate::INPUT_FILENAME_PATTERN1
-        crate::INPUT_FILENAME_KRON13,
+        //crate::INPUT_FILENAME_KRON13,
         // crate::INPUT_FILENAME_KRON14,
         // crate::INPUT_FILENAME_KRON15,
         // crate::INPUT_FILENAME_KRON17
+        crate::INPUT_FILENAME_KTREE13,
+        // crate::INPUT_FILENAME_KTREE15,
+        // crate::INPUT_FILENAME_KTREE16,
+        // crate::INPUT_FILENAME_KTREE17
     ];
         
     let dataset_names = [
@@ -244,10 +248,14 @@ pub fn run_jl_scaling_experiment(){
         // crate::DATASET_NAME_LOCBRIGHT,
         // crate::DATASET_NAME_MYCIELSKIAN,
         // crate::DATASET_NAME_PATTERN1
-        crate::DATASET_NAME_KRON13,
+        //crate::DATASET_NAME_KRON13,
         // crate::DATASET_NAME_KRON14,
         // crate::DATASET_NAME_KRON15,
         // crate::DATASET_NAME_KRON17
+        crate::DATASET_NAME_KTREE13,
+        // crate::DATASET_NAME_KTREE15,
+        // crate::DATASET_NAME_KTREE16,
+        // crate::DATASET_NAME_KTREE17
     ];
 
     let writeout = false;
@@ -269,10 +277,14 @@ pub fn run_jl_dim_experiment(){
         // crate::INPUT_FILENAME_LOCBRIGHT,
         // crate::INPUT_FILENAME_MYCIELSKIAN,
         // crate::INPUT_FILENAME_PATTERN1
-        crate::INPUT_FILENAME_KRON13,
+        //crate::INPUT_FILENAME_KRON13,
         // crate::INPUT_FILENAME_KRON14,
         // crate::INPUT_FILENAME_KRON15,
         // crate::INPUT_FILENAME_KRON17
+        crate::INPUT_FILENAME_KTREE13,
+        // crate::INPUT_FILENAME_KTREE15,
+        // crate::INPUT_FILENAME_KTREE16,
+        // crate::INPUT_FILENAME_KTREE17
     ];
         
     let dataset_names = [
@@ -289,10 +301,14 @@ pub fn run_jl_dim_experiment(){
         // crate::DATASET_NAME_LOCBRIGHT,
         // crate::DATASET_NAME_MYCIELSKIAN,
         // crate::DATASET_NAME_PATTERN1
-        crate::DATASET_NAME_KRON13,
+        //crate::DATASET_NAME_KRON13,
         // crate::DATASET_NAME_KRON14,
         // crate::DATASET_NAME_KRON15,
         // crate::DATASET_NAME_KRON17
+        crate::DATASET_NAME_KTREE13,
+        // crate::DATASET_NAME_KTREE15,
+        // crate::DATASET_NAME_KTREE16,
+        // crate::DATASET_NAME_KTREE17
     ];
 
     let writeout = false;
