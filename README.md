@@ -1,4 +1,4 @@
-Prototype implementation of streaming spectral sparsifier, described in [A Framework for Analyzing Resparsification Algorithms](https://arxiv.org/abs/1611.06940) by Kyng et. al.
+Prototype implementation of streaming spectral sparsifier, described in [A Framework for Analyzing Resparsification Algorithms](https://arxiv.org/abs/1611.06940) by Kyng et. al. Currently, running this code is only supported on NERSC, the supercomputing cluster at Lawrence Berkeley National Lab.
 
 ## A Brief Overview of Spectral Sparsification.
 
