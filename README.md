@@ -16,7 +16,7 @@ Spectral sparsifiers are useful for a number of reasons. They preserve important
 
 ## Project Status
 
-This codebase is an alpha prototype of an implementation of the streaming spectral sparsification algoritm of Kyng et. al. Currently, the codebase supports:
+This codebase is an alpha prototype of an implementation of the streaming spectral sparsification algoritm of Kyng et. al. At the moment, the code is developed and documented well enough for research collaborators to use. It is not ready for general release, however. Currently, the codebase supports:
 
 - reading in an input graph as a matrix market file, and computing a (non-streaming) spectral sparsifier.
 
