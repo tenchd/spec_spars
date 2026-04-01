@@ -86,8 +86,10 @@ impl InputStream {
         let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in self.input_matrix.iter() {
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
             //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
 
         sparsifier.form_laplacian(false);
