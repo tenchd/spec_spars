@@ -7,7 +7,7 @@ use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_
 struct Args {
 
     /// allows user to specify location of input file
-    #[arg(short, long, default_value_t = ("/global/u1/d/dtench/m1982/david/bulk_to_process/virus/virus.mtx".to_string()))]
+    #[arg(short, long, default_value_t = (spec_spars::INPUT_FILENAME_VIRUS).to_string())]
     input_file: String,
 
     // allows user to specify name of dataset
@@ -49,10 +49,10 @@ struct Args {
 
 // allows for bulk processing of a list of datasets. feel free to customize for bulk jobs.
 fn process_standard_datasets(args: Args) {
-    let input_files: Vec<&str> = vec!["/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", 
-                                        "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx", 
+    let input_files: Vec<&str> = vec![spec_spars::INPUT_FILENAME_VIRUS,
+                                        spec_spars::INPUT_FILENAME_MOUSE,
+                                        spec_spars::INPUT_FILENAME_HUMAN1,
+                                        spec_spars::INPUT_FILENAME_HUMAN2,
                                         ];
     
     let dataset_names: Vec<&str> = vec!["virus",
