@@ -879,9 +879,9 @@ mod integration_tests {
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn connectivity_diagnose(){
-        let input_filename = crate::INPUT_FILENAME_KRON13;
+        let input_filename = crate::INPUT_FILENAME_KTREE13;
         let mut parameters = SparsifierParameters::<i32>::new_default(true);
         parameters.jl_factor = 4.0;
         parameters.sketch_seed = 0;

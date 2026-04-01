@@ -679,8 +679,10 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         // add the new entries to the laplacian
         self.current_laplacian = self.current_laplacian.add(&new_stuff);
 
-        if check {println!("checking diagonal after populating laplacian");
-        self.check_diagonal();}
+        if check {
+            //println!("checking diagonal after populating laplacian");
+            self.check_diagonal();
+        }
     }
 
     pub fn report_sparsification(&self, before_edges: usize, after_edges: usize){
@@ -732,8 +734,10 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
 
         //println!("total number of deletions should be: {}", deletion_counter);
 
-        if check {println!("checking diagonal after sampling");
-        self.check_diagonal();}
+        if check {
+            //println!("checking diagonal after sampling");
+            self.check_diagonal();
+        }
 
         if self.benchmarker.is_active(){
             self.benchmarker.set_time(BenchmarkPoint::End);

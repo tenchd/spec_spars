@@ -279,9 +279,9 @@ pub fn run_jl_dim_experiment(){
         // crate::INPUT_FILENAME_PATTERN1
         //crate::INPUT_FILENAME_KRON13,
         // crate::INPUT_FILENAME_KRON14,
-        // crate::INPUT_FILENAME_KRON15,
+        crate::INPUT_FILENAME_KRON15,
         // crate::INPUT_FILENAME_KRON17
-        crate::INPUT_FILENAME_KTREE13,
+        // crate::INPUT_FILENAME_KTREE13,
         // crate::INPUT_FILENAME_KTREE15,
         // crate::INPUT_FILENAME_KTREE16,
         // crate::INPUT_FILENAME_KTREE17
@@ -301,11 +301,11 @@ pub fn run_jl_dim_experiment(){
         // crate::DATASET_NAME_LOCBRIGHT,
         // crate::DATASET_NAME_MYCIELSKIAN,
         // crate::DATASET_NAME_PATTERN1
-        //crate::DATASET_NAME_KRON13,
+        // crate::DATASET_NAME_KRON13,
         // crate::DATASET_NAME_KRON14,
-        // crate::DATASET_NAME_KRON15,
+        crate::DATASET_NAME_KRON15,
         // crate::DATASET_NAME_KRON17
-        crate::DATASET_NAME_KTREE13,
+        // crate::DATASET_NAME_KTREE13,
         // crate::DATASET_NAME_KTREE15,
         // crate::DATASET_NAME_KTREE16,
         // crate::DATASET_NAME_KTREE17
@@ -313,4 +313,56 @@ pub fn run_jl_dim_experiment(){
 
     let writeout = false;
     crate::experiments::jl_dim_sensitivity(&input_filenames, &dataset_names, writeout);
+}
+
+pub fn run_space_use_experiment() {
+    let input_filenames = [
+        crate::INPUT_FILENAME_VIRUS,
+        // crate::INPUT_FILENAME_HUMAN1, 
+        // crate::INPUT_FILENAME_HUMAN2, 
+        // crate::INPUT_FILENAME_MOUSE, 
+        // crate::INPUT_FILENAME_K49, 
+        // crate::INPUT_FILENAME_BCSSTK30, 
+        // crate::INPUT_FILENAME_CAHEPPH, 
+        // crate::INPUT_FILENAME_COPAPERS,
+        // crate::INPUT_FILENAME_GUPTA2,
+        // crate::INPUT_FILENAME_GUPTA3,
+        // crate::INPUT_FILENAME_LOCBRIGHT,
+        // crate::INPUT_FILENAME_MYCIELSKIAN,
+        // crate::INPUT_FILENAME_PATTERN1
+        // crate::INPUT_FILENAME_KRON13,
+        // crate::INPUT_FILENAME_KRON14,
+        // crate::INPUT_FILENAME_KRON15,
+        // crate::INPUT_FILENAME_KRON17
+        // crate::INPUT_FILENAME_KTREE13,
+        // crate::INPUT_FILENAME_KTREE15,
+        // crate::INPUT_FILENAME_KTREE16,
+        // crate::INPUT_FILENAME_KTREE17
+    ];
+        
+    let dataset_names = [
+        crate::DATASET_NAME_VIRUS,
+        // crate::DATASET_NAME_HUMAN1, 
+        // crate::DATASET_NAME_HUMAN2, 
+        // crate::DATASET_NAME_MOUSE, 
+        // crate::DATASET_NAME_K49, 
+        // crate::DATASET_NAME_BCSSTK30, 
+        // crate::DATASET_NAME_CAHEPPH, 
+        // crate::DATASET_NAME_COPAPERS,
+        // crate::DATASET_NAME_GUPTA2,
+        // crate::DATASET_NAME_GUPTA3,
+        // crate::DATASET_NAME_LOCBRIGHT,
+        // crate::DATASET_NAME_MYCIELSKIAN,
+        // crate::DATASET_NAME_PATTERN1
+        // crate::DATASET_NAME_KRON13,
+        // crate::DATASET_NAME_KRON14,
+        // crate::DATASET_NAME_KRON15,
+        // crate::DATASET_NAME_KRON17
+        // crate::DATASET_NAME_KTREE13,
+        // crate::DATASET_NAME_KTREE15,
+        // crate::DATASET_NAME_KTREE16,
+        // crate::DATASET_NAME_KTREE17
+    ];
+    let writeout = false;
+    crate::experiments::space_use(&input_filenames, &dataset_names, writeout);
 }

@@ -1,6 +1,6 @@
 #![allow(unused)]
 use clap::Parser;
-use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment};
+use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment, run_space_use_experiment};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -114,6 +114,7 @@ fn main() {
             0 => run_basic(),
             1 => run_jl_scaling(),
             2 => run_jl_dim(),
+            3 => run_space_use_experiment(),
             _ => println!("invalid experiment selector. currently only supports 0 (basic), 1 (jl scaling), and 2 (jl dimension)."),
         }
 
