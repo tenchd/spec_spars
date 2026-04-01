@@ -1,5 +1,5 @@
 #pragma once
-#include "spec_spars/src/main.rs.h"
+#include "spec_spars/src/lib.rs.h"
 #include "rust/cxx.h"
 #include <iostream>
 #include "spec_spars/include/custom_cg.hpp"
