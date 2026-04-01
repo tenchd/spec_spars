@@ -211,7 +211,9 @@ mod integration_tests {
 
             // insert edges into new_entries
             for (value, (row, col)) in stream.input_matrix.iter() {
-                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+                if row < col {
+                    sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+                }
             }
             
             // record current number of edges
@@ -313,7 +315,9 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // create EVIM representation
@@ -347,7 +351,7 @@ mod integration_tests {
             let col: usize = indices[1].try_into().unwrap();
             let value = values[1];
             //NOTE: changed this to compare the sqrt of lap value with evim value, because that's how evim is defined.
-            let lap_value = (-1.0*sparsifier.current_laplacian.get(row, col).unwrap()).sqrt() * -1.0;
+            let lap_value = (-1.0*sparsifier.current_laplacian.get(row, col).unwrap()).sqrt();
             assert!(lap_value == value, "rust evim edge {},{} with value {} mismatch with lap entry {}", row, col, value, lap_value);
         }
         println!("rust evim and lap equivalent");
@@ -434,7 +438,9 @@ mod integration_tests {
         let jl_dim = sparsifier.jl_dim;
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
         let input_matrix: CsMat<f64> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
@@ -466,7 +472,9 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // create EVIM representation
@@ -498,7 +506,9 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // create EVIM representation
@@ -807,7 +817,9 @@ mod integration_tests {
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();
