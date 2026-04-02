@@ -84,3 +84,5 @@ By default, the program prints benchmarking information for each sparsification.
 -p, --process_all: 
 Invoking this ignores input_file and dataset_name parameters and sparsifies a set list of datasets according to other command line arguments. Edit `process_standard_datasets` in main.rs to change this list of datasets (if you do, make sure to assign a reasonable dataset name for each input file).
 
+## Running Tests
+Run `cargo test --release` to run a suite of unit and integration tests. 
