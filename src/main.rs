@@ -2,12 +2,17 @@
 use clap::Parser;
 use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment, run_space_use_experiment};
 
+const INPUT_FILENAME_VIRUS: &str = "data/virus.mtx";
+const INPUT_FILENAME_MOUSE: &str = "data/mouse.mtx";
+const INPUT_FILENAME_HUMAN1: &str = "data/human1.mtx";
+const INPUT_FILENAME_HUMAN2: &str = "data/human2.mtx";
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
 
     /// allows user to specify location of input file
-    #[arg(short, long, default_value_t = ("data/virus.mtx").to_string())]
+    #[arg(short, long, default_value_t = (INPUT_FILENAME_VIRUS.to_string()))]
     input_file: String,
 
     // allows user to specify name of dataset
@@ -49,10 +54,10 @@ struct Args {
 
 // allows for bulk processing of a list of datasets. feel free to customize for bulk jobs.
 fn process_standard_datasets(args: Args) {
-    let input_files: Vec<&str> = vec![spec_spars::INPUT_FILENAME_VIRUS,
-                                        spec_spars::INPUT_FILENAME_MOUSE,
-                                        spec_spars::INPUT_FILENAME_HUMAN1,
-                                        spec_spars::INPUT_FILENAME_HUMAN2,
+    let input_files: Vec<&str> = vec![INPUT_FILENAME_VIRUS,
+                                        INPUT_FILENAME_MOUSE,
+                                        INPUT_FILENAME_HUMAN1,
+                                        INPUT_FILENAME_HUMAN2,
                                         ];
     
     let dataset_names: Vec<&str> = vec!["virus",
@@ -130,10 +135,5 @@ fn main() {
     }
 }
 
-// fn main() {
-//     let input_filename = "/global/homes/d/dtench/m1982/david/dense_streams/kron13_raw.txt";
-//     let output_filename = "/global/homes/d/dtench/m1982/david/dense_streams/kron13.mtx";
-//     spec_spars::utils::edge_list_to_matrix_market(input_filename, output_filename, 1.0);
-//     println!("done!");
-// }
+
 

@@ -1,6 +1,16 @@
 Prototype implementation of streaming spectral sparsifier, described in [A Framework for Analyzing Resparsification Algorithms](https://arxiv.org/abs/1611.06940) by Kyng et. al. 
 
-**Currently, running this code is only supported on NERSC, the supercomputing cluster at Lawrence Berkeley National Lab.**
+This codebase is written to be run on [NERSC](https://www.nersc.gov/), the supercomputing cluster at Lawrence Berkeley National Lab. **It can be run on non-NERSC Linux systems, provided Intel MKL libraries are available, with some configuration** (see below).
+
+## Quick Install/Demo (NERSC only)
+1. Clone the [fast matrix market repo](https://github.com/alugowski/fast_matrix_market#) to any location you like.
+2. Clone this project and `cd` into the resulting directory.
+3. Run `bash setup.sh` to generate an example config file and download some example datasets to sparsify.
+4. `cp example_config.toml config.toml'
+5. Edit the 'fast_mtx_path' line in config.toml to point to the location of the include subdirectory in the fast_matrix_market directory (from step 1).
+6. Run `module load intel` to load the intel mkl code.
+7. Run `export CXX=/usr/bin/g++` which is needed for compilation of C++ code within Rust.
+8. Run `cargo run --release -- -p` to sparsify the example datasets.
 
 ## A Brief Overview of Spectral Sparsification.
 
@@ -34,22 +44,20 @@ Upcoming features include:
 
 - sample uses of spectral sparsification on several large-scale scientific analysis tasks.
 
-## Installation
+## Installation (Linux, non-NERSC)
 
-Note that, currently, only running the code on [NERSC](https://www.nersc.gov/) is supported.
+Requirements: [Intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html) 
 
-Clone the project and `cd` into the resulting directory.
+1. Clone the [fast matrix market repo](https://github.com/alugowski/fast_matrix_market#) to any location you like.
+2. Clone this project and `cd` into the resulting directory.
+3. Run `bash setup.sh` to generate an example config file and download some example datasets to sparsify.
+4. `cp example_config.toml config.toml'
+5. Edit the 'fast_mtx_path' line in config.toml to point to the location of the include subdirectory in the fast_matrix_market directory (from step 1).
+6. Load the Intel MKL environment variables. If your system has a module manager that can do this, use it. Otherwise, find the install location of MKL on your system and run `source path-to-mkl-install/intel/oneapi/setvars.sh`. Verify that this worked with `which mkl_link_tool'; if the variables are loaded it will print out a filepath to mkl_link_tool.
+7. Run `export CXX=/usr/bin/g++` which is needed for compilation of C++ code within Rust.
+8. Run `cargo run --release -- -p` to sparsify the example datasets.
 
-Run `mkdir data`.
-
-## Compiling and Running on NERSC
-1) Run `module load intel` to load the intel mkl code.
-
-2) Run `export CXX=/usr/bin/g++` which is needed for compilation of C++ code within Rust.
-
-Note that 1) and 2) need to be done *every time* you start a new session, or else the code will not compile.
-
-To run a demo, you can `cargo run --release -- -p`. This sparsifies a pre-specified group of datasets.
+Note that steps 6 and 7 must be done *every time* you start a new session, or else the code will not compile.
 
 ## Command-line arguments
 
