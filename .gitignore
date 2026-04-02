@@ -13,3 +13,4 @@ test_jl.sh
 Rplots.pdf
 *.csv
 *.pdf
+config.toml
