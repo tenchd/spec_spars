@@ -66,6 +66,9 @@ You can pass optional command-line arguments after `cargo run --release --` to c
 -i, --input_file: 
 Allows you to specify the path to an input .mtx file you want to sparsify.
 
+-o, --output_file:
+Allows you to specify where to write the .mtx file for the sparsified graph. Default: "" which writes nothing.
+
 -d --dataset_name: 
 Allows you to assign a name to the dataset stored in the input file, which affects the name of the output files written after sparsification.
 
