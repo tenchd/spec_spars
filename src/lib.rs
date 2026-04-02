@@ -26,7 +26,7 @@ use ndarray::Array2;
 
 //-----const variables used to standardize location of files used in correctness tests or experiments.-----
 // filenames for original file inputs
-pub const INPUT_FILENAME_VIRUS: &str = "/home/dtench/Programming/spec_spars/data/virus.mtx";
+pub const INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
 pub const INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
 pub const INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
 pub const INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
@@ -137,21 +137,23 @@ impl FlattenedVec {
     }
 }
 
-pub fn lap_test(input_filename: &str, dataset_name: &str, epsilon: f64, verbose: bool, sketch_seed: u64, sampling_seed: u64, benchmark: bool) {
+pub fn sparsify_dataset(input_filename: &str, dataset_name: &str, output_filename: &str, epsilon: f64, verbose: bool, sketch_seed: u64, sampling_seed: u64, benchmark: bool) {
     
+    println!("sparsifying {}", input_filename);
+
     // for now, users can't set these parameters
     let jl_factor: f64 = 4.0;
     let jl_scaling_factor: f64 = (3.0_f64).sqrt();
     let beta_constant = 4;
     let row_constant = 2;
-    let sketch_uniform = true;
-    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, jl_scaling_factor, sketch_seed, sampling_seed, benchmark, sketch_uniform);
+    let sketch_uniform = false;
+    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, jl_scaling_factor, sketch_seed, sampling_seed, benchmark, sketch_uniform, output_filename.to_string());
 
     // not a test
     let test = false;
 
     // don't write sparsifier as a file
-    let writeout = false;
+    let writeout = if output_filename == "" { false } else { true };
 
     let stream = InputStream::new(input_filename, dataset_name);
     stream.run_stream(&parameters, test, writeout);

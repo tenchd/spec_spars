@@ -1,6 +1,6 @@
 #![allow(unused)]
 use clap::Parser;
-use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment, run_space_use_experiment};
+use spec_spars::{sparsify_dataset, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment, run_space_use_experiment};
 
 const INPUT_FILENAME_VIRUS: &str = "data/virus.mtx";
 const INPUT_FILENAME_MOUSE: &str = "data/mouse.mtx";
@@ -11,9 +11,13 @@ const INPUT_FILENAME_HUMAN2: &str = "data/human2.mtx";
 #[command(version, about, long_about = None)]
 struct Args {
 
-    /// allows user to specify location of input file
+    // allows user to specify location of input file
     #[arg(short, long, default_value_t = (INPUT_FILENAME_VIRUS.to_string()))]
     input_file: String,
+
+    // allows user to specify location of output file
+    #[arg(short, long, default_value_t = ("".to_string()))]
+    output_file: String,
 
     // allows user to specify name of dataset
     #[arg(short, long, default_value_t = ("virus".to_string()))]
@@ -72,7 +76,7 @@ fn process_standard_datasets(args: Args) {
         println!("============================================================");
         println!("            Processing {} dataset", current_dataset_name);
         println!("============================================================");
-        lap_test(current_input_file, current_dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
+        sparsify_dataset(current_input_file, current_dataset_name, "", args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
         println!("============================================================");
         println!("             Finished {} dataset", current_dataset_name);
         println!("============================================================");
@@ -101,6 +105,7 @@ fn main() {
 
     println!("Command line arguments are: 
         input file = {}, 
+        output file = {},
         dataset name = {}, 
         epsilon = {}, 
         verbose = {}, 
@@ -111,7 +116,7 @@ fn main() {
         run_experiment = {},
         experiment selector = {}",
 
-        args.input_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, 
+        args.input_file, args.output_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, 
         args.benchmark_skip, args.process_all, args.run_experiment, args.choose_experiment);
 
     if args.run_experiment {
@@ -130,7 +135,7 @@ fn main() {
             process_standard_datasets(args);
         }
         else {
-            lap_test(&args.input_file, &args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
+            sparsify_dataset(&args.input_file, &args.dataset_name, &args.output_file, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, !args.benchmark_skip);
         }
     }
 }
