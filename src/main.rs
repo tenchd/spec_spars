@@ -7,7 +7,7 @@ use spec_spars::{lap_test, run_basic_experiment, run_jl_scaling_experiment, run_
 struct Args {
 
     /// allows user to specify location of input file
-    #[arg(short, long, default_value_t = (spec_spars::INPUT_FILENAME_VIRUS).to_string())]
+    #[arg(short, long, default_value_t = ("data/virus.mtx").to_string())]
     input_file: String,
 
     // allows user to specify name of dataset

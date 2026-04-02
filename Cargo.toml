@@ -17,6 +17,7 @@ rand_xoshiro = "0.7.0"
 num-traits = "0.2.19"
 clap = { version = "4.5.54", features = ["derive"] }
 petgraph = "0.8.3"
+config = "0.15.22"
 
 [build-dependencies]
 cxx-build = "1.0"

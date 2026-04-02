@@ -12,6 +12,7 @@ fn main() {
     
     //let fast_mtx_path = Path::new("/home/dtench/Programming/fast_matrix_market/include");
     let path_argument = settings.get_string("fast_mtx_path").unwrap();
+    assert!(path_argument != "path/to/fast_matrix_market/include", "ERROR: Update config.toml with the path to the fast_matrix_market include directory before building.");
     let fast_mtx_path = Path::new(path_argument.as_str());
 
     cxx_build::bridge("src/lib.rs")  // returns a cc::Build

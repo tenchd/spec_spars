@@ -10,6 +10,7 @@ extern crate ndarray;
 extern crate ndarray_csv;
 extern crate rand;
 extern crate petgraph;
+extern crate config;
 
 pub mod utils;
 pub mod sparsifier;
