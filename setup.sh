@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # make a config.toml file with placeholder values, which the user will replace with the correct paths.
-printf "fast_mtx_path = \"path/to/fast_matrix_market/include\" \ninput_files_path = \"path/to/input/files\" \noutput_files_path = \"path/to/output/files\"" > example_config.toml
+#printf "fast_mtx_path = \"path/to/fast_matrix_market/include\" \ninput_files_path = \"path/to/input/files\" \noutput_files_path = \"path/to/output/files\"" > example_config.toml
 
 # download the virus dataset and put it in the data directory.
 mkdir -p data
