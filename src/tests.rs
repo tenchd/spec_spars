@@ -93,21 +93,12 @@ mod integration_tests {
     use crate::sparsifier::{Triplet, SparsifierParameters};
 
     // //-----const variables used to standardize location of files used in correctness tests.-----
-    // // filenames for original file inputs
-    // const INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
-    // const INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
-    // const INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-    // const INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
-    // const INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
-    // const INPUT_FILENAME_BCSSTK30: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/bcsstk30/bcsstk30_nonpattern.mtx";
-    // const INPUT_FILENAME_CAHEPPH: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/ca-HepPh/ca-HepPh_nonpattern.mtx";
-    // const INPUT_FILENAME_COPAPERS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/coPapersCiteseer/coPapersCiteseer_nonpattern.mtx";
-    // const INPUT_FILENAME_GUPTA2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta2/gupta2_nonpattern.mtx";
-    // const INPUT_FILENAME_GUPTA3: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta3/gupta3_nonpattern.mtx";
-    // const INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/loc-Brightkite/loc-Brightkite_nonpattern.mtx";
-    // const INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
-    // const INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
-    // const INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
+
+    // // filenames for file inputs, used for testing. 
+    const INPUT_FILENAME_VIRUS: &str = "data/virus.mtx";
+    const INPUT_FILENAME_HUMAN1: &str = "data/human1.mtx";
+    const INPUT_FILENAME_HUMAN2: &str = "data/human2.mtx";
+    const INPUT_FILENAME_MOUSE: &str = "data/mouse.mtx";
 
     // filename for solver output file; empty string means it writes no output
     const SOLVER_OUTPUT_FILENAME: &str= "";
