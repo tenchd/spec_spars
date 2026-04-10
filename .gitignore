@@ -14,3 +14,4 @@ Rplots.pdf
 *.csv
 *.pdf
 config.toml
+/massif
