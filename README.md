@@ -46,18 +46,20 @@ Upcoming features include:
 
 ## Installation (Linux, non-NERSC)
 
-Requirements: [Intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html) 
+Requirements: 
+[Rust](https://rust-lang.org/tools/install/)
+[Intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html) (I HIGHLY recommend you install via the instructions provided in the link, if you are not already familiar with MKL.)
 
 1. Clone the [fast matrix market repo](https://github.com/alugowski/fast_matrix_market#) to any location you like.
-2. Clone this project and `cd` into the resulting directory.
+2. Clone this spectral sparsification repo and `cd` into the resulting directory.
 3. Run `bash setup.sh` to generate an example config file and download some example datasets to sparsify.
 4. `cp example_config.toml config.toml`
-5. Edit the 'fast_mtx_path' line in config.toml to point to the location of the include subdirectory in the fast_matrix_market directory (from step 1).
+5. Edit the 'fast_mtx_path' line in config.toml to point to the location of the include subdirectory in the fast_matrix_market directory (from step 1). Make sure to use an absolute file path.
 6. Load the Intel MKL environment variables. If your system has a module manager that can do this, use it. Otherwise, find the install location of MKL on your system and run `source path-to-mkl-install/intel/oneapi/setvars.sh`. Verify that this worked with `which mkl_link_tool`; if the variables are loaded it will print out a filepath to mkl_link_tool.
 7. Run `export CXX=/usr/bin/g++` which is needed for compilation of C++ code within Rust.
 8. Run `cargo run --release -- -p` to sparsify the example datasets.
 
-Note that steps 6 and 7 must be done *every time* you start a new session, or else the code will not compile.
+Note that steps 6 and 7 must be done *every time* you start a new session, or else the code will not compile. You can also add these commands to your bashrc file to avoid having to do these every time.
 
 ## Command-line arguments
 
