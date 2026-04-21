@@ -55,7 +55,7 @@ Requirements:
 3. Run `bash setup.sh` to generate an example config file and download some example datasets to sparsify.
 4. `cp example_config.toml config.toml`
 5. Edit the 'fast_mtx_path' line in config.toml to point to the location of the include subdirectory in the fast_matrix_market directory (from step 1). Make sure to use an absolute file path.
-6. Load the Intel MKL environment variables. If your system has a module manager that can do this, use it. Otherwise, find the install location of MKL on your system and run `source path-to-mkl-install/intel/oneapi/setvars.sh`. Verify that this worked with `which mkl_link_tool`; if the variables are loaded it will print out a filepath to mkl_link_tool.
+6. Load the Intel MKL environment variables. If your system has a module manager that can do this, use it. Otherwise, find the install location of MKL on your system and run `source path-to-mkl-install/intel/oneapi/setvars.sh`. Verify that this worked with `which mkl_link_tool`; if the variables are loaded it will print out a filepath to mkl_link_tool. NOTE that you have to do this in the terminal you will run step 8 in.
 7. Run `export CXX=/usr/bin/g++` which is needed for compilation of C++ code within Rust.
 8. Run `cargo run --release -- -p` to sparsify the example datasets.
 
