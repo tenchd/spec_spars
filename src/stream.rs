@@ -63,15 +63,8 @@ impl InputStream {
         if test{println!("checking diagonal final time");
         sparsifier.check_diagonal();}
 
-        //FIX THIS LOGIC, currently creates filename that only makes sense for one experiment
         if (!test && writeout) {
-            //crate::utils::write_mtx_and_edgelist(&sparsifier.current_laplacian, &self.dataset_name, true);
-            let output_filename = &self.dataset_name;
-            let output_filepath = crate::OUTPUT_LAPLACIAN_PATH;
-            let mut sketch_type = "_discrete";
-            if sparsifier.sketch_uniform {sketch_type = "_uniform";}
-            let params = sparsifier.epsilon.to_string() + &sketch_type;
-            let output_location = output_filepath.to_owned() + &output_filename.to_owned() + "_rust_static_" + &params.to_owned() + ".mtx";
+            let output_location = parameters.output_file.clone();
             println!("Writing to {}", output_location);
             crate::utils::write_mtx(&output_location, &sparsifier.current_laplacian);
         }
@@ -86,8 +79,10 @@ impl InputStream {
         let mut sparsifier = Sparsifier::new(self.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in self.input_matrix.iter() {
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
             //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
         }
 
         sparsifier.form_laplacian(false);

@@ -2,11 +2,11 @@ library(tidyverse)
 library(patchwork)
 library(ggtext)
 
-pdf("basic_exploration_plots.pdf", width = 14, height = 10)
+pdf("jl_dim_sensitivity.pdf", width = 14, height = 10)
 
-data <- read_csv("basic_experiment_results_with_fscore.csv")
+data <- read_csv("experiment_results.csv")
 
-metadata <- read_csv("dataset_stats_protected.csv") %>% 
+metadata <- read_csv("dataset_stats.csv") %>% 
   mutate(dataset = as.character(dataset))
 
 make_meta_string <- function(meta_row) {
@@ -19,66 +19,37 @@ make_meta_string <- function(meta_row) {
   )
 }
 
-ggplot(data, aes(x = epsilon, y = sparsification_rate * 100, color = sketch_type)) + 
+ggplot(data, aes(x = jl_factor, y = sparsification_rate * 100, color = sketch_type)) + 
 geom_point() +
 geom_line() +
-scale_x_continuous(name ="Epsilon", 
-                    breaks=seq(0,1,0.25)) +
+scale_x_continuous(name ="JL factor", trans = "log2") +
 scale_y_continuous(name = "Sparsification Rate (% edges remaining)") +
 scale_color_discrete(name = "Sketch Type") +
-ggtitle("Sparsification Rate as a function of Epsilon") +
+ggtitle("Sparsification Rate as a function of JL factor") +
 facet_wrap(~dataset)
 
-ggplot(data, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
+ggplot(data, aes(x = jl_factor, color = sketch_type, fill = sketch_type)) + 
 geom_bar(aes(y = (upper_bound_violations + lower_bound_violations)), stat = "identity", alpha = 0.5, position = "dodge") +
 geom_line(aes(y = mean_rel_error*100)) + 
 geom_point(aes(y = mean_rel_error*100)) +
-scale_x_continuous(name ="Epsilon", 
-                    breaks=seq(0,1,0.25)) +
+scale_x_continuous(name ="JL factor", trans = "log2") +
 scale_y_continuous(name = "Mean Relative Error (%)",
                   sec.axis = sec_axis(~. , name="Bound Violations (out of 100 trials)")) +
 #scale_y_continuous(name = "Mean Relative Error") +
+
 #scale_color_discrete(name = "Sketch Type") +
 ggtitle("Quadratic Form experiment results - Real Mean Error and Bound Violations") +
 facet_wrap(~dataset)
 
-ggplot(data, aes(x = sparsification_rate * 100,color = sketch_type, fill = sketch_type)) +
-geom_line(aes(y = mean_rel_error*100)) + 
-geom_point(aes(y = mean_rel_error*100)) +
-scale_x_continuous(name ="Sparsification Rate (%)", 
-                    breaks=seq(0,100,25)) +
-scale_y_continuous(name = "Mean Relative Error (%)",
-                  sec.axis = sec_axis(~. , name="Bound Violations (out of 100 trials)")) +
-
-#scale_color_discrete(name = "Sketch Type") +
-ggtitle("Quadratic Form experiment results - Error vs Sparsification Rate") +
-facet_wrap(~dataset)
-
-ggplot(data, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
-geom_line(aes(y = fscore), linetype = "dotted") +
-geom_point(aes(y = fscore)) +
-geom_line(aes(y = mean_rel_error)) + 
-geom_point(aes(y = mean_rel_error)) +
-scale_x_continuous(name ="Epsilon", 
-                    breaks=seq(0,1,0.25)) +
-scale_y_continuous(name = "Mean Relative Error",
-                  sec.axis = sec_axis(~. , name="fscore")) +
-#scale_y_continuous(name = "Mean Relative Error") +
-
-#scale_color_discrete(name = "Sketch Type") +
-ggtitle("Error and Fscore as a function of Epsilon") +
-facet_wrap(~dataset)
-
-ggplot(data, aes(x = epsilon, y = (evim_time + jl_time + solve_time + diff_norm_time + reweight_time), color = sketch_type)) +
+ggplot(data, aes(x = jl_factor, y = (evim_time + jl_time + solve_time + diff_norm_time + reweight_time), color = sketch_type)) +
 geom_line() +
 geom_point() +
-scale_x_continuous(name ="Epsilon", 
-                    breaks=seq(0,1,0.25)) +
+scale_x_continuous(name ="JL factor", trans = "log2") +
 scale_y_continuous(name = "Runtime (seconds)", trans = "log2"
 #                  , limits = c(32, 256)
                   ) +
 scale_color_discrete(name = "Sketch Type") +
-ggtitle("Runtime as a function of Epsilon") +
+ggtitle("Runtime as a function of JL factor") +
 facet_wrap(~dataset)
 
 data %>% 
@@ -88,47 +59,34 @@ data %>%
     meta_row <- metadata %>% filter(dataset == ds) %>% slice(1)
 
     # ---- Sparsification Rate ---------------------------------
-    p_rate <- ggplot(d_sub, aes(x = epsilon, y = sparsification_rate * 100, color = sketch_type)) + 
+    p_rate <- ggplot(d_sub, aes(x = jl_factor, y = sparsification_rate * 100, color = sketch_type)) + 
         geom_point(size = 2) +
         geom_line(linewidth = 1) +
-        scale_x_continuous(name ="Epsilon", 
-                            breaks=seq(0,1,0.25)) +
+        scale_x_continuous(name ="JL factor", trans = "log2") +
         scale_y_continuous(name = "Sparsification Rate (% edges remaining)") +
         scale_color_discrete(name = "Sketch Type")
 
     # ---- Error rate -----------------------------
-    p_error1 <- ggplot(d_sub, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
+    p_error1 <- ggplot(d_sub, aes(x = jl_factor, color = sketch_type, fill = sketch_type)) + 
         geom_line(aes(y = mean_rel_error), linetype = "dashed", linewidth = 1) + 
         geom_point(aes(y = mean_rel_error), size = 2) +
-        scale_x_continuous(name ="Epsilon", 
-                            breaks=seq(0,1,0.25)) +
+        scale_x_continuous(name ="JL factor", trans = "log2") +
         scale_y_continuous(name = "Mean Relative Error") +
-        scale_color_discrete(name = "Sketch Type")
-
-    # ---- Error rate, tracking fscore as well -----------------------------------
-    p_error2 <- ggplot(d_sub, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
-        geom_line(aes(y = fscore), linetype = "dotted", linewidth = 1) +
-        geom_point(aes(y = fscore), size = 2) +
-        scale_x_continuous(name ="Epsilon", 
-                            breaks=seq(0,1,0.25)) +
-        scale_y_continuous(name = "fscore") +
         scale_color_discrete(name = "Sketch Type")
     
     # ----- Out of bounds events ---------
-    p_error3 <- ggplot(d_sub, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
+    p_error2 <- ggplot(d_sub, aes(x = jl_factor, color = sketch_type, fill = sketch_type)) + 
         geom_bar(aes(y = (upper_bound_violations + lower_bound_violations)), stat = "identity", alpha = 0.5, position = "dodge") +
-        scale_x_continuous(name ="Epsilon", 
-                            breaks=seq(0,1,0.25)) +
+        scale_x_continuous(name ="JL factor", trans = "log2") +
         scale_y_continuous(name = "Bound Violations (out of 100 trials)",
                             breaks=seq(0, 100, 25),
                             limits=c(0,100))
 
     # ---- Runtime --------------------------------------------------------------
-    p_time <- ggplot(d_sub, aes(x = epsilon, y = (evim_time + jl_time + solve_time + diff_norm_time + reweight_time), color = sketch_type)) +
+    p_time <- ggplot(d_sub, aes(x = jl_factor, y = (evim_time + jl_time + solve_time + diff_norm_time + reweight_time), color = sketch_type)) +
         geom_line(linetype = "dotdash", linewidth = 1) +
         geom_point(size = 2) +
-        scale_x_continuous(name ="Epsilon", 
-                            breaks=seq(0,1,0.25)) +
+        scale_x_continuous(name ="JL factor", trans = "log2") +
         scale_y_continuous(name = "Runtime (seconds)") +
         scale_color_discrete(name = "Sketch Type")
     
@@ -151,7 +109,7 @@ data %>%
 
     # ---- Stack the four plots ----------------------
     combined <- (meta_plot | p_time | p_rate) /
-               (p_error1 | p_error3 | p_error2)   + 
+               (p_error1 | p_error2)   + 
                plot_layout(guides = "collect") +
                plot_annotation(
                     title = ds,
@@ -168,4 +126,4 @@ data %>%
     print(combined)
   })
 
-dev.off()
+  dev.off()

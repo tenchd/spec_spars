@@ -2,11 +2,13 @@ library(tidyverse)
 library(patchwork)
 library(ggtext)
 
-pdf("basic_exploration_plots.pdf", width = 14, height = 10)
+pdf("basic_exploration_kron.pdf", width = 14, height = 10)
 
-data <- read_csv("basic_experiment_results_with_fscore.csv")
+data <- read_csv("basic_experiment_results.csv")
 
-metadata <- read_csv("dataset_stats_protected.csv") %>% 
+data <- filter(data, dataset != "kron14")
+
+metadata <- read_csv("dataset_stats.csv") %>% 
   mutate(dataset = as.character(dataset))
 
 make_meta_string <- function(meta_row) {
@@ -38,6 +40,7 @@ scale_x_continuous(name ="Epsilon",
 scale_y_continuous(name = "Mean Relative Error (%)",
                   sec.axis = sec_axis(~. , name="Bound Violations (out of 100 trials)")) +
 #scale_y_continuous(name = "Mean Relative Error") +
+
 #scale_color_discrete(name = "Sketch Type") +
 ggtitle("Quadratic Form experiment results - Real Mean Error and Bound Violations") +
 facet_wrap(~dataset)
@@ -54,20 +57,20 @@ scale_y_continuous(name = "Mean Relative Error (%)",
 ggtitle("Quadratic Form experiment results - Error vs Sparsification Rate") +
 facet_wrap(~dataset)
 
-ggplot(data, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
-geom_line(aes(y = fscore), linetype = "dotted") +
-geom_point(aes(y = fscore)) +
-geom_line(aes(y = mean_rel_error)) + 
-geom_point(aes(y = mean_rel_error)) +
-scale_x_continuous(name ="Epsilon", 
-                    breaks=seq(0,1,0.25)) +
-scale_y_continuous(name = "Mean Relative Error",
-                  sec.axis = sec_axis(~. , name="fscore")) +
-#scale_y_continuous(name = "Mean Relative Error") +
-
-#scale_color_discrete(name = "Sketch Type") +
-ggtitle("Error and Fscore as a function of Epsilon") +
-facet_wrap(~dataset)
+#ggplot(data, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
+#geom_line(aes(y = fscore), linetype = "dotted") +
+#geom_point(aes(y = fscore)) +
+#geom_line(aes(y = mean_rel_error)) + 
+#geom_point(aes(y = mean_rel_error)) +
+#scale_x_continuous(name ="Epsilon", 
+#                    breaks=seq(0,1,0.25)) +
+#scale_y_continuous(name = "Mean Relative Error",
+#                  sec.axis = sec_axis(~. , name="fscore")) +
+##scale_y_continuous(name = "Mean Relative Error") +
+#
+##scale_color_discrete(name = "Sketch Type") +
+#ggtitle("Error and Fscore as a function of Epsilon") +
+#facet_wrap(~dataset)
 
 ggplot(data, aes(x = epsilon, y = (evim_time + jl_time + solve_time + diff_norm_time + reweight_time), color = sketch_type)) +
 geom_line() +
@@ -106,13 +109,13 @@ data %>%
         scale_color_discrete(name = "Sketch Type")
 
     # ---- Error rate, tracking fscore as well -----------------------------------
-    p_error2 <- ggplot(d_sub, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
-        geom_line(aes(y = fscore), linetype = "dotted", linewidth = 1) +
-        geom_point(aes(y = fscore), size = 2) +
-        scale_x_continuous(name ="Epsilon", 
-                            breaks=seq(0,1,0.25)) +
-        scale_y_continuous(name = "fscore") +
-        scale_color_discrete(name = "Sketch Type")
+    #p_error2 <- ggplot(d_sub, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
+    #    geom_line(aes(y = fscore), linetype = "dotted", linewidth = 1) +
+    #    geom_point(aes(y = fscore), size = 2) +
+    #    scale_x_continuous(name ="Epsilon", 
+    #                        breaks=seq(0,1,0.25)) +
+    #    scale_y_continuous(name = "fscore") +
+    #    scale_color_discrete(name = "Sketch Type")
     
     # ----- Out of bounds events ---------
     p_error3 <- ggplot(d_sub, aes(x = epsilon, color = sketch_type, fill = sketch_type)) + 
@@ -151,7 +154,7 @@ data %>%
 
     # ---- Stack the four plots ----------------------
     combined <- (meta_plot | p_time | p_rate) /
-               (p_error1 | p_error3 | p_error2)   + 
+               (p_error1 | p_error3)   + 
                plot_layout(guides = "collect") +
                plot_annotation(
                     title = ds,
@@ -168,4 +171,4 @@ data %>%
     print(combined)
   })
 
-dev.off()
+  dev.off()

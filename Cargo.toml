@@ -5,8 +5,8 @@ edition = "2024"
 
 [dependencies]
 cxx = "1.0"
-sprs = {version = "0.11.3", features = ["approx"]}
-ndarray = {version = "0.16.1", features = ["approx"]}
+sprs = {version = "0.11.4", features = ["approx"]}
+ndarray = {version = "0.17.2", features = ["approx"]}
 rand = "0.8.5"
 ndarray-rand = "0.15.0"
 fasthash = "0.4.0"
@@ -17,9 +17,11 @@ rand_xoshiro = "0.7.0"
 num-traits = "0.2.19"
 clap = { version = "4.5.54", features = ["derive"] }
 petgraph = "0.8.3"
+config = "0.15.22"
 
 [build-dependencies]
 cxx-build = "1.0"
+config = "0.15.22"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

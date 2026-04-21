@@ -275,7 +275,7 @@ pub fn read_vecs_from_file_flat(filename: &str) -> ffi::FlattenedVec {
             line_length = col.len().try_into().unwrap();
             first = false;
         }
-        let current_line_length= col.len().try_into().unwrap();
+        let current_line_length: usize = col.len().try_into().unwrap();
         assert_eq!(line_length, current_line_length);
         jl_vec.append(&mut col);
     }
