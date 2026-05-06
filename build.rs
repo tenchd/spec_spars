@@ -1,9 +1,19 @@
+extern crate config;
 use std::path::Path;
+use config::Config;
 
 // This code tells rust how to compile the c++ code via the cxx interop crate. For our purposes this should need to be changed for linear solving on the CPU.
 // Something may need to be changed to get it to run on GPU. TBD.
 fn main() {
-    let fast_mtx_path = Path::new("/global/u1/d/dtench/cholesky/fast_matrix_market/include");
+    let settings = Config::builder()
+        .add_source(config::File::with_name("config"))
+        .build()
+        .unwrap();
+    
+    //let fast_mtx_path = Path::new("/home/dtench/Programming/fast_matrix_market/include");
+    let path_argument = settings.get_string("fast_mtx_path").unwrap();
+    assert!(path_argument != "path/to/fast_matrix_market/include", "ERROR: Update config.toml with the path to the fast_matrix_market include directory before building.");
+    let fast_mtx_path = Path::new(path_argument.as_str());
 
     cxx_build::bridge("src/lib.rs")  // returns a cc::Build
         .compiler("g++")

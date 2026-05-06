@@ -93,21 +93,12 @@ mod integration_tests {
     use crate::sparsifier::{Triplet, SparsifierParameters};
 
     // //-----const variables used to standardize location of files used in correctness tests.-----
-    // // filenames for original file inputs
-    // const INPUT_FILENAME_VIRUS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx";
-    // const INPUT_FILENAME_HUMAN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx";
-    // const INPUT_FILENAME_HUMAN2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx";
-    // const INPUT_FILENAME_MOUSE: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx";
-    // const INPUT_FILENAME_K49: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/k49_norm_10NN/k49_norm_10NN.mtx";
-    // const INPUT_FILENAME_BCSSTK30: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/bcsstk30/bcsstk30_nonpattern.mtx";
-    // const INPUT_FILENAME_CAHEPPH: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/ca-HepPh/ca-HepPh_nonpattern.mtx";
-    // const INPUT_FILENAME_COPAPERS: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/coPapersCiteseer/coPapersCiteseer_nonpattern.mtx";
-    // const INPUT_FILENAME_GUPTA2: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta2/gupta2_nonpattern.mtx";
-    // const INPUT_FILENAME_GUPTA3: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/gupta3/gupta3_nonpattern.mtx";
-    // const INPUT_FILENAME_LOCBRIGHT: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/loc-Brightkite/loc-Brightkite_nonpattern.mtx";
-    // const INPUT_FILENAME_MYCIELSKIAN: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/mycielskian15/mycielskian15_nonpattern.mtx";
-    // const INPUT_FILENAME_PATTERN1: &str = "/global/cfs/cdirs/m1982/david/bulk_to_process/pattern1/pattern1_nonpattern.mtx";
-    // const INPUT_FILENAME_SMALL: &str = "/global/u1/d/dtench/rust_spars/spec_spars/data/small_input.mtx";
+
+    // // filenames for file inputs, used for testing. 
+    const INPUT_FILENAME_VIRUS: &str = "data/virus.mtx";
+    const INPUT_FILENAME_HUMAN1: &str = "data/human1.mtx";
+    const INPUT_FILENAME_HUMAN2: &str = "data/human2.mtx";
+    const INPUT_FILENAME_MOUSE: &str = "data/mouse.mtx";
 
     // filename for solver output file; empty string means it writes no output
     const SOLVER_OUTPUT_FILENAME: &str= "";
@@ -211,7 +202,9 @@ mod integration_tests {
 
             // insert edges into new_entries
             for (value, (row, col)) in stream.input_matrix.iter() {
-                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+                if row < col {
+                    sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+                }
             }
             
             // record current number of edges
@@ -313,7 +306,9 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // create EVIM representation
@@ -347,7 +342,7 @@ mod integration_tests {
             let col: usize = indices[1].try_into().unwrap();
             let value = values[1];
             //NOTE: changed this to compare the sqrt of lap value with evim value, because that's how evim is defined.
-            let lap_value = (-1.0*sparsifier.current_laplacian.get(row, col).unwrap()).sqrt() * -1.0;
+            let lap_value = (-1.0*sparsifier.current_laplacian.get(row, col).unwrap()).sqrt();
             assert!(lap_value == value, "rust evim edge {},{} with value {} mismatch with lap entry {}", row, col, value, lap_value);
         }
         println!("rust evim and lap equivalent");
@@ -434,7 +429,9 @@ mod integration_tests {
         let jl_dim = sparsifier.jl_dim;
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
         let input_matrix: CsMat<f64> = sparsifier.new_entries.to_edge_vertex_incidence_matrix();
 
@@ -466,7 +463,9 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // create EVIM representation
@@ -498,7 +497,9 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
 
         for (value, (row, col)) in stream.input_matrix.iter() {
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         // create EVIM representation
@@ -807,7 +808,9 @@ mod integration_tests {
 
         for (value, (row, col)) in stream.input_matrix.iter() {
             //assert!(*value >= 0.0);
-            sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            if row < col {
+                sparsifier.insert(row.try_into().unwrap(), col.try_into().unwrap(), *value);
+            }
         }
 
         let evim = &sparsifier.new_entries.to_edge_vertex_incidence_matrix();

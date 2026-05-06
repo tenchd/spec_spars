@@ -151,11 +151,12 @@ pub struct SparsifierParameters<IndexType: CustomIndex> {
     pub sampling_seed: u64, 
     pub bench: bool,
     pub sketch_uniform: bool,
+    pub output_file: String,
 }
 
 impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
     // standard constructor
-    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, jl_scaling_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool) -> SparsifierParameters<IndexType> {
+    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, jl_scaling_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool, output_file: String ) -> SparsifierParameters<IndexType> {
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -168,6 +169,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             sampling_seed: sampling_seed, 
             bench: bench,
             sketch_uniform: sketch_uniform,
+            output_file: output_file,
         }
     }
 
@@ -182,6 +184,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
         let sketch_seed = 1;
         let sampling_seed = 1;
         let sketch_uniform = true;
+        let output_file = "";
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -194,6 +197,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             sampling_seed: sampling_seed, 
             bench: bench,
             sketch_uniform: sketch_uniform,
+            output_file: output_file.to_string(),
         }
     }
 }
