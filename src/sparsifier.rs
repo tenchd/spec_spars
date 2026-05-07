@@ -19,6 +19,7 @@ use petgraph::Graph;
 use crate::ffi::{self, FlattenedVec};
 use crate::utils::{BenchmarkPoint, Benchmarker, CustomIndex, CustomIndex::from_int, CustomValue};
 
+// Triplet type for building sparse matrices. 
 #[derive(Clone)]
 pub struct Triplet<IndexType: CustomIndex>{
     pub num_nodes: IndexType, 
@@ -78,6 +79,7 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
         }
     }
 
+    // builds csc matrix from triplet.
     pub fn to_csc(self) -> CsMatI::<f64, IndexType> {
         let trip_form: TriMatI<f64, IndexType>  = TriMatI::<f64, IndexType>::from_triplets((self.num_nodes.index(), self.num_nodes.index()), self.row_indices, self.col_indices, self.values);
         let csc_form: CsMatI<f64, IndexType> = trip_form.to_csc();
@@ -140,6 +142,7 @@ impl<IndexType: CustomIndex> Triplet <IndexType> {
     }
 }
 
+// container type for sparsifier parameters.
 pub struct SparsifierParameters<IndexType: CustomIndex> {
     pub epsilon: f64,
     pub beta_constant: IndexType,
@@ -202,6 +205,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
     }
 }
 
+// type for collecting some basic statistics about sparsification. used for debugging, experiments, and stdout summary information about sparsification runs.
 pub struct SparsificationStats {
     pub original_num_edges: usize,
     pub final_num_edges: usize,
@@ -228,6 +232,7 @@ impl SparsificationStats {
     }
 }
 
+// the sparsifier type. collects stream updates in triplet form in new_entries, and stores the laplacian in sparse form in current_laplacian.
 pub struct Sparsifier<IndexType: CustomIndex>{
     pub num_nodes: IndexType,     // number of nodes in input graph. we need to know this at construction time.
     pub new_entries: Triplet<IndexType>,  //stores values that haven't been sparsified yet
@@ -344,8 +349,6 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
     // NOTE: it is the responsibility of the code calling this function to ensure that duplicates of edges are not inserted; the code doesn't check for those.
     pub fn insert(&mut self, v1: IndexType, v2: IndexType, value: f64) {
         // insert -1 into v1,v2 and v2,v1. add 1 to v1,v1 and v2,v2
-        // problem: duplicate values in diagonals for triplets. 
-        // am i assuming that each edge appears at most once in the stream? if that's violated, i could have duplicate entries in the triplets
         
         // make sure node IDs are valid (0 indexed)
         assert!(v1 < self.num_nodes);
@@ -358,9 +361,12 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         }
 
         //TODO: if it's too big, trigger sparsification step
+        // if self.num_edges > self.threshold {
+        //      self.sparsify(false);
+        // }
     }
 
-        //maps hash function output to {-1,1} evenly
+    //maps hash function output to {-1,1} evenly
     fn transform(&self, input: i64) -> i64 {
         let result = ((input >> 31) * 2 - 1 ) as i64;
         result
@@ -378,6 +384,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         2.0 * u - 1.0
     }
 
+    // hash method that maps matrix location to -1 or 1 uniformly at random.
     pub fn hash_with_inputs(&self, input1: u64, input2: u64) -> i64 {
         //let mut checkhash = Murmur2Hasher::with_seed(self.seed);
         let mut checkhash = CityHasher::with_seed(self.sketch_seed);
@@ -403,7 +410,8 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         self.u32_to_f64_minus_one_to_one(result)
     }
 
-    // used to completely fill a jl sketch matrix with random values from a hash function. only used for correctness testing
+    // used to completely fill a jl sketch matrix with random values from a hash function. only used for correctness testing, because
+    // populating the entire array at one time is too space-intensive.
     pub fn populate_matrix(&self, input: &mut Array2<f64>) {
         let rows = input.dim().0;
         let cols = input.dim().1;
@@ -521,6 +529,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         ffi::FlattenedVec::new(&result_matrix.to_dense())
     }
 
+    // given a vector of diff norms for each edge in the laplacian, computes the sampling probabilities for each edge.
     pub fn compute_probs(&self, length: usize, diff_norms: &Vec<f64>) -> Vec<f64> {
         let mut probs: Vec<f64> = vec![1.0; length];
         let mut nonzero_counter = 0;
@@ -603,6 +612,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
         return probs;
     }
 
+    // gets the random numbers used to sample edges.
     pub fn flip_coins(&self, length: usize) -> Vec<f64> {
         //let mut rng = rand::thread_rng();
         let mut rng = StdRng::seed_from_u64(self.sampling_seed);
