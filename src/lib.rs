@@ -77,12 +77,14 @@ const OUTPUT_LAPLACIAN_PATH: &str = "/global/homes/d/dtench/m1982/david/spec_spa
 
 #[cxx::bridge]
 mod ffi {
+    // type for passing matrices via interop.
     struct FlattenedVec {
         vec: Vec<f64>,
         num_cols: usize,
         num_rows: usize,
     }
 
+    // these functions call c++ code from rust. see example.h and example.cc for definitions of these functions.
     unsafe extern "C++" {
         include!("spec_spars/include/example.h");
 
@@ -111,8 +113,9 @@ mod ffi {
     }
 }
 
+// flattened version of matrix that can be passed to/from c++. must be flattened before sending and unrolled after receiving
 impl FlattenedVec {
-    //construct from Array2 type
+    // flatten matrix 
     pub fn new(input_array: &Array2<f64>) -> ffi::FlattenedVec {
         let (num_rows, num_cols) = input_array.dim();
         let mut output = ffi::FlattenedVec{vec: vec![], num_rows: num_rows, num_cols: num_cols};
@@ -124,6 +127,7 @@ impl FlattenedVec {
         output
     }
 
+    // unroll into matrix
     pub fn to_array2(&self) -> Array2<f64>{
         let mut output = Array2::<f64>::zeros((self.num_rows, self.num_cols));
         for i in 0..self.vec.len() {
@@ -137,6 +141,7 @@ impl FlattenedVec {
     }
 }
 
+// default function for sparsifying a dataset.
 pub fn sparsify_dataset(input_filename: &str, dataset_name: &str, output_filename: &str, epsilon: f64, verbose: bool, sketch_seed: u64, sampling_seed: u64, benchmark: bool) {
     
     println!("sparsifying {}", input_filename);
@@ -368,4 +373,8 @@ pub fn run_space_use_experiment() {
     ];
     let writeout = false;
     crate::experiments::space_use(&input_filenames, &dataset_names, writeout);
+}
+
+pub fn run_simple_space() {
+    crate::experiments::space_use_simple();
 }

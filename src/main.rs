@@ -2,11 +2,13 @@
 use clap::Parser;
 use spec_spars::{sparsify_dataset, run_basic_experiment, run_jl_scaling_experiment, run_jl_dim_experiment, run_space_use_experiment};
 
+// these variables point to the locations of the demo datasets (run setup.sh to download them)
 const INPUT_FILENAME_VIRUS: &str = "data/virus.mtx";
 const INPUT_FILENAME_MOUSE: &str = "data/mouse.mtx";
 const INPUT_FILENAME_HUMAN1: &str = "data/human1.mtx";
 const INPUT_FILENAME_HUMAN2: &str = "data/human2.mtx";
 
+// command line parsing
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -103,6 +105,7 @@ fn run_jl_dim() {
 fn main() {
     let args = Args::parse();
 
+    // print arguments for debugging
     println!("Command line arguments are: 
         input file = {}, 
         output file = {},
@@ -117,7 +120,8 @@ fn main() {
         experiment selector = {}",
 
         args.input_file, args.output_file, args.dataset_name, args.epsilon, args.verbose, args.sketch_seed, args.sampling_seed, 
-        args.benchmark_skip, args.process_all, args.run_experiment, args.choose_experiment);
+        args.benchmark_skip, args.process_all, args.run_experiment, args.choose_experiment
+    );
 
     if args.run_experiment {
         match args.choose_experiment {
@@ -125,7 +129,8 @@ fn main() {
             1 => run_jl_scaling(),
             2 => run_jl_dim(),
             3 => run_space_use_experiment(),
-            _ => println!("invalid experiment selector. currently only supports 0 (basic), 1 (jl scaling), and 2 (jl dimension)."),
+            4 => spec_spars::run_simple_space(),
+            _ => println!("invalid experiment selector."),
         }
 
     }

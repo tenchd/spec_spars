@@ -4,9 +4,9 @@
 
 #SBATCH -N 1
 #SBATCH -C cpu
-#SBATCH -q debug
+#SBATCH -q regular
 #SBATCH -J test
-#SBATCH -t 0:30:00
+#SBATCH -t 5:00:00
 #SBATCH -o test.out
 
 # OpenMP settings:
@@ -15,4 +15,5 @@ export OMP_PLACES=threads
 export OMP_PROC_BIND=spread
 
 #run the application: 
-srun -n 1 -c 256 --cpu_bind=cores  target/release/deps/spec_spars-763c6ce7107d8910
+#srun -n 1 -c 256 --cpu_bind=cores  valgrind --tool=massif target/release/deps/spec_spars-97c4c6c3b9ee420b file_only_solver_test
+srun -n 1 -c 256 --cpu_bind=cores  target/release/deps/pec_spars-4473b84cdf66a593
