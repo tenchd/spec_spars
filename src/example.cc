@@ -10,7 +10,7 @@
 #include <string>
 #include <string_view>
 
-//MOST OF THIS FILE IS COPIED FROM DRIVER_LOCAL.CPP
+//MOST OF THIS FILE IS COPIED FROM DRIVER_LOCAL.CPP (TIANYU'S IMPLEMENTATION OF THE SOLVER)
 
 typedef int custom_idx;
 
@@ -663,7 +663,8 @@ std::string rust_string_converter(rust::Str input) {
     return cpp_string;
 }
 
-// function that runs the solver code on rust-provided laplacian and jl sketch.
+// function that runs the solver code on rust-provided laplacian and jl sketch. This is the only interop function that is used to actually do the linear
+// solve when running the code to sparsify a dataset. the other interop functions are all for correctness testing.
 FlattenedVec run_solve_lap(FlattenedVec shared_jl_cols, rust::Vec<custom_idx> rust_col_ptrs, \
     rust::Vec<custom_idx> rust_row_indices, rust::Vec<double> rust_values, rust::Str solver_output_filename, int num_nodes, bool verbose) {
 
