@@ -145,24 +145,6 @@ mod integration_tests {
     // filename for laplacian file written out by rust
     const RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
 
-    // // filename for laplacian written out by julia file
-    // const JULIA_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_lap.mtx";
-    // // evim from julia run
-    // const JULIA_EVIM_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_evim.mtx";
-    // // sketch factor matrix from julia 
-    // const JULIA_SKETCH_FACTOR_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv";
-    // // sketch product matrix from julia, in both csv and mtx formats
-    // const JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv";
-    // const JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx";
-    // // solution matrix from julia
-    // const JULIA_SOLUTION_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_solution.mtx";
-    // // diff norms written out from julia run
-    // const JULIA_DIFF_NORMS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv";
-    // // probabilities written out from julia run
-    // const JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
-    // // 
-    // const JULIA_OUTCOMES_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/decisions.csv";
-
     // this eventually needs to be moved to somewhere else. but we need the rust lap file for later tests, and running it here ensures later tests will have it.
     #[test]
     fn write_lap(){
