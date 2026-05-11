@@ -141,11 +141,11 @@ function sort_rows_by_two_columns(M::SparseMatrixCSC{Tv,Ti}) where {Tv,Ti}
     return Msorted
 end
 
-function l_sparsify_blocked(a; ep=0.3, matrixConcConst=4.0, JLfac=4.0, first = false)
+function l_sparsify_blocked(a; ep=0.3, matrixConcConst=4.0, JLfac=4.0, first = false, write_location = "")
 
   if (first)
     println("writing laplacian to file.")
-     MatrixMarket.mmwrite("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_lap.mtx", a)
+     MatrixMarket.mmwrite(write_location * "julia_lap.mtx", a)
      println("done writing laplacian.")
   end
   
@@ -166,7 +166,7 @@ function l_sparsify_blocked(a; ep=0.3, matrixConcConst=4.0, JLfac=4.0, first = f
   U = sort_rows_by_two_columns(U)
   if (first)
     println("writing evim to file.")
-    MatrixMarket.mmwrite("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_evim.mtx", U)
+    MatrixMarket.mmwrite(write_location * "julia_evim.mtx", U)
     println("done writing evim.")
   end
   m = size(U,1)
@@ -179,15 +179,15 @@ function l_sparsify_blocked(a; ep=0.3, matrixConcConst=4.0, JLfac=4.0, first = f
   #println(size(URt))
   #println(size(k))
   sketch_time_start = time()
-  multithread_blocked_dense_sparse!(U, URt, k, 50, 15000, first)
+  multithread_blocked_dense_sparse!(U, URt, k, 50, 15000, first, write_location)
   sketch_time_end = time() - sketch_time_start
   #@time advanced_blocked_dense_sparse!(U, URt, k, 50000, 2000)
   UR = URt';
   UR .= UR .* sqrt(3)
   if (first)
     println("writing sketch product to file.")
-    writedlm("/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv", UR, ',')
-    MatrixMarket.mmwrite("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx", sparse(UR))
+    writedlm(write_location * "julia_sketch_product.csv", UR, ',')
+    MatrixMarket.mmwrite(write_location * "julia_sketch_product.mtx", sparse(UR))
     println("done writing sketch product.")
   end
 
@@ -198,7 +198,7 @@ function l_sparsify_blocked(a; ep=0.3, matrixConcConst=4.0, JLfac=4.0, first = f
 
   if (first)
     println("writing solution to file.")
-    MatrixMarket.mmwrite("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_solution.mtx", sparse(V'))
+    MatrixMarket.mmwrite(write_location * "julia_solution.mtx", sparse(V'))
     println("done writing solution.")
   end
 
@@ -210,7 +210,7 @@ function l_sparsify_blocked(a; ep=0.3, matrixConcConst=4.0, JLfac=4.0, first = f
 compute_diff_norm(prs, length(av), V, ai, aj)
 if (first)
     println("writing diff norms to file.")
-    writedlm("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv", prs', ',')
+    writedlm(write_location * "julia_diff_norms.csv", prs', ',')
     println("done writing diff norms.")
 end
 
@@ -231,7 +231,7 @@ println("big term: $bigterm")
 end
 if (first)
   println("writing probabilities to file.")
-  writedlm("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_probs.csv", prs', ',')
+  writedlm(write_location * "julia_probs.csv", prs', ',')
   println("done writing probabilities.")
 end
 

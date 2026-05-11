@@ -91,7 +91,7 @@ function multithread_blocked_dense_sparse_pm1!(A, A_hat, d, outer_n=100, outer_d
    # println("s2: ", s2)
 end
 
-function multithread_blocked_dense_sparse!(A, A_hat, d, outer_n=100, outer_d=15000, first = false)
+function multithread_blocked_dense_sparse!(A, A_hat, d, outer_n=100, outer_d=15000, first = false, write_location = "")
 
     # rng
     #d = Binomial(1, 0.5)
@@ -193,13 +193,13 @@ function multithread_blocked_dense_sparse!(A, A_hat, d, outer_n=100, outer_d=150
     println(sketch_alt[1,1])
     println(sketch_alt[1,2])
     if correct && first
-        println("writing jl sketch factor and product matrices to file.")
+        println("writing jl sketch factor and product matrices to file (this may take a while).")
         #MatrixMarket.mmwrite("julia_sketch_factor.mtx", sketch_alt)
         #MatrixMarket.mmwrite("julia_sketch_product.mtx", sparse(transpose(A_hat)))
 
-        writedlm("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv", sketch_alt, ',')
-        #MatrixMarket.mmwrite("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.mtx", sketch_alt)
-        #writedlm("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/julia_sketch_product_new.csv", A_hat, ',')
+        writedlm(write_location * "julia_sketch_factor.csv", sketch_alt, ',')
+        #MatrixMarket.mmwrite(write_location * "julia_sketch_factor.mtx", sketch_alt)
+        #writedlm(write_location * "julia_sketch_product_new.csv", A_hat, ',')
         println("done writing sketch matrices.")
     end
     @printf("answers differ in %i locations, mean difference is %f and std dev is %f\n", count(!iszero, difference), mean(difference), std(difference))
