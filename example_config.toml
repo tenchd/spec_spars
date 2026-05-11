@@ -1,3 +1,12 @@
+#use absolute file paths for the config settings below.
+#set this one to the location of the "include" subdirectory in your fast_matrix_market install.
 fast_mtx_path = "path/to/fast_matrix_market/include" 
+#set this one to the location where you want the reference Julia implementation to write its data dumps (for correctness testing).
+#warning: these data dumps will be several GB in size.
+test_files_path = "path/to/test/files"
+#set this one to the location of your input files. reduces the length of input file strings in the code.
 input_files_path = "path/to/input/files" 
+#set this one to the location where you want the sparsifier code to write output (e.g., sparsifier matrix market files)
 output_files_path = "path/to/output/files"
+#set this one to the location where you want to write experiment results.
+experiment_results_path = "path/to/experiment/results"
