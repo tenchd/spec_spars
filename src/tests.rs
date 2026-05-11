@@ -74,6 +74,8 @@ pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
 
 #[cfg(test)]
 mod integration_tests {
+    use config::Config;
+    use std::path::PathBuf;
     use std::ops::Add;
     use std::time::{Instant};
     use std::process::Command;
@@ -102,6 +104,35 @@ mod integration_tests {
 
     // filename for solver output file; empty string means it writes no output
     const SOLVER_OUTPUT_FILENAME: &str= "";
+
+    struct TestFileLocation {
+        pub path_to_directory: String,
+    }
+
+    impl TestFileLocation {
+        pub fn new() -> TestFileLocation {
+            // read the path to the location of test files from config.toml
+            let settings = Config::builder()
+                    .add_source(config::File::with_name("config"))
+                    .build()
+                    .unwrap();
+            let path_argument = settings.get_string("test_files_path").unwrap();
+            assert!(path_argument != "path/to/test/files", "ERROR: Update config.toml with the path to the test file directory before building.");
+            TestFileLocation {
+                path_to_directory: path_argument,
+            }
+        }
+
+        pub fn path(&self, file: &str) -> String {
+            let filename = match file {
+                                "JULIA_LAP_FILENAME" => "/julia_lap.mtx",
+                                _ => panic!("Invalid argument to TestFileLocation"),
+                            };
+            let path = format!("{}{}", self.path_to_directory, filename);
+            //println!("path is {}", path);
+            path
+        }
+    }
 
     // filename for laplacian file written out by rust
     const RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
@@ -172,9 +203,11 @@ mod integration_tests {
     //#[ignore]
     fn lap_equiv_julia_rust(){
         println!("TEST:----Running lap equivalence test: compare rust laplacian with known good example from julia reference implementation.-----");
+        let loc = TestFileLocation::new();
         let lap_stream: InputStream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let rust_lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
-        let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(JULIA_LAP_FILENAME);
+        //let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(JULIA_LAP_FILENAME);
+        let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(&loc.path("JULIA_LAP_FILENAME"));
         let difference_lap = &rust_lap + &julia_lap; //this is a subtraction because the rust values are negative.
 
         let mut iteration_counter = 0;
@@ -542,6 +575,7 @@ mod integration_tests {
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
     // to really understand these tests you need to look at the functions with the same names in example.cc
     fn run_interop_test(test_selector: i32, verbose: bool) {
+        let loc = TestFileLocation::new();
         let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(JULIA_SKETCH_PRODUCT_MTX_FILENAME);
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
         let lap_stream: InputStream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
@@ -558,7 +592,7 @@ mod integration_tests {
         println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
 
         // need to pass original input mtx, julia lap, julia sketch, output. 
-        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, crate::INPUT_FILENAME_VIRUS, JULIA_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
+        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, crate::INPUT_FILENAME_VIRUS, &loc.path("JULIA_LAP_FILENAME"), JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
         assert!(result);
     }
 
