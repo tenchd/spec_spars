@@ -155,11 +155,12 @@ pub struct SparsifierParameters<IndexType: CustomIndex> {
     pub bench: bool,
     pub sketch_uniform: bool,
     pub output_file: String,
+    pub streaming: bool,
 }
 
 impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
     // standard constructor
-    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, jl_scaling_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool, output_file: String ) -> SparsifierParameters<IndexType> {
+    pub fn new(epsilon: f64, beta_constant: IndexType, row_constant: IndexType, verbose: bool, jl_factor: f64, jl_scaling_factor: f64, sketch_seed: u64, sampling_seed: u64, bench: bool, sketch_uniform: bool, output_file: String, streaming: bool) -> SparsifierParameters<IndexType> {
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -173,6 +174,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             bench: bench,
             sketch_uniform: sketch_uniform,
             output_file: output_file,
+            streaming: streaming,
         }
     }
 
@@ -188,6 +190,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
         let sampling_seed = 1;
         let sketch_uniform = true;
         let output_file = "";
+        let streaming = false;
 
         SparsifierParameters{
             epsilon: epsilon,
@@ -201,6 +204,7 @@ impl<IndexType: CustomIndex> SparsifierParameters<IndexType> {
             bench: bench,
             sketch_uniform: sketch_uniform,
             output_file: output_file.to_string(),
+            streaming: streaming,
         }
     }
 }
@@ -251,6 +255,7 @@ pub struct Sparsifier<IndexType: CustomIndex>{
     pub sampling_seed: u64,    // seed for sampling edges during sparsification
     pub benchmarker: Benchmarker,  //when true, measure time it takes to do operations
     pub sketch_uniform: bool, //whether to use the hash function that maps uniformly to (-1,1) for the JL sketch, or the one that maps uniformly to {-1,1}
+    pub streaming: bool, // if true, automatically sparsifies the data structure when threshold for edge count is reached.
 }
 
 impl<IndexType: CustomIndex> Sparsifier<IndexType> {
@@ -287,6 +292,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
             sketch_uniform: parameters.sketch_uniform,
+            streaming: parameters.streaming,
         }
     }
 
@@ -322,6 +328,7 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             sampling_seed: parameters.sampling_seed,
             benchmarker: benchmarker,
             sketch_uniform: parameters.sketch_uniform,
+            streaming: parameters.streaming,
         }
     }
 
@@ -360,10 +367,12 @@ impl<IndexType: CustomIndex> Sparsifier<IndexType> {
             //println!("inserting ({}, {}) with value {}", v1, v2, value);
         }
 
-        //TODO: if it's too big, trigger sparsification step
-        // if self.num_edges > self.threshold {
-        //      self.sparsify(false);
-        // }
+        if self.streaming {
+            if self.num_edges() > self.threshold.index() {
+                self.sparsify(false);
+            }
+        }
+
     }
 
     //maps hash function output to {-1,1} evenly

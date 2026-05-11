@@ -152,7 +152,8 @@ pub fn sparsify_dataset(input_filename: &str, dataset_name: &str, output_filenam
     let beta_constant = 4;
     let row_constant = 2;
     let sketch_uniform = false;
-    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, jl_scaling_factor, sketch_seed, sampling_seed, benchmark, sketch_uniform, output_filename.to_string());
+    let streaming = false;
+    let parameters = SparsifierParameters::new(epsilon, beta_constant, row_constant, verbose, jl_factor, jl_scaling_factor, sketch_seed, sampling_seed, benchmark, sketch_uniform, output_filename.to_string(), streaming);
 
     // not a test
     let test = false;
