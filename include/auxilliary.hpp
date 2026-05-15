@@ -5,7 +5,7 @@
 // #include <cooperative_groups.h>
 #include "pre_process.hpp"
 
-
+// All code in this file is copied from Tianyu's solver project and is essentially unmodified.
 
 
 template <typename type_int, typename type_data>

@@ -11,7 +11,7 @@ use std::path::Path;
 use csv::Writer;
 
 
-
+// handles writing experiment results as csv file
 struct ExperimentResult {
     output_filename: String,
     column_headers: Vec<String>,
@@ -19,6 +19,7 @@ struct ExperimentResult {
 }
 
 impl ExperimentResult {
+    // constructor that opens a file and writes csv column headers (if file doesn't already exist)
     fn new(output_filename: String, column_headers: Vec<String>) -> Self {
         //let file = File::create(&output_filename).expect("Could not create file");
         let path: &Path = output_filename.as_ref();
@@ -41,11 +42,13 @@ impl ExperimentResult {
         }
     }
 
+    // call this function to write an experiment result as a line in the csv.
     fn record_result(&mut self, result: Vec<String>) {
         self.writer.write_record(&result).expect("Could not write record");
         self.writer.flush().expect("Could not flush writer");
     }
 
+    // call this function when you're done to ensure everything is written to the file.
     fn finalize(&mut self) {
         self.writer.flush().expect("Could not flush writer");
     }
@@ -60,6 +63,7 @@ fn verify_ccs<IndexType: CustomIndex>(stream: &InputStream, sparsifier: &Sparsif
     return original_ccs == sparsified_ccs;
 }
 
+// stores the result of testing the quadratic normal form of the sparsifier on different randomly chosen vectors.
 struct QuadraticFormProbeResult {
         upper_bound_violations: usize,
         lower_bound_violations: usize,
@@ -80,6 +84,7 @@ impl QuadraticFormProbeResult {
     }
 }
 
+// randomly samples vectors to measure the difference between the quadratic normal form w.r.t. the sparsifer vs that of the original laplacian.
 fn probe_quadratic_form(stream: &InputStream, sparsifier: &Sparsifier<i32>, dataset_name: &str, probe_iterations: usize) -> QuadraticFormProbeResult {
     let original_state = stream.produce_laplacian();
     let mut errors = Array1::zeros(probe_iterations);
@@ -359,7 +364,7 @@ pub fn jl_scaling_factor_sensitivity(input_filenames: &[&str], dataset_names: &[
     dataset_stats.finalize();
 }
 
-//
+// this experiment tests the impact of the number of jl sketch matrix columns on solution quality and system performance.
 pub fn jl_dim_sensitivity(input_filenames: &[&str], dataset_names: &[&str], writeout: bool) {
     let sketch_types = [true, false]; //true for uniform, false for discrete (fix this later)
     let output_filename = format!("experiment_results/jl_factor/experiment_results.csv");
@@ -579,16 +584,30 @@ pub fn space_use(input_filenames: &[&str], dataset_names: &[&str], writeout: boo
     dataset_stats.finalize();
 }
 
-pub fn space_use_simple() {
-    let mut parameters = SparsifierParameters::new_default(true);
-    parameters.jl_factor = 4.0;
-    parameters.sketch_seed = 0;
-    parameters.sampling_seed = 0;
-    parameters.epsilon = 0.25;
-    parameters.sketch_uniform = false;
+pub fn get_lap() -> Sparsifier<i32> {
+    let input_filename = crate::INPUT_FILENAME_VIRUS;
+    let dataset_name = "virus";
+    let stream = InputStream::new(input_filename, dataset_name);
+    let sparsifier = stream.produce_laplacian();
+    sparsifier
+}
 
-    let sparsifier = Sparsifier::<i32>::from_matrix(crate::INPUT_FILENAME_VIRUS, &parameters);
+// this simple test is used in conjunction with valgrind's massif tool to measure memory use during sparsification.
+pub fn space_use_simple() {
+    // let mut parameters = SparsifierParameters::<i32>::new_default(true);
+    // parameters.jl_factor = 4.0;
+    // parameters.sketch_seed = 0;
+    // parameters.sampling_seed = 0;
+    // parameters.epsilon = 0.25;
+    // parameters.sketch_uniform = false;
+
+    println!("virus laplacian from stream");
+    let mut sparsifier = get_lap();
 
     println!("num nodes is {}, num edges is {}, nonzeros in laplacian is {}",
         sparsifier.num_nodes, sparsifier.num_edges(), sparsifier.current_laplacian.nnz());
+
+    println!("sparsifying the dataset");
+
+    sparsifier.sparsify(false);
 }

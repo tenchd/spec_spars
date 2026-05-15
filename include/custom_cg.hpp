@@ -4,6 +4,8 @@
 #include "auxilliary.hpp"
 #include <random>
 
+// All code in this file is copied from Tianyu's solver project and is essentially unmodified.
+
 template <typename type_int>
 void writeVectorToFile2(const std::vector<type_int>& vec, const std::string& filename) 
 {

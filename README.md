@@ -61,6 +61,15 @@ Requirements:
 
 Note that steps 6 and 7 must be done *every time* you start a new session, or else the code will not compile. You can also add these commands to your bashrc file to avoid having to do these every time.
 
+## Setting up and Running Tests
+The automated test suite for this project compares against a reference implementation in Julia. To properly run automated correctness tests, you must first run the Julia implementation to get reference output. This is intended primarily for developers, not end users.
+
+1. Make sure [Julia is installed](https://julialang.org/downloads/) and loaded. On NERSC, simply `module load julia`. 
+2. Edit `OUTPUT_LOCATION` in `test_setup.sh` to point to the location you want the reference output to be written. NOTE: this produces 4.4GB of output at the specified location.
+3. Edit `test_files path` in `config.toml` to the location you chose above.
+4. `bash test_setup.sh`. This will take a few minutes.
+5. To run the tests, `cargo test --release`. 
+
 ## Command-line arguments
 
 You can pass optional command-line arguments after `cargo run --release --` to control program behavior. 
@@ -89,5 +98,3 @@ By default, the program prints benchmarking information for each sparsification.
 -p, --process_all: 
 Invoking this ignores input_file and dataset_name parameters and sparsifies a set list of datasets according to other command line arguments. Edit `process_standard_datasets` in main.rs to change this list of datasets (if you do, make sure to assign a reasonable dataset name for each input file).
 
-## Running Tests
-Run `cargo test --release` to run a suite of unit and integration tests. 

@@ -5,6 +5,7 @@ use crate::utils::Benchmarker;
 use petgraph::Graph;
 
 
+// type that handles reading in the input data in ``stream'' form from an mtx file.
 pub struct InputStream {
     pub input_matrix: CsMatI<f64, i32>,
 //    pub input_iterator: 
@@ -14,15 +15,8 @@ pub struct InputStream {
 }
 
 impl InputStream {
-    // deal with diagonals?
-    // if the graph is symmetric, de-symmetrize it ideally
-    // how does the mtx reader handle symmetry?
     pub fn new(filename: &str, dataset_name: &str) -> InputStream {
         let mut input = read_mtx(filename);
-        //let mut input = load_pattern_as_csr(filename).expect("file read error");
-        
-        // zeroed diagonal entries remain explicitly represented using this format.
-        // fix this later.
         let num_nodes = input.outer_dims();
         assert_eq!(input.outer_dims(), input.inner_dims());
         let mut diag_zeros = 0;
@@ -35,9 +29,6 @@ impl InputStream {
 
         //println!("mtx file has {} nodes. there are {} zero entries on the diagonal originally.", num_nodes, diag_zeros);
 
-        // for value in input.iter() {
-        //     println!("{:?}", value);
-        // }
         InputStream{
             input_matrix: input,
             num_nodes: num_nodes,

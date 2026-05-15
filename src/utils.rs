@@ -53,14 +53,6 @@ pub fn convert_indices_to_i32<IndexType: CustomIndex>(input_vec: &Vec<IndexType>
     input_vec.into_iter().map(|v| v.as_i32()).collect()
 }
 
-// fn convert_index_type_to_int<InitialIndexType: CustomIndex, DesiredIndexType: PrimInt>(vector: Vec<InitialIndexType>) -> Vec<DesiredIndexType> {
-//     vector.into_iter().map(|v| v.index().try_into()).collect()
-// }
-
-// fn convert_value_type_to_float<InitialValueType: CustomValue, DesiredValueType: Float>(vector: Vec<InitialValueType>) -> Vec<DesiredValueType> {
-//     vector.into_iter().map(|v| v.as_f64().try_into()).collect()
-// }
-
 // following code provides simple code for timing different parts of sparsification pipeline
 pub enum BenchmarkPoint {
     Start,
@@ -176,7 +168,7 @@ pub fn read_sketch_from_mtx(filename: &str) -> ffi::FlattenedVec {
     output
 }
 
-//BROKEN: function to read pattern .mtx files. needs to be fixed
+//BROKEN: function to read pattern .mtx files. needs to be fixed. current workaround is to transform pattern .mtx files to float-valued ones in julia.
 #[allow(dead_code)]
 pub fn load_pattern_as_csr<P>(path: P) -> Result<CsMatI<f64, i32>, std::io::Error>
 where
@@ -196,52 +188,6 @@ where
 //make this generic later maybe
 pub fn write_mtx<IndexType: CustomIndex>(filename: &str, matrix: &CsMatI<f64, IndexType>) {
         sprs::io::write_matrix_market(filename, matrix).ok();
-}
-
-fn flip_sign(value: &f64) -> f64 {
-    value*-1.0
-}
-
-pub fn write_mtx_and_edgelist<IndexType: CustomIndex>(matrix: &CsMatI<f64, IndexType>, output_name: &str, flip: bool) {
-    let output_prefix = "data/";
-    let output_suffix_sparse = "_sparse";
-    let output_suffix_mtx = ".mtx";
-    let output_suffix_edgelist = ".edgelist";
-
-    let output_mtx_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_mtx;
-    let output_edgelist_full = output_prefix.to_owned() + &output_name + output_suffix_sparse + output_suffix_edgelist;
-    println!("writing to file {}", output_mtx_full);
-    crate::utils::write_mtx(&output_mtx_full, matrix);
-
-    let mut diagonal_trip = TriMatI::<f64, IndexType>::new((matrix.rows(), matrix.cols()));
-    for (position, value) in matrix.diag().iter(){
-        diagonal_trip.add_triplet(position, position, *value);
-    }
-    let mut diagonal_csc = diagonal_trip.to_csc();
-    let final_trip = TriMatI::<f64, IndexType>::new((matrix.rows(), matrix.cols()));
-    //let mut final_matrix = CsMatI::<f64, IndexType>::new((matrix.rows(), matrix.cols()), vec![], vec![], vec![]);
-    let mut final_matrix = final_trip.to_csc();
-
-    if flip {
-        let matrix_flipped = matrix.map(&flip_sign);
-        final_matrix = matrix_flipped.add(&diagonal_csc);
-    }
-    else {
-        diagonal_csc = diagonal_csc.map(flip_sign);
-        final_matrix = matrix.add(&diagonal_csc);
-    }
-
-    // println!("{:?}", matrix.to_dense());
-    // println!("------------------------------------");
-    // println!("{:?}", final_matrix.to_dense());
-
-    crate::utils::write_mtx("temp.mtx", &final_matrix);
-    let conversion_command = "sed '1,3d' temp.mtx > ".to_owned() + &output_edgelist_full;
-    println!("converting mtx file to edgelist with the following command:");
-    println!("{}", conversion_command);
-    //Command::new("bash").arg("-c").arg("sed '1,3d' data/virus_sparse.mtx > data/virus_sparse.edgelist").output();
-    Command::new("bash").arg("-c").arg(conversion_command).output();
-    Command::new("bash").arg("-c").arg("rm temp.mtx").output();
 }
 
 #[allow(dead_code)]
@@ -305,8 +251,8 @@ where
     Ok(())
 }
 
-#[test]
 // verifies that the above functions that handle reading/writing dense matrices into csv files write out and read back in the matrix correctly.
+#[test]
 pub fn test_array_file(){
     let rows = 103;
     let cols = 91;

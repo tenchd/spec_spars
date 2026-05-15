@@ -52,7 +52,7 @@ end
 
 
 
-function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=1, writeout = false)
+function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=1, writeout = false, write_location = "")
     # read in the matrix and stream it
     G = MatrixMarket.mmread(mat)
     G = SparseMatrixCSC{Float64, Int64}(G)
@@ -115,7 +115,7 @@ function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=
 
             t1 = time()
 
-            prs_blocked, partial_time_list = l_sparsify_blocked(as, matrixConcConst=matrixConcConst, ep=eps, first = writeout)
+            prs_blocked, partial_time_list = l_sparsify_blocked(as, matrixConcConst=matrixConcConst, ep=eps, first = writeout, write_location = write_location)
             overall_time += (time() - t1)
             total_time_list .= total_time_list .+ partial_time_list
             rand!(decision_vec)
@@ -123,7 +123,7 @@ function Stream_Sparsify(mat::String; eps=1e-1, matrixConcConst=4.0, num_sample=
             ind = decision_vec .< prs_blocked
             if writeout
                 println("writing edge decisions to file.")
-                writedlm("/global/homes/d/dtench/m1982/david/spec_spars_files/julia_output/decisions.csv", ind', ',')
+                writedlm(write_location * "decisions.csv", ind', ',')
                 println("done writing edge decisions.")
             end
 
@@ -329,11 +329,5 @@ function rewrite_mtx(mat::String, output::String)
 end
 
 println("-------------------------------------------------------------------")
-Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/virus/virus.mtx", eps=5e-1, writeout = false)
-println("-------------------------------------------------------------------")
-#Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/mouse_gene/mouse_gene.mtx", eps=5e-1)
-println("-------------------------------------------------------------------")
-#Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene1/human_gene1.mtx", eps=5e-1)
-println("-------------------------------------------------------------------")
-#Stream_Sparsify("/global/cfs/cdirs/m1982/david/bulk_to_process/human_gene2/human_gene2.mtx", eps=5e-1)
+Stream_Sparsify("data/virus.mtx", eps=5e-1, writeout = true, write_location = ARGS[1])
 println("-------------------------------------------------------------------")

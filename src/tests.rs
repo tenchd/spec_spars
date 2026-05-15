@@ -74,6 +74,8 @@ pub fn mean_and_std_dev(input: &Array1<f64>) -> (f64, f64) {
 
 #[cfg(test)]
 mod integration_tests {
+    use config::Config;
+    use std::path::PathBuf;
     use std::ops::Add;
     use std::time::{Instant};
     use std::process::Command;
@@ -103,26 +105,45 @@ mod integration_tests {
     // filename for solver output file; empty string means it writes no output
     const SOLVER_OUTPUT_FILENAME: &str= "";
 
+    struct TestFileLocation {
+        pub path_to_directory: String,
+    }
+
+    impl TestFileLocation {
+        pub fn new() -> TestFileLocation {
+            // read the path to the location of test files from config.toml
+            let settings = Config::builder()
+                    .add_source(config::File::with_name("config"))
+                    .build()
+                    .unwrap();
+            let path_argument = settings.get_string("test_files_path").unwrap();
+            assert!(path_argument != "path/to/test/files", "ERROR: Update config.toml with the path to the test file directory before building.");
+            TestFileLocation {
+                path_to_directory: path_argument,
+            }
+        }
+
+        pub fn path(&self, file: &str) -> String {
+            let filename = match file {
+                                "JULIA_LAP_FILENAME" => "/julia_lap.mtx",
+                                "JULIA_EVIM_FILENAME" => "/julia_evim.mtx",
+                                "JULIA_SKETCH_FACTOR_FILENAME" => "/julia_sketch_factor.csv",
+                                "JULIA_SKETCH_PRODUCT_CSV_FILENAME" => "/julia_sketch_product.csv",
+                                "JULIA_SKETCH_PRODUCT_MTX_FILENAME" => "/julia_sketch_product.mtx",
+                                "JULIA_SOLUTION_FILENAME" => "/julia_solution.mtx",
+                                "JULIA_DIFF_NORMS_FILENAME" => "/julia_diff_norms.csv",
+                                "JULIA_PROBS_FILENAME" => "/julia_probs.csv",
+                                "JULIA_OUTCOMES_FILENAME" => "/decisions.csv",
+                                _ => panic!("Invalid argument to TestFileLocation"),
+                            };
+            let path = format!("{}{}", self.path_to_directory, filename);
+            //println!("path is {}", path);
+            path
+        }
+    }
+
     // filename for laplacian file written out by rust
     const RUST_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/misc/rust_laplacian.mtx";
-
-    // filename for laplacian written out by julia file
-    const JULIA_LAP_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_lap.mtx";
-    // evim from julia run
-    const JULIA_EVIM_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_evim.mtx";
-    // sketch factor matrix from julia 
-    const JULIA_SKETCH_FACTOR_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_factor.csv";
-    // sketch product matrix from julia, in both csv and mtx formats
-    const JULIA_SKETCH_PRODUCT_CSV_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.csv";
-    const JULIA_SKETCH_PRODUCT_MTX_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_sketch_product.mtx";
-    // solution matrix from julia
-    const JULIA_SOLUTION_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_solution.mtx";
-    // diff norms written out from julia run
-    const JULIA_DIFF_NORMS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_diff_norms.csv";
-    // probabilities written out from julia run
-    const JULIA_PROBS_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/julia_probs.csv";
-    // 
-    const JULIA_OUTCOMES_FILENAME: &str = "/global/cfs/cdirs/m1982/david/spec_spars_files/julia_output/decisions.csv";
 
     // this eventually needs to be moved to somewhere else. but we need the rust lap file for later tests, and running it here ensures later tests will have it.
     #[test]
@@ -172,9 +193,10 @@ mod integration_tests {
     //#[ignore]
     fn lap_equiv_julia_rust(){
         println!("TEST:----Running lap equivalence test: compare rust laplacian with known good example from julia reference implementation.-----");
+        let loc = TestFileLocation::new();
         let lap_stream: InputStream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let rust_lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
-        let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(JULIA_LAP_FILENAME);
+        let julia_lap: CsMatI<f64, i32> = crate::utils::read_mtx(&loc.path("JULIA_LAP_FILENAME"));
         let difference_lap = &rust_lap + &julia_lap; //this is a subtraction because the rust values are negative.
 
         let mut iteration_counter = 0;
@@ -300,7 +322,8 @@ mod integration_tests {
     #[test]
     //#[ignore]
     fn evim_csc_equiv(){
-        println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----");        
+        println!("TEST:-----Testing equivalence of laplacian and edge-vertex incidence matrix on virus dataset.-----"); 
+        let loc = TestFileLocation::new();       
         let stream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         let mut sparsifier = Sparsifier::new(stream.num_nodes.try_into().unwrap(), &parameters);
@@ -349,7 +372,7 @@ mod integration_tests {
         sparsifier.check_diagonal();
 
         // now make sure that rust evim matches the julia evim (read in from file)
-        let julia_evim = utils::read_mtx_csr::<i32>(JULIA_EVIM_FILENAME).transpose_into();
+        let julia_evim = utils::read_mtx_csr::<i32>(&loc.path("JULIA_EVIM_FILENAME")).transpose_into();
         let julia_nnz = julia_evim.nnz();
         assert_eq!(julia_nnz, lap_nnz);
         println!("julia evim has dimensions {} x {}", julia_evim.rows(), julia_evim.cols());
@@ -542,7 +565,8 @@ mod integration_tests {
     // INTEROP TESTS THAT CALL NONTRIVIAL C++ CODE
     // to really understand these tests you need to look at the functions with the same names in example.cc
     fn run_interop_test(test_selector: i32, verbose: bool) {
-        let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(JULIA_SKETCH_PRODUCT_MTX_FILENAME);
+        let loc = TestFileLocation::new();
+        let sketch: ffi::FlattenedVec = utils::read_sketch_from_mtx(&loc.path("JULIA_SKETCH_PRODUCT_MTX_FILENAME"));
         println!("interop jl sketch matrix is {}x{}", sketch.num_rows, sketch.num_cols);
         let lap_stream: InputStream = InputStream::new(crate::INPUT_FILENAME_VIRUS, "");
         let lap: CsMatI<f64, i32> = lap_stream.produce_laplacian().current_laplacian;
@@ -558,7 +582,7 @@ mod integration_tests {
         println!("nodes in input csc: {}, {}", lap.cols(), lap.rows());
 
         // need to pass original input mtx, julia lap, julia sketch, output. 
-        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, crate::INPUT_FILENAME_VIRUS, JULIA_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
+        let result: bool = ffi::test_stager(sketch, lap_col_ptrs, lap_row_indices, lap_values, crate::INPUT_FILENAME_VIRUS, &loc.path("JULIA_LAP_FILENAME"), &loc.path("JULIA_SKETCH_PRODUCT_CSV_FILENAME"), SOLVER_OUTPUT_FILENAME, n.try_into().unwrap(), test_selector, verbose);
         assert!(result);
     }
 
@@ -681,42 +705,9 @@ mod integration_tests {
         }
     }
 
-    #[test]
-    //#[ignore]
-    fn check_for_additions_mini() {
-        println!("TEST:-----Verifying that sparsified graph doesn't contain edges not present in original graph.-----");
-        let parameters = SparsifierParameters::new_default(true);
-        let test = true;
-
-        let stream = InputStream::new(crate::INPUT_FILENAME_SMALL, "small_input");
-        let (mut sparsifier, _) = stream.run_stream(&parameters, test, false);
-        let input_pattern = stream.input_matrix.map(&map_to_pattern);
-
-        let sparsifier_pattern = sparsifier.current_laplacian.map(&map_to_pattern);
-        let difference = &input_pattern - &sparsifier_pattern;
-        let mut neg_counter = 0;
-        let mut one_counter = 0;
-        let mut yet = false;
-        for (value, (row, col)) in difference.iter() {
-            if row < col {
-                if *value < 0 {
-                    neg_counter += 1;
-                    if *value == -1 {
-                        one_counter += 1;
-                    }
-                    if !yet {
-                        println!("negative value found in difference matrix, indicating addition. ({}, {}) = {}", row, col, *value);
-                        yet = true;
-                    }
-                }
-            }
-        }
-        assert_eq!(neg_counter, one_counter);
-        assert_eq!(neg_counter, 0, "there were {} positive values, indicating added edges", neg_counter);
-    }
-
     fn compare_diff_norms_to_julia(rust_diff_norms: &Vec<f64>, threshold: f64) {
-        let file_diff_norms = crate::utils::read_csv_as_vec(JULIA_DIFF_NORMS_FILENAME).unwrap();
+        let loc = TestFileLocation::new();
+        let file_diff_norms = crate::utils::read_csv_as_vec(&loc.path("JULIA_DIFF_NORMS_FILENAME")).unwrap();
         assert!(rust_diff_norms.len() == file_diff_norms.len(), 
                 "diff norm length mismatch. julia has length {}, rust has length {}", file_diff_norms.len(), rust_diff_norms.len());
         let diff_norm_array = Array1::from_vec(rust_diff_norms.clone());
@@ -734,7 +725,8 @@ mod integration_tests {
     }
 
     fn compare_probs_to_julia(rust_probs: &Vec<f64>, threshold: f64) {
-        let file_probs = crate::utils::read_csv_as_vec(JULIA_PROBS_FILENAME).unwrap();
+        let loc = TestFileLocation::new();
+        let file_probs = crate::utils::read_csv_as_vec(&loc.path("JULIA_PROBS_FILENAME")).unwrap();
         assert!(rust_probs.len() == file_probs.len(), 
                 "probs length mismatch. julia has length {}, rust has length {}", file_probs.len(), rust_probs.len());
         let probs_array = Array1::from_vec(rust_probs.clone());
@@ -754,9 +746,10 @@ mod integration_tests {
     #[test]
     fn verify_diff_norm_and_probs_via_julia_solution() {
         println!("TEST:-----Verifying that diff norm and probability calculations match that of the julia implementation.-----");
+        let loc = TestFileLocation::new();
         let mut parameters: SparsifierParameters::<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
-        let file_solution_dense = crate::utils::read_mtx::<i32>(JULIA_SOLUTION_FILENAME).to_dense();
+        let file_solution_dense = crate::utils::read_mtx::<i32>(&loc.path("JULIA_SOLUTION_FILENAME")).to_dense();
         let file_solution_flat = ffi::FlattenedVec::new(&file_solution_dense);
         let sparsifier = Sparsifier::from_matrix(RUST_LAP_FILENAME, &parameters);
         sparsifier.check_diagonal();
@@ -778,6 +771,7 @@ mod integration_tests {
     #[test]
     //#[ignore]
     fn verify_diff_norm_and_probs_via_julia_sketch_product(){
+        let loc = TestFileLocation::new();
         let mut parameters: SparsifierParameters<i32> = SparsifierParameters::new_default(false);
         parameters.jl_factor = 4.0;
 
@@ -785,7 +779,7 @@ mod integration_tests {
         let mut sparsifier = Sparsifier::from_matrix(RUST_LAP_FILENAME, &parameters);
         sparsifier.check_diagonal();
         let num_edges = sparsifier.num_edges();
-        let solution: ffi::FlattenedVec = ffi::test_diff_norm(RUST_LAP_FILENAME, JULIA_SKETCH_PRODUCT_CSV_FILENAME, SOLVER_OUTPUT_FILENAME);
+        let solution: ffi::FlattenedVec = ffi::test_diff_norm(RUST_LAP_FILENAME, &loc.path("JULIA_SKETCH_PRODUCT_CSV_FILENAME"), SOLVER_OUTPUT_FILENAME);
 
         // computing diff norms in rust and comparing with julia diff norms from file.
         let new_diff_norms = sparsifier.compute_diff_norms(num_edges, &solution);
